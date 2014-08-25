@@ -1,0 +1,285 @@
+$
+Alaska
+North America
+Northwest Territory
+Alberta
+Kamchatka
+$
+Alberta
+North America
+Alaska
+NorthwestTerritory
+Ontario
+Western United States
+$
+Central America
+North America
+Western United States
+Eastern United States
+Venezuela
+$
+Eastern United States
+North America
+Western United States
+Central America
+Ontario
+Quebec
+$
+Greenland
+North America
+Northwest Territory
+Iceland
+Ontario
+Quebec
+$
+Northwest Territory
+North America
+Alaska
+Ontario
+Alberta
+Greenland
+$
+Ontario
+North America
+Quebec
+Greenland
+Northwest Territory
+Alberta
+Eastern United States
+$
+Quebec
+North America
+Ontario
+Eastern United States
+Greenland
+$
+Western United States
+North America
+Eastern United States
+Central America
+Alberta
+Ontario
+$
+Iceland
+Europe
+Greenland
+Great Britain
+Scandinavia
+$
+Great Britain
+Europe
+Iceland
+Scandinavia
+Western Europe
+Northern Europe
+$
+Scandinavia
+Europe
+Iceland
+Great Britain
+Northern Europe
+Ukraine
+$
+Northern Europe
+Europe
+Great Britain
+Scandinavia
+Ukraine
+Southern Europe
+Western Europe
+$
+Western Europe
+Europe
+Great Britain
+Southern Europe
+Northern Europe
+North Africa
+$
+Southern Europe
+Europe
+Western Europe
+Ukraine
+Northern Europe
+Egypt
+North Africa
+$
+Ukraine
+Europe
+Scandinavia
+Northern Europe
+Southern Europe
+Middle East
+Ural
+Afghanistan
+$
+Venezuela
+South America
+Peru
+Central America
+Brazil
+$
+Brazil
+South America
+Venezuela
+Peru
+Argentina
+North Africa
+$
+Argentina
+South America
+Brazil
+Peru
+$
+Peru
+South America
+Brazil
+Argentina
+Venezuela
+$
+North Africa
+Africa
+Egypt
+Brazil
+Western Europe
+Southern Europe
+East Africa
+Congo
+$
+Egypt
+Africa
+North Africa
+East Africa
+Middle East
+$
+East Africa
+Africa
+Egypt
+Congo
+Middle East
+Madagascar
+South Africa
+North Africa
+$
+Congo
+Africa
+North Africa
+South Africa
+East Africa
+$
+Madagascar
+Africa
+South Africa
+East Africa
+$
+South Africa
+Africa
+Madagascar
+Congo
+East Africa
+$
+Indonesia
+Australia
+Western Australia
+New Guinea
+Siam
+$
+New Guinea
+Australia
+Eastern Australia
+Indonesia
+$
+Western Australia
+Australia
+Eastern Australia
+Indonesia
+$
+Eastern Australia
+Australia
+Western Australia
+New Guinea
+$
+Ural
+Asia
+Ukraine
+Siberia
+China
+Afghanistan
+$
+Afghanistan
+Asia
+Ukraine
+Ural
+Middle East
+China
+India
+$
+Middle East
+Asia
+Ukraine
+Afghanistan
+Egypt
+East Africa
+India
+$
+India
+Asia
+Afghanistan
+Middle East
+Siam
+China
+$
+Siam
+Asia
+China
+India
+Indonesia
+$
+China
+Asia
+Siam
+India
+Afghanistan
+Ural
+Siberia
+Mongolia
+$
+Siberia
+Asia
+Ural
+China
+Yakutsk
+Irkutsk
+Mongolia
+$
+Yakutsk
+Asia
+Siberia
+Irkutsk
+Kamchatka
+$
+Irkutsk
+Asia
+Yakutsk
+Siberia
+Mongolia
+Kamchatka
+$
+Mongolia
+Asia
+China
+Japan
+Irkutsk
+Kamchatka
+$
+Japan
+Asia
+Mongolia
+Kamchatka
+$
+Kamchatka
+Asia
+Alaska
+Japan
+Mongolia
+Irkutsk
+Yakutsk
