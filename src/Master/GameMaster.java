@@ -1,3 +1,4 @@
+package Master;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,8 +30,8 @@ import Util.RollOutcome;
 
 //TODO: Implement Master Credentials to prevent improper alteration of objects.
 public class GameMaster {
-	private static final String LOGFILE = "C:/Projects/Risk/src/Util/LOG.txt";
-	private static final String STATSFILE = "C:/Projects/Risk/src/Util/STATS.txt";
+	private static final String LOGFILE = "LOG.txt";
+	private static final String STATSFILE = "STATS.txt";
 	private RiskMap map;
 	private Deque<Card> deck;
 	private List<String> players;
@@ -624,7 +625,7 @@ public class GameMaster {
 	
 	public static void main(String[] args) throws IOException {
 		try {
-			GameMaster game = new GameMaster("C:/Projects/Risk/src/Util/Countries.txt", null);
+			GameMaster game = new GameMaster("Countries.txt", null);
 			game.begin();
 		}
 		catch (IOException e) {

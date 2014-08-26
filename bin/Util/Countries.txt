@@ -8,7 +8,7 @@ $
 Alberta
 North America
 Alaska
-NorthwestTerritory
+Northwest Territory
 Ontario
 Western United States
 $
@@ -46,6 +46,7 @@ Greenland
 Northwest Territory
 Alberta
 Eastern United States
+Western United States
 $
 Quebec
 North America
@@ -150,6 +151,7 @@ Africa
 North Africa
 East Africa
 Middle East
+Southern Europe
 $
 East Africa
 Africa
@@ -270,6 +272,7 @@ China
 Japan
 Irkutsk
 Kamchatka
+Siberia
 $
 Japan
 Asia
