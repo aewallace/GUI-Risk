@@ -32,29 +32,38 @@ import Util.RollOutcome;
 public class GameMaster {
 	private static final String LOGFILE = "LOG.txt";
 	private static final String STATSFILE = "STATS.txt";
+	private static final boolean LOGGING_OFF = false;
+	private static final boolean LOGGING_ON = true;
 	private RiskMap map;
 	private Deque<Card> deck;
 	private List<String> players;
 	private Map<String, Player> playerMap;
 	private Map<String, Collection<Card>> playerCardMap;
 	
+	private static RiskMap starterMap = null;
+	
 	private FileWriter log, stats;
 	private List<String> allPlayers;
 	private int round, turnCount;
 	
-	public GameMaster(String mapFile, String playerFile) throws IOException {
+	public GameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
 		this.round = 0;
 		this.turnCount = 0;
-		this.log = new FileWriter(LOGFILE);
-		this.stats = new FileWriter(STATSFILE);
+		if (logSwitch == LOGGING_ON) {
+			this.log = new FileWriter(LOGFILE);
+			this.stats = new FileWriter(STATSFILE);
+		}
 		writeLogLn("Loading map from " + mapFile + "...");
-		this.map = new RiskMap(mapFile);
+		if (starterMap == null) {
+			starterMap = new RiskMap(mapFile);
+		}
+		this.map = starterMap.getCopy();
 		loadDeck();
 		loadPlayers(playerFile);
 		allocateCountries();
 	}
 	
-	public void begin() {
+	public String begin() {
 		if (initializeForces()) {
 			//play round-robin until there is only one player left
 			int turn = 0;
@@ -86,12 +95,14 @@ public class GameMaster {
 			writeLogLn(this.players.get(0) + " is the victor!");
 		}
 		try {
-			log.close();
-			stats.close();
+			if (this.log != null && this.stats != null) {
+				log.close();
+				stats.close();
+			}
 		}
 		catch (IOException e) {
-			return;
 		}
+		return this.players.get(0);
 	}
 	
 	private boolean initializeForces() {
@@ -107,7 +118,7 @@ public class GameMaster {
 			attempts = 0;
 			while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 				attempts++;
-				reinforcements = RiskConstants.INIT_ARMIES;//should eventually be calculated from this.players.size()
+				reinforcements = RiskConstants.INIT_ARMIES / this.players.size();
 				ReinforcementResponse rsp = tryInitialAllocation(player, reinforcements);
 				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, player.getName(), reinforcements)) {
 					Collection<String> playerCountries = RiskUtils.getPlayerCountries(this.map, player.getName());
@@ -172,7 +183,9 @@ public class GameMaster {
 			AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 			if (atkRsp != null) {
 				if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
-					writeLogLn(currentPlayer.getName() + " is attacking " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + "!");
+					writeLogLn(currentPlayer.getName() + " is attacking "
+							+ atkRsp.getDfdCountry() + "(" + this.map.getCountry(atkRsp.getDfdCountry()).getNumArmies()
+							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountry(atkRsp.getAtkCountry()).getNumArmies() + ")!");
 					attempts = 0;
 					Player defender = getOwnerObject(atkRsp.getDfdCountry());
 					DefendResponse dfdRsp = null;
@@ -216,6 +229,7 @@ public class GameMaster {
 		RollOutcome result = DiceRoller.roll(atk.getNumDice(), dfd.getNumDice());
 		this.map.getCountries().get(atk.getAtkCountry()).addArmies(-1 * result.getAtkLosses());
 		this.map.getCountries().get(atk.getDfdCountry()).addArmies(-1 * result.getDfdLosses());
+		writeLogLn("\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
 		
 	}
 	
@@ -277,7 +291,7 @@ public class GameMaster {
 		}
 		catch (PlayerEliminatedException defenderException) {
 			//this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call.
-			if (allowReinforce) {
+			if (allowReinforce && this.players.size() > 1) {
 				reinforce(attacker, false);//note that if the current player fails to reinforce, the player can be eliminated here and an exception thrown back up to begin()
 			}
 		}
@@ -597,36 +611,48 @@ public class GameMaster {
 	}
 	
 	private void writeLogLn(String line) {
-		try {
-			this.log.write(line + "\r\n");
-			this.log.flush();
-		}
-		catch (IOException e) {
-			return;
+		if (this.log != null) {
+			try {
+				this.log.write(line + "\r\n");
+				this.log.flush();
+			}
+			catch (IOException e) {
+			}
 		}
 	}
 	
 	private void writeStatsLn() {
-		try {
-			stats.write(this.turnCount + " " + this.round + " ");
-			for (String playerName : this.allPlayers) {
-				//count player's countries
-				stats.write(RiskUtils.getPlayerCountries(this.map, playerName).size() + " ");
-				//count player's armies
-				stats.write(RiskUtils.countPlayerArmies(this.map, playerName) + " ");
+		if (this.stats != null)
+			try {
+				stats.write(this.turnCount + " " + this.round + " ");
+				for (String playerName : this.allPlayers) {
+					//count player's countries
+					stats.write(RiskUtils.getPlayerCountries(this.map, playerName).size() + " ");
+					//count player's armies
+					stats.write(RiskUtils.countPlayerArmies(this.map, playerName) + " ");
+				}
+				stats.write("\r\n");
+				this.stats.flush();
 			}
-			stats.write("\r\n");
-			this.stats.flush();
-		}
-		catch (IOException e) {
-			return;
-		}
+			catch (IOException e) {
+			}
 	}
 	
 	public static void main(String[] args) throws IOException {
 		try {
-			GameMaster game = new GameMaster("Countries.txt", null);
-			game.begin();
+			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
+			int numGames = 5;
+			for (int i = 0; i < numGames; i++) {
+				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
+				String victor = game.begin();
+				if (!winLog.containsKey(victor)) {
+					winLog.put(victor, 0);
+				}
+				winLog.put(victor, winLog.get(victor) + 1);
+			}
+			for (Map.Entry<String, Integer> entry : winLog.entrySet()) {
+				System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / numGames + "%");
+			}
 		}
 		catch (IOException e) {
 			throw e;

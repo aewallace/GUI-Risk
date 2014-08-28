@@ -13,7 +13,7 @@ public class RiskConstants {
 	public static final int MAX_ATK_DICE = 3;
 	public static final int MAX_DFD_DICE = 2;
 	
-	public static final int INIT_ARMIES = 30;//should really be a factor that scales from # of players
+	public static final int INIT_ARMIES = 120;
 	public static final int MIN_REINFORCEMENTS = 3;
 	public static final int COUNTRY_ARMY_DIVISOR = 3;
 	public static final int BONUS_COUNTRY_ARMIES = 2;
