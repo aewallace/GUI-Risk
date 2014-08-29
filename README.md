@@ -27,5 +27,6 @@ All relevant constants are stored in the RiskConstants class.
 There are some handy static methods in the RiskUtils class that may aid in completing some common tasks within the Player implementation.
 There is an example Player class, DefaultPlayer, which uses simple logic and provides a minimalistic working example which can be extended, if desired.
 After each event in the game, a line is written out to LOG.txt, which contains a synopsis of the game.
+If you write a good helper method (ex: a method that returns a list of boundary countries for a given player), make it as robust as possible, and add it into RiskUtils for everyone to use! This way, different Player implementations can be separated by the logic they use, and not simply by who felt like writing the most code.
 
 Feel free to clone the repo, write and test your own Players, and send them in (Pull Requests welcome!) to be pitted against others! You can always look at the other Player implementations, but it's highly recommended that you implement your own ideas first!
