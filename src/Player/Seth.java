@@ -2,11 +2,13 @@ package Player;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 import Map.Country;
 import Map.RiskMap;
 import Response.AttackResponse;
 import Response.CardTurnInResponse;
+import Response.FortifyResponse;
 import Response.ReinforcementResponse;
 import Util.Card;
 import Util.RiskConstants;
@@ -105,9 +107,6 @@ public class Seth extends DefaultPlayer {
 			if (currentCountry.getNumArmies() > 1) {
 				for (Country neighbor : currentCountry.getNeighbors()) {
 					if (!neighbor.getOwner().equals(this.name)) {
-						if (dfdCountry == null) {
-							dfdCountry = neighbor;
-						}
 						if (params.useHighestStrengthDiff) {
 							int newStrDiff = currentCountry.getNumArmies() - neighbor.getNumArmies();
 							if (newStrDiff > bestStrDiff) {
@@ -135,5 +134,50 @@ public class Seth extends DefaultPlayer {
 		else {
 			return null;
 		}
+	}
+	
+
+	
+	/**
+	 * Find the interior country which has the most armies to spare, and transfer all extra armies to
+	 * the weakest exterior country that is connected to it.
+	 * Interior refers to a country surrounded by only friendly neighbors, and an exterior country
+	 * has at least one enemy neighbor.
+	 */
+	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
+		FortifyResponse rsp = new FortifyResponse();
+		Collection<Set<String>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
+		Country strongestFrom = null, weakestTo = null;
+		for (Set<String> connectedSet : allConnectedSets) {
+			Collection<String> interiorCountries = RiskUtils.selectCountriesByBorderStatus(map, this.name, connectedSet, true);
+			Collection<String> exteriorCountries = RiskUtils.selectCountriesByBorderStatus(map, this.name, connectedSet, false);
+			Country interiorCountry = null, exteriorCountry = null;
+			for (String countryName : interiorCountries) {
+				if (interiorCountry == null && map.getCountry(countryName).getNumArmies() > 1
+					|| map.getCountry(countryName).getNumArmies() > interiorCountry.getNumArmies()) {
+					interiorCountry = map.getCountry(countryName);
+				}
+			}
+			for (String countryName : exteriorCountries) {
+				if (exteriorCountry == null
+					|| map.getCountry(countryName).getNumArmies() > exteriorCountry.getNumArmies()) {
+					exteriorCountry = map.getCountry(countryName);
+				}
+			}
+			if (strongestFrom == null && weakestTo == null
+				|| (interiorCountry != null && exteriorCountry != null
+				&& interiorCountry.getNumArmies() - exteriorCountry.getNumArmies()
+				> strongestFrom.getNumArmies() - weakestTo.getNumArmies())) {
+				strongestFrom = interiorCountry;
+				weakestTo = exteriorCountry;
+			}
+		}
+		if (strongestFrom != null && weakestTo != null) {
+			rsp.setFromCountry(strongestFrom.getName());
+			rsp.setToCountry(weakestTo.getName());
+			rsp.setNumArmies(strongestFrom.getNumArmies());
+			return rsp;
+		}
+		return null;
 	}
 }

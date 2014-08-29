@@ -641,7 +641,7 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 5;
+			int numGames = 1;
 			for (int i = 0; i < numGames; i++) {
 				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
 				String victor = game.begin();
