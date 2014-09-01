@@ -1,0 +1,42 @@
+78 188 Alaska
+181 200 Northwest Territory
+225 273 Alberta
+345 289 Ontario
+469 292 Quebec
+577 107 Greenland
+232 361 Western US
+334 407 Eastern US
+228 488 Central America
+312 609 Venezuela
+325 733 Peru
+439 692 Brazil
+333 876 Argentina
+647 215 Iceland
+735 201 Scandinavia
+627 318 Great Britain
+709 345 Northern Europe
+606 460 Western Europe
+718 408 Southern Europe
+887 266 Ukraine
+628 618 North Africa
+772 547 Egypt
+759 743 Congo
+829 683 East Africa
+737 889 South Africa
+878 876 Madagascar
+877 518 Middle East
+958 364 Afghanistan
+1034 244 Ural
+1070 545 India
+1162 449 China
+1192 570 Siam
+1266 367 Mongolia
+1122 223 Siberia
+1239 281 Irkutsk
+1283 179 Yakutsk
+1432 196 Kamchatka
+1376 392 Japan
+1205 705 Indonesia
+1375 711 New Guinea
+1167 888 Western Australia
+1311 836 Eastern Australia

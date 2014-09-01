@@ -10,17 +10,17 @@ North America
 Alaska
 Northwest Territory
 Ontario
-Western United States
+Western US
 $
 Central America
 North America
-Western United States
-Eastern United States
+Western US
+Eastern US
 Venezuela
 $
-Eastern United States
+Eastern US
 North America
-Western United States
+Western US
 Central America
 Ontario
 Quebec
@@ -45,18 +45,18 @@ Quebec
 Greenland
 Northwest Territory
 Alberta
-Eastern United States
-Western United States
+Eastern US
+Western US
 $
 Quebec
 North America
 Ontario
-Eastern United States
+Eastern US
 Greenland
 $
-Western United States
+Western US
 North America
-Eastern United States
+Eastern US
 Central America
 Alberta
 Ontario
