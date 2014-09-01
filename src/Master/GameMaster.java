@@ -32,6 +32,7 @@ import Util.RollOutcome;
 public class GameMaster {
 	private static final String LOGFILE = "LOG.txt";
 	private static final String STATSFILE = "STATS.txt";
+	private static final String EVENT_DELIM = "...";
 	private static final boolean LOGGING_OFF = false;
 	private static final boolean LOGGING_ON = true;
 	private RiskMap map;
@@ -59,7 +60,9 @@ public class GameMaster {
 		}
 		this.map = starterMap.getCopy();
 		loadDeck();
-		loadPlayers(playerFile);
+		if (!loadPlayers(playerFile)) {
+			System.out.println("Invalid number of players. 2-6 Players allowed.");
+		}
 		allocateCountries();
 	}
 	
@@ -120,10 +123,9 @@ public class GameMaster {
 				attempts++;
 				reinforcements = RiskConstants.INIT_ARMIES / this.players.size();
 				ReinforcementResponse rsp = tryInitialAllocation(player, reinforcements);
-				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, player.getName(), reinforcements)) {
-					Collection<String> playerCountries = RiskUtils.getPlayerCountries(this.map, player.getName());
-					validateInitialAllocation(rsp.getAllocation(), playerCountries, reinforcements);
-					allocateArmies(rsp.getAllocation());
+				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, player.getName(), reinforcements)
+						&& validateInitialAllocation(rsp.getAllocation(), player.getName(), reinforcements)) {
+					allocateArmies(player.getName(), rsp.getAllocation(), reinforcements);
 					playerIndex++;
 					writeLogLn("Troops successfully allocated for " + player.getName() + "...");
 				}
@@ -165,7 +167,11 @@ public class GameMaster {
 			if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
 				for (Map.Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
 					this.map.getCountries().get(entry.getKey()).addArmies(entry.getValue());
+					writeLogLn(entry.getValue() + " " + entry.getKey());
 				}
+			}
+			else {
+				rsp = rsp;
 			}
 		}
 		if (!valid) {
@@ -230,7 +236,6 @@ public class GameMaster {
 		this.map.getCountries().get(atk.getAtkCountry()).addArmies(-1 * result.getAtkLosses());
 		this.map.getCountries().get(atk.getDfdCountry()).addArmies(-1 * result.getDfdLosses());
 		writeLogLn("\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
-		
 	}
 	
 	private boolean checkForTakeover(Player attacker, AttackResponse atkRsp, boolean hasGottenCard) throws PlayerEliminatedException {
@@ -266,7 +271,7 @@ public class GameMaster {
 			attempts++;
 			AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
 			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map.getCountries().get(atkRsp.getAtkCountry()).getNumArmies())) {
-				writeLogLn(attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + ".");
+				writeLogLn(attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
 				this.map.getCountries().get(atkRsp.getAtkCountry()).addArmies(-1 * advRsp.getNumArmies());
 				this.map.getCountries().get(atkRsp.getDfdCountry()).addArmies(advRsp.getNumArmies());
 			}
@@ -393,18 +398,21 @@ public class GameMaster {
 		}
 	}
 	
-	private boolean validateInitialAllocation(Map<String, Integer> allocation, Collection<String> playerCountries, int armies) {
+	private boolean validateInitialAllocation(Map<String, Integer> allocation, String playerName, int armies) {
 		Map<String, Boolean> allocatedCheck = new HashMap<String, Boolean>();
-		for (String country : playerCountries) {
+		for (String country : RiskUtils.getPlayerCountries(this.map, playerName)) {
 			allocatedCheck.put(country, false);
 		}
-		for (String country : allocation.keySet()) {
-			if (!playerCountries.contains(country)) {
+		for (String countryName : allocation.keySet()) {
+			if (!allocatedCheck.containsKey(countryName)) {
+				return false;
+			}
+			else if (allocation.get(countryName) < 1) {
 				return false;
 			}
 			else {
-				allocatedCheck.put(country, true);
-				armies -= allocation.get(country);
+				allocatedCheck.put(countryName, true);
+				armies -= allocation.get(countryName);
 			}
 		}
 		for (Boolean check : allocatedCheck.values()) {
@@ -415,10 +423,13 @@ public class GameMaster {
 		return armies == 0;
 	}
 	
-	private void allocateArmies(Map<String, Integer> allocation) {
+	private void allocateArmies(String playerName, Map<String, Integer> allocation, int reinforcements) {
+		writeLogLn(playerName + " reinforcing with " + reinforcements + " armies.");
 		for (Map.Entry<String, Integer> entry : allocation.entrySet()) {
 			this.map.getCountries().get(entry.getKey()).setArmies(entry.getValue());
+			writeLogLn(entry.getValue() + " " + entry.getKey());
 		}
+		writeLogLn(EVENT_DELIM);
 	}
 	
 	private int getCardTurnIn(Player currentPlayer, Map<String, Integer> oppCards) throws PlayerEliminatedException {
@@ -515,25 +526,17 @@ public class GameMaster {
 		Random rand = new Random();
 		int j;
 		Card temp;
-		for (int i = 0; i < cardList.size(); i++) {
+		for (int i = 0; i < 2 * cardList.size(); i++) {
 			j = rand.nextInt(cardList.size());
-			temp = cardList.get(i);
-			cardList.set(i, cardList.get(j));
+			temp = cardList.get(i % cardList.size());
+			cardList.set(i % cardList.size(), cardList.get(j));
 			cardList.set(j, temp);
 		}
 	}
 	
-	private void loadPlayers(String playerFile) {
+	private boolean loadPlayers(String playerFile) {
 		writeLogLn("Loading players...");
 		this.playerMap = new HashMap<String, Player>();
-		/*loop {
-			if this.playerMap.containsKey(player.getName()) {
-				throw new IllegalArgumentException("No two players can )have the same name: " + player.getName());
-			}
-			else {
-				this.players.add(player);
-			}
-		}*/
 		this.allPlayers = new ArrayList<String>();
 		this.playerMap.put("Player 1", new DefaultPlayer("Player 1"));
 		this.allPlayers.add("Player 1");
@@ -549,16 +552,27 @@ public class GameMaster {
 		for (Player player : this.playerMap.values()) {
 			this.playerCardMap.put(player.getName(), new ArrayList<Card>());
 		}
+		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
+			return false;
+		}
+		else {
+			writeLogLn("Players:");
+			for (String playerName : this.players) {
+				writeLogLn(playerName);
+			}
+			writeLogLn(EVENT_DELIM);
+			return true;
+		}
 	}
 	
 	public static void shufflePlayers(List<String> playerList) {
 		Random rand = new Random();
 		int j;
 		String temp;
-		for (int i = 0; i < playerList.size(); i++) {
+		for (int i = 0; i < 2 * playerList.size(); i++) {
 			j = rand.nextInt(playerList.size());
-			temp = playerList.get(i);
-			playerList.set(i, playerList.get(j));
+			temp = playerList.get(i % playerList.size());
+			playerList.set(i % playerList.size(), playerList.get(j));
 			playerList.set(j, temp);
 		}
 	}
@@ -643,7 +657,8 @@ public class GameMaster {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
 			int numGames = 1;
 			for (int i = 0; i < numGames; i++) {
-				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
+				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_ON);
+				System.out.print(i + " - ");
 				String victor = game.begin();
 				if (!winLog.containsKey(victor)) {
 					winLog.put(victor, 0);

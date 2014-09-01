@@ -32,9 +32,6 @@ public class ReinforcementResponse {
 		}
 	}
 	
-	//returns number of armies that this action takes from the player's pool of available reinforcements
-	//if they had already allocated 10 armies to X, but now try to allocate 15 armies to X, it will only]
-	//return 5, because the player's pool was already missing 10.
 	public int reinforce(String country, int numArmies) {
 		if (country != null) {
 			if (allocation.containsKey(country)) {
@@ -76,6 +73,9 @@ public class ReinforcementResponse {
 			int total = 0;
 			for (Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
 				if (!map.getCountries().get(entry.getKey()).getOwner().equals(playerName) || entry.getValue() < 0) {
+					return false;
+				}
+				else if (entry.getValue() < 0) {
 					return false;
 				}
 				else {

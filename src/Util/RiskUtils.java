@@ -39,6 +39,16 @@ public class RiskUtils {
 		return playerCountries;
 	}
 	
+	public static Collection<String> getPlayerContinents(RiskMap map, String playerName) {
+		Collection<String> playerContinents = new ArrayList<String>();
+		for (Continent continent : map.getContinents().values()) {
+			if (playerControlsContinent(continent, playerName)) {
+				playerContinents.add(continent.getName());
+			}
+		}
+		return playerContinents;
+	}
+	
 	public static boolean playerControlsContinent(Continent continent, String playerName) {
 		for (Country country : continent.getCountries()) {
 			if (!playerName.equals(country.getOwner())) {
@@ -119,7 +129,7 @@ public class RiskUtils {
 		return connectedSet;
 	}
 	
-	public static Collection<String> selectCountriesByBorderStatus(RiskMap map, String playerName, Collection<String> allCountries, boolean selectInterior) {
+	public static Collection<String> filterCountriesByBorderStatus(RiskMap map, String playerName, Collection<String> allCountries, boolean selectInterior) {
 		Collection<String> selectedCountries = new ArrayList<String>();
 		
 		for (String countryName : allCountries) {
