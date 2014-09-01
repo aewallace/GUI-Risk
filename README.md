@@ -29,4 +29,9 @@ There is an example Player class, DefaultPlayer, which uses simple logic and pro
 After each event in the game, a line is written out to LOG.txt, which contains a synopsis of the game.
 If you write a good helper method (ex: a method that returns a list of boundary countries for a given player), make it as robust as possible, and add it into RiskUtils for everyone to use! This way, different Player implementations can be separated by the logic they use, and not simply by who felt like writing the most code.
 
+##Log Player (New!)
+The new LogPlayer class allows developers to replay the events of the most recently logged game in a graphical application. This allows for much more efficient and intuitive refinement of your bot. Sure, the UI isn't going to win any awards, but it was thrown together in a weekend (ok, fine, a 3-day weekend).
+
+One important note, this app is built on top of JavaFX, which comes as part of the JDK, so it should simply be a matter of adding that library to your project's classpath, and you'll be good to go!
+
 Feel free to clone the repo, write and test your own Players, and send them in (Pull Requests welcome!) to be pitted against others! You can always look at the other Player implementations, but it's highly recommended that you implement your own ideas first!
