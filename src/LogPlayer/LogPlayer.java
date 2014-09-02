@@ -19,7 +19,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
- 
+
 public class LogPlayer extends Application {
  
     private static final int DEFAULT_APP_WIDTH = 1600;

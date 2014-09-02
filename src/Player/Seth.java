@@ -1,6 +1,7 @@
 package Player;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -67,6 +68,21 @@ public class Seth extends DefaultPlayer {
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		Collection<String> myContinents = RiskUtils.getPlayerContinents(map, this.name);
+		Map<String, Integer> continentAttainability = new HashMap<String, Integer>();
+		boolean hopeless = true;
+		int best = -9999;
+		String targetContinent = null;
+		for (String continentName : map.getContinents().keySet()) {
+			int score = getContinentAttainability(map, continentName, 0);
+			continentAttainability.put(continentName, score);
+			if (score >= 0) {
+				hopeless = false;
+			}
+			if (score > best) {
+				best = score;
+				targetContinent = continentName;
+			}
+		}
 		boolean beginReinforce = !myCountries.contains(this.lastCountryReinforced);
 		for (String continentName : myContinents) {
 			for (Country country : map.getContinent(continentName).getCountries()) {
@@ -92,18 +108,35 @@ public class Seth extends DefaultPlayer {
 				}
 			}
 		}
-		while (reinforcements > 0) {
-			for (String countryName : myCountries) {
-				if (beginReinforce && reinforcements > 0) {
-					for (Country neighbor : map.getCountry(countryName).getNeighbors()) {
-						if (!neighbor.getOwner().equals(this.name) && reinforcements > 0) {
-							reinforcements -= rsp.reinforce(countryName, 1);
-							this.lastCountryReinforced = countryName;
+		if (targetContinent != null) {
+			//if there is a target continent, double the reinforcements there
+			for (int continentRep = 0; continentRep < 2; continentRep++) {
+				for (Country currentCountry : map.getContinent(targetContinent).getCountries()) {
+					if (currentCountry.getOwner().equals(this.name)) {
+						for (Country neighbor : currentCountry.getNeighbors()) {
+							if (!neighbor.getOwner().equals(this.name) && reinforcements > 0) {
+								reinforcements -= rsp.reinforce(currentCountry.getName(), 1);
+							}
 						}
 					}
 				}
-				if (this.lastCountryReinforced.equals(countryName)) {
-					beginReinforce = true;
+			}
+		}
+		while (reinforcements > 0) {
+			for (String countryName : myCountries) {
+				Country currentCountry = map.getCountry(countryName);
+				if (hopeless || continentAttainability.get(currentCountry.getContinent()) >= 0) {
+					if (beginReinforce && reinforcements > 0) {
+						for (Country neighbor : currentCountry.getNeighbors()) {
+							if (!neighbor.getOwner().equals(this.name) && reinforcements > 0) {
+								reinforcements -= rsp.reinforce(countryName, 1);
+								this.lastCountryReinforced = countryName;
+							}
+						}
+					}
+					if (this.lastCountryReinforced.equals(countryName)) {
+						beginReinforce = true;
+					}
 				}
 			}
 			beginReinforce = true;
@@ -118,12 +151,12 @@ public class Seth extends DefaultPlayer {
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		boolean hasGottenCard = myCards.size() > this.lastCardCount;
 		if (hasGottenCard) {
-			this.lastCardCount = myCards.size();
+			this.lastCardCount = myCards.size() - 1;
 		}
 		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		AttackDecider decider = new AttackDecider(this.name);
 		decider.useHighestStrengthDiff = true;
-		decider.requirePositiveStrengthDiff = false;
+		decider.requirePositiveStrengthDiff = true;
 		decider.useTargetContinent = true;
 		decider.targetContinent = getTargetContinent(map, 0);
 		decider.attackSharedNeighborsFirst = true;
@@ -138,6 +171,7 @@ public class Seth extends DefaultPlayer {
 			return rsp;
 		}
 		else {
+			this.lastCardCount++;
 			return null;
 		}
 	}
@@ -179,7 +213,7 @@ public class Seth extends DefaultPlayer {
 		if (strongestFrom != null && weakestTo != null) {
 			rsp.setFromCountry(strongestFrom.getName());
 			rsp.setToCountry(weakestTo.getName());
-			rsp.setNumArmies(strongestFrom.getNumArmies());
+			rsp.setNumArmies(strongestFrom.getNumArmies() - 1);
 			return rsp;
 		}
 		return null;
@@ -326,6 +360,9 @@ class AttackDecider {
 				dice = RiskConstants.MAX_ATK_DICE;
 			}
 			rsp.setNumDice(dice);
+			//if (rsp.getAtkCountry().equals("Venezuela") && rsp.getDfdCountry().equals("Peru")) {
+			//	rsp = rsp;
+			//}
 			return rsp;
 		}
 		else {

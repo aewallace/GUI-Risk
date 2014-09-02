@@ -304,11 +304,12 @@ public class GameMaster {
 	
 	private void fortify(Player currentPlayer) {
 		int attempts = 0;
-		while (attempts < RiskConstants.MAX_ATTEMPTS) {
+		boolean valid = false;
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 			attempts++;
 			FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 			if (rsp != null) {
-				if (FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
+				if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
 					writeLogLn(currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
 					this.map.getCountries().get(rsp.getFromCountry()).addArmies(-1 * rsp.getNumArmies());
 					this.map.getCountries().get(rsp.getToCountry()).addArmies(rsp.getNumArmies());
@@ -523,7 +524,7 @@ public class GameMaster {
 	}
 	
 	public static void shuffleCards(List<Card> cardList) {
-		Random rand = new Random();
+		Random rand = new Random(0);
 		int j;
 		Card temp;
 		for (int i = 0; i < 2 * cardList.size(); i++) {
@@ -566,7 +567,7 @@ public class GameMaster {
 	}
 	
 	public static void shufflePlayers(List<String> playerList) {
-		Random rand = new Random();
+		Random rand = new Random(0);
 		int j;
 		String temp;
 		for (int i = 0; i < 2 * playerList.size(); i++) {
@@ -655,9 +656,9 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 1;
+			int numGames = 100;
 			for (int i = 0; i < numGames; i++) {
-				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_ON);
+				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
 				System.out.print(i + " - ");
 				String victor = game.begin();
 				if (!winLog.containsKey(victor)) {

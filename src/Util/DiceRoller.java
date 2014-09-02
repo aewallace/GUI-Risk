@@ -10,7 +10,7 @@ public class DiceRoller {
 		}
 		else {
 			if (rand == null) {
-				rand = new Random();
+				rand = new Random(0);
 			}
 			int[] atk = new int[atkDice];
 			int[] dfd = new int[dfdDice];
