@@ -42,6 +42,7 @@ public class GameMaster {
 	private Map<String, Collection<Card>> playerCardMap;
 	
 	private static RiskMap starterMap = null;
+	private static Random rand = new Random(0);
 	
 	private FileWriter log, stats;
 	private List<String> allPlayers;
@@ -177,6 +178,7 @@ public class GameMaster {
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
 		}
+		writeLogLn(EVENT_DELIM);
 	}
 	
 	private void attack(Player currentPlayer) throws PlayerEliminatedException {
@@ -523,8 +525,7 @@ public class GameMaster {
 		this.deck = new LinkedList<Card>(newDeck);
 	}
 	
-	public static void shuffleCards(List<Card> cardList) {
-		Random rand = new Random(0);
+	private void shuffleCards(List<Card> cardList) {
 		int j;
 		Card temp;
 		for (int i = 0; i < 2 * cardList.size(); i++) {
@@ -566,8 +567,7 @@ public class GameMaster {
 		}
 	}
 	
-	public static void shufflePlayers(List<String> playerList) {
-		Random rand = new Random(0);
+	private void shufflePlayers(List<String> playerList) {
 		int j;
 		String temp;
 		for (int i = 0; i < 2 * playerList.size(); i++) {
@@ -656,7 +656,7 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 100;
+			int numGames = 200;
 			for (int i = 0; i < numGames; i++) {
 				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
 				System.out.print(i + " - ");

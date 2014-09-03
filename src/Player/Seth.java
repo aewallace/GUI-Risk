@@ -50,6 +50,7 @@ public class Seth extends DefaultPlayer {
 	@Override
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired) {
 		if (turnInRequired) {
+			this.lastCardCount -= RiskConstants.NUM_CARD_TURN_IN;
 			return turnInCards(myCards);
 		}
 		else {
@@ -166,6 +167,7 @@ public class Seth extends DefaultPlayer {
 			return rsp;
 		}
 		else if (!hasGottenCard) {
+			decider.useTargetContinent = false;
 			decider.requirePositiveStrengthDiff = false;
 			rsp = decider.determineBattleground(map, myCountries);
 			return rsp;
@@ -193,19 +195,21 @@ public class Seth extends DefaultPlayer {
 			Country interiorCountry = null, exteriorCountry = null;
 			for (String countryName : interiorCountries) {
 				if (interiorCountry == null && map.getCountry(countryName).getNumArmies() > 1
-					|| map.getCountry(countryName).getNumArmies() > interiorCountry.getNumArmies()) {
+					|| interiorCountry != null
+					&& map.getCountry(countryName).getNumArmies() > interiorCountry.getNumArmies()) {
 					interiorCountry = map.getCountry(countryName);
 				}
 			}
 			for (String countryName : exteriorCountries) {
 				if (exteriorCountry == null
-					|| map.getCountry(countryName).getNumArmies() < exteriorCountry.getNumArmies()) {
+					|| exteriorCountry != null
+					&& map.getCountry(countryName).getNumArmies() < exteriorCountry.getNumArmies()) {
 					exteriorCountry = map.getCountry(countryName);
 				}
 			}
-			if (strongestFrom == null && weakestTo == null
-				|| (interiorCountry != null && exteriorCountry != null
-				&& interiorCountry.getNumArmies() > strongestFrom.getNumArmies())) {
+			if (interiorCountry != null && exteriorCountry != null
+				&& (strongestFrom == null && weakestTo == null
+				|| interiorCountry.getNumArmies() > strongestFrom.getNumArmies())) {
 				strongestFrom = interiorCountry;
 				weakestTo = exteriorCountry;
 			}
@@ -300,7 +304,7 @@ class AttackDecider {
 	public AttackResponse determineBattleground(RiskMap map, Collection<String> myCountries) {
 		AttackResponse rsp = new AttackResponse();
 		Country atkCountry = null, dfdCountry = null, sharedAtk = null, sharedDfd = null;
-		int bestStrDiff = -9999, bestSharedStrDiff = -9999;
+		int bestStrDiff = -9999, bestSharedStrDiff = -9999, bestSharedCount = 0, bestSharedEnemyCount = 9999;
 		for (String countryName : myCountries) {
 			Country currentCountry = map.getCountries().get(countryName);
 			if (currentCountry.getNumArmies() > 1) {
@@ -308,18 +312,23 @@ class AttackDecider {
 				for (Country neighbor : currentCountry.getNeighbors()) {
 					if (!neighbor.getOwner().equals(this.playerName)) {
 						//is an ENEMY country
-						boolean isSharedNeighbor = false;
+						int sharedNeighbors = 0, sharedEnemies = 0;;
 						if (this.attackSharedNeighborsFirst) {
 							for (Country nbrNeighbor : neighbor.getNeighbors()) {
 								if (nbrNeighbor.getOwner().equals(this.playerName) && !nbrNeighbor.equals(currentCountry)) {
-									isSharedNeighbor = true;
+									sharedNeighbors++;
+									sharedEnemies++;
+									if (this.useTargetContinent && nbrNeighbor.getContinent().equals(this.targetContinent)) {
+										sharedNeighbors++;
+									}
 								}
 							}
+							if (sharedNeighbors > bestSharedCount) {
+								bestSharedCount = sharedNeighbors;
+								bestSharedEnemyCount = sharedEnemies;
+							}
 						}
-						if (!this.useTargetContinent
-							|| currentCountry.getContinent().equals(this.targetContinent)
-							|| atkCountry == null
-							|| !atkCountry.getContinent().equals(this.targetContinent)) {
+						if (!this.useTargetContinent || neighbor.getContinent().equals(this.targetContinent)) {
 							int newStrDiff = currentCountry.getNumArmies() - neighbor.getNumArmies();
 							if (this.useHighestStrengthDiff) {
 								if (newStrDiff > bestStrDiff) {
@@ -329,7 +338,9 @@ class AttackDecider {
 										dfdCountry = neighbor;
 									}
 								}
-								if (isSharedNeighbor && newStrDiff > bestSharedStrDiff) {
+								if (sharedNeighbors == bestSharedCount
+									&& sharedEnemies <= bestSharedEnemyCount
+									&& newStrDiff > bestSharedStrDiff) {
 									if (!this.requirePositiveStrengthDiff || newStrDiff > 0) {
 										bestSharedStrDiff = newStrDiff;
 										sharedAtk = currentCountry;
@@ -342,13 +353,26 @@ class AttackDecider {
 								bestStrDiff = newStrDiff;
 								atkCountry = currentCountry;
 								dfdCountry = neighbor;
+								if (sharedNeighbors == bestSharedCount
+									&& sharedEnemies <= bestSharedEnemyCount
+									&& newStrDiff > bestSharedStrDiff) {
+									if (!this.requirePositiveStrengthDiff || newStrDiff > 0) {
+										bestSharedStrDiff = newStrDiff;
+										sharedAtk = currentCountry;
+										sharedDfd = neighbor;
+									}
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-		if (this.attackSharedNeighborsFirst && sharedAtk != null && sharedDfd != null) {
+		if (this.attackSharedNeighborsFirst
+			&& sharedAtk != null && sharedDfd != null
+			&& (!this.useTargetContinent
+				|| sharedDfd != null
+				&& sharedDfd.getContinent().equals(this.targetContinent))) {
 			atkCountry = sharedAtk;
 			dfdCountry = sharedDfd;
 		}
@@ -360,9 +384,9 @@ class AttackDecider {
 				dice = RiskConstants.MAX_ATK_DICE;
 			}
 			rsp.setNumDice(dice);
-			//if (rsp.getAtkCountry().equals("Venezuela") && rsp.getDfdCountry().equals("Peru")) {
-			//	rsp = rsp;
-			//}
+			if (rsp.getAtkCountry().equals("Ukraine") && rsp.getDfdCountry().equals("Northern Europe")) {
+				rsp = rsp;
+			}
 			return rsp;
 		}
 		else {

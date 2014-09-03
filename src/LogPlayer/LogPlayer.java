@@ -208,6 +208,7 @@ public class LogPlayer extends Application {
 							turn.setText(playerName + "'s Turn");
 							nextToken = log.nextLine();
 						}
+						nextToken = log.nextLine();
 					}
 				}
 				else if (nextToken.matches("Beginning Round .*!")) {
