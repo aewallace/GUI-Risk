@@ -209,9 +209,9 @@ public class DefaultPlayer implements Player {
 	/**
 	 * Advance all available armies.
 	 */
-	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountry, String toCountry, int min) {
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountryName, String toCountryName, int min) {
 		AdvanceResponse rsp = new AdvanceResponse();
-		rsp.setNumArmies(map.getCountries().get(fromCountry).getNumArmies() - 1);
+		rsp.setNumArmies(map.getCountries().get(fromCountryName).getNumArmies() - 1);
 		return rsp;
 	}
 	

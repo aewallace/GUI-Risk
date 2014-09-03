@@ -8,6 +8,7 @@ import java.util.Set;
 
 import Map.Country;
 import Map.RiskMap;
+import Response.AdvanceResponse;
 import Response.AttackResponse;
 import Response.CardTurnInResponse;
 import Response.FortifyResponse;
@@ -179,6 +180,38 @@ public class Seth extends DefaultPlayer {
 	}
 	
 	/**
+	 * Advance all available armies, unless the conquered country is on the target continent AND external.
+	 * In that case, leave a small portion.
+	 */
+	@Override
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountryName, String toCountryName, int min) {
+		AdvanceResponse rsp = new AdvanceResponse();
+		Country fromCountry = map.getCountry(fromCountryName);
+		Country toCountry = map.getCountry(toCountryName);
+		String targetContinent = getTargetContinent(map, 0);
+		int maxAdvance = fromCountry.getNumArmies() - 1;
+		int enemyNeighbors = 0;
+		for (Country neighbor : fromCountry.getNeighbors()) {
+			enemyNeighbors++;
+		}
+		if (enemyNeighbors > 0 && fromCountry.getContinent().equals(targetContinent)) {
+			if (maxAdvance >= 3 * enemyNeighbors) {
+				rsp.setNumArmies(maxAdvance - enemyNeighbors);
+			}
+			else if (maxAdvance >= 2 * enemyNeighbors) {
+				rsp.setNumArmies(maxAdvance - 1);
+			}
+			else {
+				rsp.setNumArmies(maxAdvance);
+			}
+		}
+		else {
+			rsp.setNumArmies(maxAdvance);
+		}
+		return rsp;
+	}
+	
+	/**
 	 * Find the interior country which has the most armies to spare, and transfer all extra armies to
 	 * the weakest exterior country that is connected to it.
 	 * Interior refers to a country surrounded by only friendly neighbors, and an exterior country
@@ -189,6 +222,7 @@ public class Seth extends DefaultPlayer {
 		FortifyResponse rsp = new FortifyResponse();
 		Collection<Set<String>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 		Country strongestFrom = null, weakestTo = null;
+		int nearbyEnemyStr = 0;
 		for (Set<String> connectedSet : allConnectedSets) {
 			Collection<String> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
 			Collection<String> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
@@ -201,10 +235,24 @@ public class Seth extends DefaultPlayer {
 				}
 			}
 			for (String countryName : exteriorCountries) {
+				Country currentCountry = map.getCountry(countryName);
 				if (exteriorCountry == null
 					|| exteriorCountry != null
-					&& map.getCountry(countryName).getNumArmies() < exteriorCountry.getNumArmies()) {
-					exteriorCountry = map.getCountry(countryName);
+					&& currentCountry.getNumArmies() <= exteriorCountry.getNumArmies()) {
+					if (exteriorCountry != null && currentCountry.getNumArmies() == exteriorCountry.getNumArmies()) {
+						int enemyStr = 0;
+						for (Country neighbor : currentCountry.getNeighbors()) {
+							if (!neighbor.getOwner().equals(this.name)) {
+								enemyStr += neighbor.getNumArmies();
+							}
+						}
+						if (enemyStr > nearbyEnemyStr) {
+							exteriorCountry = currentCountry;
+						}
+					}
+					else {
+						exteriorCountry = currentCountry;
+					}
 				}
 			}
 			if (interiorCountry != null && exteriorCountry != null

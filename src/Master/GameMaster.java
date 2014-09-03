@@ -43,6 +43,7 @@ public class GameMaster {
 	
 	private static RiskMap starterMap = null;
 	private static Random rand = new Random(0);
+	private static int allocationIdx = 0;
 	
 	private FileWriter log, stats;
 	private List<String> allPlayers;
@@ -64,7 +65,7 @@ public class GameMaster {
 		if (!loadPlayers(playerFile)) {
 			System.out.println("Invalid number of players. 2-6 Players allowed.");
 		}
-		allocateCountries();
+		allocateMap();
 	}
 	
 	public String begin() {
@@ -579,21 +580,34 @@ public class GameMaster {
 	}
 	
 	//only allocates unowned countries
-	private void allocateCountries() {
+	private void allocateUnownedCountries() {
 		if (this.players.size() > 0) {
-			writeLogLn("Allocating countries...");
+			writeLogLn("Re-allocating eliminated player's countries...");
 			Collection<Country> countries = this.map.getCountries().values();
-			int i = 0;
 			for (Country country : countries) {
 				if (country.getOwner() == null) {
-					country.setOwner(this.playerMap.get(this.players.get(i % this.players.size())).getName());
+					country.setOwner(this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					if (this.round > 0) {
 						//If these countries are being eliminated during a game,
 						//it is due to a player being eliminated by the Master,
 						//and so the re-allocated countries must be occupied.
 						country.setArmies(1);
 					}
-					i++;
+					allocationIdx++;
+				}
+			}
+		}
+	}
+	
+	//allocates ALL countries on map
+	private void allocateMap() {
+		if (this.players.size() > 0) {
+			writeLogLn("Allocating countries...");
+			for (Card card : this.deck) {
+				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
+					Country country = this.map.getCountry(card.getCountry());
+					country.setOwner(this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+					allocationIdx++;
 				}
 			}
 		}
@@ -620,7 +634,7 @@ public class GameMaster {
 			}
 			this.players.remove(loser.getName());
 			this.playerMap.remove(loser.getName());
-			allocateCountries();
+			allocateUnownedCountries();
 			throw new PlayerEliminatedException(loser.getName() + " Eliminated! " + reason);
 		}
 	}
@@ -656,7 +670,7 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 200;
+			int numGames = 100;
 			for (int i = 0; i < numGames; i++) {
 				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
 				System.out.print(i + " - ");
