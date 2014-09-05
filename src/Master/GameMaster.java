@@ -42,7 +42,7 @@ public class GameMaster {
 	private Map<String, Collection<Card>> playerCardMap;
 	
 	private static RiskMap starterMap = null;
-	private static Random rand = new Random(0);
+	private static Random rand = new Random(RiskConstants.SEED);
 	private static int allocationIdx = 0;
 	
 	private FileWriter log, stats;

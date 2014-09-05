@@ -2,16 +2,13 @@ package Util;
 import java.util.Random;
 
 public class DiceRoller {
-	private static Random rand;
+	private static Random rand = new Random(RiskConstants.SEED);
 	
 	public static RollOutcome roll(int atkDice, int dfdDice) {
 		if (atkDice < 1 || atkDice > 3 || dfdDice < 1 || dfdDice > 2) {
 			throw new IllegalArgumentException("DiceRoller.roll: Attacker must use [1,3] dice and Defender must use [1,2] dice.");
 		}
 		else {
-			if (rand == null) {
-				rand = new Random(0);
-			}
 			int[] atk = new int[atkDice];
 			int[] dfd = new int[dfdDice];
 			int i, j, roll;

@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RiskConstants {
+	public static int SEED = 0;
+	
 	public static final int NUM_WILD_CARDS = 2;
 	public static final String[] REG_CARD_TYPES = {"HORSE", "SOLDIER", "CANNON"};
 	public static final String WILD_CARD = "WILD";
