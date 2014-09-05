@@ -22,7 +22,7 @@ public class RiskUtils {
 			reinforcements = RiskConstants.MIN_REINFORCEMENTS;
 		}
 		for (Continent continent : map.getContinents().values()) {
-			if (playerControlsContinent(continent, playerName)) {
+			if (playerControlsContinent(map, continent, playerName)) {
 				reinforcements += RiskConstants.CONTINENT_BONUSES.get(continent.getName());
 			}
 		}
@@ -31,9 +31,9 @@ public class RiskUtils {
 
 	public static Collection<String> getPlayerCountries(RiskMap map, String playerName) {
 		Collection<String> playerCountries = new ArrayList<String>();
-		for (Country country : map.getCountries().values()) {
-			if (country.getOwner().equals(playerName)) {
-				playerCountries.add(country.getName());
+		for (String countryName : map.getCountries().keySet()) {
+			if (map.getCountryOwner(countryName).equals(playerName)) {
+				playerCountries.add(countryName);
 			}
 		}
 		return playerCountries;
@@ -42,16 +42,16 @@ public class RiskUtils {
 	public static Collection<String> getPlayerContinents(RiskMap map, String playerName) {
 		Collection<String> playerContinents = new ArrayList<String>();
 		for (Continent continent : map.getContinents().values()) {
-			if (playerControlsContinent(continent, playerName)) {
+			if (playerControlsContinent(map, continent, playerName)) {
 				playerContinents.add(continent.getName());
 			}
 		}
 		return playerContinents;
 	}
 	
-	public static boolean playerControlsContinent(Continent continent, String playerName) {
+	public static boolean playerControlsContinent(RiskMap map, Continent continent, String playerName) {
 		for (Country country : continent.getCountries()) {
-			if (!playerName.equals(country.getOwner())) {
+			if (!playerName.equals(map.getCountryOwner(country.getName()))) {
 				return false;
 			}
 		}
@@ -61,12 +61,12 @@ public class RiskUtils {
 	public static int countPlayerArmies(RiskMap map, String playerName) {
 		int numArmies = 0;
 		for (String countryName : getPlayerCountries(map, playerName)) {
-			numArmies += map.getCountry(countryName).getNumArmies();
+			numArmies += map.getCountryArmies(countryName);
 		}
 		return numArmies;
 	}
 	
-	public static boolean areConnected(Country start, Country end, String playerName) {
+	public static boolean areConnected(RiskMap map, Country start, Country end, String playerName) {
 		Set<String> traversed = new HashSet<String>();
 		Deque<Country> toSearch = new LinkedList<Country>();
 		toSearch.addLast(start);
@@ -77,8 +77,9 @@ public class RiskUtils {
 				return true;
 			}
 			else {
+				traversed.add(current.getName());
 				for (Country neighbor : current.getNeighbors()) {
-					if (neighbor.getOwner().equals(playerName) && !traversed.contains(neighbor.getName())) {
+					if (map.getCountryOwner(neighbor.getName()).equals(playerName) && !traversed.contains(neighbor.getName())) {
 						toSearch.addLast(neighbor);
 					}
 				}
@@ -115,13 +116,13 @@ public class RiskUtils {
 		Set<String> connectedSet = new HashSet<String>();
 		Deque<Country> toSearch = new LinkedList<Country>();
 		toSearch.addLast(map.getCountry(originName));
-		String playerName = map.getCountry(originName).getOwner();
+		String playerName = map.getCountryOwner(originName);
 		
 		while (toSearch.size() > 0) {
 			Country current = toSearch.removeFirst();
 			connectedSet.add(current.getName());
 			for (Country neighbor : current.getNeighbors()) {
-				if (neighbor.getOwner().equals(playerName) && !connectedSet.contains(neighbor.getName())) {
+				if (map.getCountryOwner(neighbor.getName()).equals(playerName) && !connectedSet.contains(neighbor.getName())) {
 					toSearch.addLast(neighbor);
 				}
 			}
@@ -136,7 +137,7 @@ public class RiskUtils {
 			Country current = map.getCountry(countryName);
 			boolean interior = true;
 			for (Country neighbor : current.getNeighbors()) {
-				if (!current.getOwner().equals(neighbor.getOwner())) {
+				if (!map.getCountryOwner(current.getName()).equals(map.getCountryOwner(neighbor.getName()))) {
 					interior = false;
 				}
 			}

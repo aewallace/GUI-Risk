@@ -1,5 +1,6 @@
 package Response;
 import Map.Country;
+import Map.RiskMap;
 import Util.RiskConstants;
 
 public class DefendResponse {
@@ -21,10 +22,10 @@ public class DefendResponse {
 		this.numDice = numIn;
 	}
 	
-	public static boolean isValidResponse(DefendResponse rsp, Country dfdCountry) {
+	public static boolean isValidResponse(DefendResponse rsp, RiskMap map, String dfdCountry) {
 		if (rsp != null) {
 			int n = rsp.getNumDice();
-			return (n > 0 && n <= RiskConstants.MAX_DFD_DICE) && (n <= dfdCountry.getNumArmies());
+			return (n > 0 && n <= RiskConstants.MAX_DFD_DICE) && (n <= map.getCountryArmies(dfdCountry));
 		}
 		else {
 			return false;

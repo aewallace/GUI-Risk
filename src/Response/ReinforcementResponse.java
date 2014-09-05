@@ -72,7 +72,7 @@ public class ReinforcementResponse {
 		if (rsp != null) {
 			int total = 0;
 			for (Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
-				if (!map.getCountries().get(entry.getKey()).getOwner().equals(playerName) || entry.getValue() < 0) {
+				if (!map.getCountryOwner(entry.getKey()).equals(playerName) || entry.getValue() < 0) {
 					return false;
 				}
 				else if (entry.getValue() < 0) {

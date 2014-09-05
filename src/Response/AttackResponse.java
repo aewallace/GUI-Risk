@@ -53,10 +53,10 @@ public class AttackResponse {
 		if (rsp != null && rsp.getNumDice() > 0 && rsp.getNumDice() <= RiskConstants.MAX_ATK_DICE) {
 			if (rsp.getAtkCountry() != null
 				&& map.getCountries().containsKey(rsp.getAtkCountry())
-				&& map.getCountries().get(rsp.getAtkCountry()).getNumArmies() > rsp.getNumDice()) {
+				&& map.getCountryArmies(rsp.getAtkCountry()) > rsp.getNumDice()) {
 				if (rsp.getDfdCountry() != null
 					&& map.getCountries().containsKey(rsp.getDfdCountry())
-					&& !map.getCountries().get(rsp.getDfdCountry()).getOwner().equals(playerName)) {
+					&& !map.getCountryOwner(rsp.getDfdCountry()).equals(playerName)) {
 					return true;
 				}
 				else {

@@ -168,12 +168,9 @@ public class GameMaster {
 			ReinforcementResponse rsp = tryReinforce(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, reinforcements);
 			if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
 				for (Map.Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
-					this.map.getCountries().get(entry.getKey()).addArmies(entry.getValue());
+					this.map.addCountryArmies(entry.getKey(), entry.getValue());
 					writeLogLn(entry.getValue() + " " + entry.getKey());
 				}
-			}
-			else {
-				rsp = rsp;
 			}
 		}
 		if (!valid) {
@@ -193,8 +190,8 @@ public class GameMaster {
 			if (atkRsp != null) {
 				if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
 					writeLogLn(currentPlayer.getName() + " is attacking "
-							+ atkRsp.getDfdCountry() + "(" + this.map.getCountry(atkRsp.getDfdCountry()).getNumArmies()
-							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountry(atkRsp.getAtkCountry()).getNumArmies() + ")!");
+							+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
+							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 					attempts = 0;
 					Player defender = getOwnerObject(atkRsp.getDfdCountry());
 					DefendResponse dfdRsp = null;
@@ -226,7 +223,7 @@ public class GameMaster {
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 			attempts++;
 			rsp = tryDefend(defender, createCardSetCopy(defender.getName()), oppCards, new AttackResponse(atkRsp));
-			valid = DefendResponse.isValidResponse(rsp, this.map.getCountries().get(atkRsp.getDfdCountry()));
+			valid = DefendResponse.isValidResponse(rsp, this.map, atkRsp.getDfdCountry());
 		}
 		if (!valid) {
 			eliminate(defender, null, "You failed to provide a valid defense response.");
@@ -236,16 +233,16 @@ public class GameMaster {
 	
 	private void carryOutAttack(AttackResponse atk, DefendResponse dfd) {
 		RollOutcome result = DiceRoller.roll(atk.getNumDice(), dfd.getNumDice());
-		this.map.getCountries().get(atk.getAtkCountry()).addArmies(-1 * result.getAtkLosses());
-		this.map.getCountries().get(atk.getDfdCountry()).addArmies(-1 * result.getDfdLosses());
+		this.map.addCountryArmies(atk.getAtkCountry(), -1 * result.getAtkLosses());
+		this.map.addCountryArmies(atk.getDfdCountry(), -1 * result.getDfdLosses());
 		writeLogLn("\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
 	}
 	
 	private boolean checkForTakeover(Player attacker, AttackResponse atkRsp, boolean hasGottenCard) throws PlayerEliminatedException {
-		if (this.map.getCountries().get(atkRsp.getDfdCountry()).getNumArmies() == 0) {
-			String loserName = this.map.getCountries().get(atkRsp.getDfdCountry()).getOwner();
+		if (this.map.getCountryArmies(atkRsp.getDfdCountry()) == 0) {
+			String loserName = this.map.getCountryOwner(atkRsp.getDfdCountry());
 			writeLogLn(attacker.getName() + " has taken " + atkRsp.getDfdCountry() + " from " + loserName + "!");
-			this.map.getCountries().get(atkRsp.getDfdCountry()).setOwner(attacker.getName());
+			this.map.setCountryOwner(atkRsp.getDfdCountry(), attacker.getName());
 			if (!hasGottenCard) {
 				awardCard(attacker.getName());
 			}
@@ -273,10 +270,10 @@ public class GameMaster {
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 			attempts++;
 			AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
-			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map.getCountries().get(atkRsp.getAtkCountry()).getNumArmies())) {
+			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map.getCountryArmies(atkRsp.getAtkCountry()))) {
 				writeLogLn(attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
-				this.map.getCountries().get(atkRsp.getAtkCountry()).addArmies(-1 * advRsp.getNumArmies());
-				this.map.getCountries().get(atkRsp.getDfdCountry()).addArmies(advRsp.getNumArmies());
+				this.map.addCountryArmies(atkRsp.getAtkCountry(), -1 * advRsp.getNumArmies());
+				this.map.addCountryArmies(atkRsp.getDfdCountry(), advRsp.getNumArmies());
 			}
 		}
 		if (!valid) {
@@ -314,8 +311,8 @@ public class GameMaster {
 			if (rsp != null) {
 				if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
 					writeLogLn(currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
-					this.map.getCountries().get(rsp.getFromCountry()).addArmies(-1 * rsp.getNumArmies());
-					this.map.getCountries().get(rsp.getToCountry()).addArmies(rsp.getNumArmies());
+					this.map.addCountryArmies(rsp.getFromCountry(), -1 * rsp.getNumArmies());
+					this.map.addCountryArmies(rsp.getToCountry(), rsp.getNumArmies());
 				}
 			}
 			else {
@@ -430,7 +427,7 @@ public class GameMaster {
 	private void allocateArmies(String playerName, Map<String, Integer> allocation, int reinforcements) {
 		writeLogLn(playerName + " reinforcing with " + reinforcements + " armies.");
 		for (Map.Entry<String, Integer> entry : allocation.entrySet()) {
-			this.map.getCountries().get(entry.getKey()).setArmies(entry.getValue());
+			this.map.setCountryArmies(entry.getKey(), entry.getValue());
 			writeLogLn(entry.getValue() + " " + entry.getKey());
 		}
 		writeLogLn(EVENT_DELIM);
@@ -448,8 +445,8 @@ public class GameMaster {
 					cardBonus = RiskConstants.advanceTurnIn();
 					writeLogLn(currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
 					if (rsp.getBonusCountry() != null) {
-						if (this.map.getCountries().containsKey(rsp.getBonusCountry()) && this.map.getCountries().get(rsp.getBonusCountry()).getOwner().equals(currentPlayer.getName())) {
-							this.map.getCountries().get(rsp.getBonusCountry()).addArmies(RiskConstants.BONUS_COUNTRY_ARMIES);
+						if (this.map.getCountries().containsKey(rsp.getBonusCountry()) && this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
+							this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
 						}
 					}
 					for (Card card : rsp.getCards()) {
@@ -490,7 +487,7 @@ public class GameMaster {
 	}
 	
 	private Player getOwnerObject(String countryName) {
-		String playerName = this.map.getCountries().get(countryName).getOwner();
+		String playerName = this.map.getCountryOwner(countryName);
 		return getPlayerObject(playerName);
 	}
 	
@@ -583,15 +580,15 @@ public class GameMaster {
 	private void allocateUnownedCountries() {
 		if (this.players.size() > 0) {
 			writeLogLn("Re-allocating eliminated player's countries...");
-			Collection<Country> countries = this.map.getCountries().values();
-			for (Country country : countries) {
-				if (country.getOwner() == null) {
-					country.setOwner(this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+			Collection<String> countries = this.map.getCountries().keySet();
+			for (String countryName : countries) {
+				if (map.getCountryOwner(countryName) == null) {
+					map.setCountryOwner(countryName, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					if (this.round > 0) {
 						//If these countries are being eliminated during a game,
 						//it is due to a player being eliminated by the Master,
 						//and so the re-allocated countries must be occupied.
-						country.setArmies(1);
+						map.setCountryArmies(countryName, 1);
 					}
 					allocationIdx++;
 				}
@@ -605,8 +602,7 @@ public class GameMaster {
 			writeLogLn("Allocating countries...");
 			for (Card card : this.deck) {
 				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
-					Country country = this.map.getCountry(card.getCountry());
-					country.setOwner(this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					allocationIdx++;
 				}
 			}
@@ -616,13 +612,13 @@ public class GameMaster {
 	private void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
 		if (this.playerMap.containsKey(loser.getName())) {
 			writeLogLn(loser.getName() + " Eliminated! " + reason);
-			for (Country country : this.map.getCountries().values()) {
-				if (country.getOwner().equals(loser.getName())) {
+			for (String countryName : this.map.getCountries().keySet()) {
+				if (map.getCountryOwner(countryName).equals(loser.getName())) {
 					if (eliminator != null) {
-						country.setOwner(eliminator.getName());
+						map.setCountryOwner(countryName, eliminator.getName());
 					}
 					else {
-						country.setOwner(null);
+						map.setCountryOwner(countryName, null);
 					}
 				}
 			}
@@ -670,7 +666,7 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 100;
+			int numGames = 50;
 			for (int i = 0; i < numGames; i++) {
 				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
 				System.out.print(i + " - ");

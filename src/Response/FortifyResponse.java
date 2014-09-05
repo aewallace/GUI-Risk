@@ -47,10 +47,12 @@ public class FortifyResponse {
 	}
 	
 	public static boolean isValidResponse(FortifyResponse rsp, RiskMap map, String playerName) {
-		if (rsp != null && rsp.getNumArmies() < map.getCountries().get(rsp.getFromCountry()).getNumArmies()) {
+		if (rsp != null && rsp.getNumArmies() < map.getCountryArmies(rsp.getFromCountry())) {
 			Country from = map.getCountries().get(rsp.getFromCountry());
 			Country to = map.getCountries().get(rsp.getToCountry());
-			return RiskUtils.areConnected(from, to, playerName);
+			return map.getCountryOwner(from.getName()).equals(playerName)
+					&& map.getCountryOwner(to.getName()).equals(playerName)
+					&& RiskUtils.areConnected(map, from, to, playerName);
 		}
 		else {
 			return false;

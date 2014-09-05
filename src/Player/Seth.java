@@ -91,12 +91,12 @@ public class Seth extends DefaultPlayer {
 				if (reinforcements > 0) {
 					int adjacentEnemyArmies = 0;
 					for (Country neighbor : country.getNeighbors()) {
-						if (!neighbor.getOwner().equals(this.name)) {
-							adjacentEnemyArmies += neighbor.getNumArmies();
+						if (!map.getCountryOwner(neighbor.getName()).equals(this.name)) {
+							adjacentEnemyArmies += map.getCountryArmies(neighbor.getName());
 						}
 					}
 					if (adjacentEnemyArmies > 0) {
-						int diff = adjacentEnemyArmies - country.getNumArmies();
+						int diff = adjacentEnemyArmies - map.getCountryArmies(country.getName());
 						if (diff > 0) {
 							if (reinforcements >= diff) {
 								reinforcements -= rsp.reinforce(country.getName(), diff);
@@ -114,9 +114,9 @@ public class Seth extends DefaultPlayer {
 			//if there is a target continent, double the reinforcements there
 			for (int continentRep = 0; continentRep < 2; continentRep++) {
 				for (Country currentCountry : map.getContinent(targetContinent).getCountries()) {
-					if (currentCountry.getOwner().equals(this.name)) {
+					if (map.getCountryOwner(currentCountry.getName()).equals(this.name)) {
 						for (Country neighbor : currentCountry.getNeighbors()) {
-							if (!neighbor.getOwner().equals(this.name) && reinforcements > 0) {
+							if (!map.getCountryOwner(neighbor.getName()).equals(this.name) && reinforcements > 0) {
 								reinforcements -= rsp.reinforce(currentCountry.getName(), 1);
 							}
 						}
@@ -130,7 +130,7 @@ public class Seth extends DefaultPlayer {
 				if (hopeless || continentAttainability.get(currentCountry.getContinent()) >= 0) {
 					if (beginReinforce && reinforcements > 0) {
 						for (Country neighbor : currentCountry.getNeighbors()) {
-							if (!neighbor.getOwner().equals(this.name) && reinforcements > 0) {
+							if (!map.getCountryOwner(neighbor.getName()).equals(this.name) && reinforcements > 0) {
 								reinforcements -= rsp.reinforce(countryName, 1);
 								this.lastCountryReinforced = countryName;
 							}
@@ -181,18 +181,19 @@ public class Seth extends DefaultPlayer {
 	
 	/**
 	 * Advance all available armies, unless the conquered country is on the target continent AND external.
-	 * In that case, leave a small portion.
+	 * In that case, leave a small portion, determined by the number of armies available.
 	 */
 	@Override
 	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountryName, String toCountryName, int min) {
 		AdvanceResponse rsp = new AdvanceResponse();
 		Country fromCountry = map.getCountry(fromCountryName);
-		Country toCountry = map.getCountry(toCountryName);
 		String targetContinent = getTargetContinent(map, 0);
-		int maxAdvance = fromCountry.getNumArmies() - 1;
+		int maxAdvance = map.getCountryArmies(fromCountry.getName()) - 1;
 		int enemyNeighbors = 0;
 		for (Country neighbor : fromCountry.getNeighbors()) {
-			enemyNeighbors++;
+			if (!map.getCountryOwner(neighbor.getName()).equals(this.name)){
+				enemyNeighbors++;
+			}
 		}
 		if (enemyNeighbors > 0 && fromCountry.getContinent().equals(targetContinent)) {
 			if (maxAdvance >= 3 * enemyNeighbors) {
@@ -207,6 +208,9 @@ public class Seth extends DefaultPlayer {
 		}
 		else {
 			rsp.setNumArmies(maxAdvance);
+		}
+		if (rsp.getNumArmies() < min) {
+			rsp.setNumArmies(min);
 		}
 		return rsp;
 	}
@@ -228,9 +232,9 @@ public class Seth extends DefaultPlayer {
 			Collection<String> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
 			Country interiorCountry = null, exteriorCountry = null;
 			for (String countryName : interiorCountries) {
-				if (interiorCountry == null && map.getCountry(countryName).getNumArmies() > 1
+				if (interiorCountry == null && map.getCountryArmies(countryName) > 1
 					|| interiorCountry != null
-					&& map.getCountry(countryName).getNumArmies() > interiorCountry.getNumArmies()) {
+					&& map.getCountryArmies(countryName) > map.getCountryArmies(interiorCountry.getName())) {
 					interiorCountry = map.getCountry(countryName);
 				}
 			}
@@ -238,12 +242,12 @@ public class Seth extends DefaultPlayer {
 				Country currentCountry = map.getCountry(countryName);
 				if (exteriorCountry == null
 					|| exteriorCountry != null
-					&& currentCountry.getNumArmies() <= exteriorCountry.getNumArmies()) {
-					if (exteriorCountry != null && currentCountry.getNumArmies() == exteriorCountry.getNumArmies()) {
+					&& map.getCountryArmies(countryName) <= map.getCountryArmies(exteriorCountry.getName())) {
+					if (exteriorCountry != null && map.getCountryArmies(countryName) == map.getCountryArmies(exteriorCountry.getName())) {
 						int enemyStr = 0;
 						for (Country neighbor : currentCountry.getNeighbors()) {
-							if (!neighbor.getOwner().equals(this.name)) {
-								enemyStr += neighbor.getNumArmies();
+							if (!map.getCountryOwner(neighbor.getName()).equals(this.name)) {
+								enemyStr += map.getCountryArmies(neighbor.getName());
 							}
 						}
 						if (enemyStr > nearbyEnemyStr) {
@@ -257,7 +261,7 @@ public class Seth extends DefaultPlayer {
 			}
 			if (interiorCountry != null && exteriorCountry != null
 				&& (strongestFrom == null && weakestTo == null
-				|| interiorCountry.getNumArmies() > strongestFrom.getNumArmies())) {
+				|| map.getCountryArmies(interiorCountry.getName()) > map.getCountryArmies(strongestFrom.getName()))) {
 				strongestFrom = interiorCountry;
 				weakestTo = exteriorCountry;
 			}
@@ -265,10 +269,36 @@ public class Seth extends DefaultPlayer {
 		if (strongestFrom != null && weakestTo != null) {
 			rsp.setFromCountry(strongestFrom.getName());
 			rsp.setToCountry(weakestTo.getName());
-			rsp.setNumArmies(strongestFrom.getNumArmies() - 1);
+			rsp.setNumArmies(map.getCountryArmies(strongestFrom.getName()) - 1);
 			return rsp;
 		}
-		return null;
+		else {
+			strongestFrom = null;
+			weakestTo = null;
+			for (Set<String> connectedSet : allConnectedSets) {
+				Country lclStrongest = null, lclWeakest = null;
+				Collection<String> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
+				for (String countryName : exteriorCountries) {
+					Country country = map.getCountry(countryName);
+					if (strongestFrom == null || map.getCountryArmies(countryName) > map.getCountryArmies(strongestFrom.getName())) {
+						lclStrongest = country;
+					}
+					if (weakestTo == null || map.getCountryArmies(countryName) < map.getCountryArmies(weakestTo.getName())) {
+						lclWeakest = country;
+					}
+				}
+				if (strongestFrom == null && weakestTo == null
+					|| map.getCountryArmies(lclStrongest.getName()) > map.getCountryArmies(strongestFrom.getName())
+					&& map.getCountryArmies(lclWeakest.getName()) < map.getCountryArmies(weakestTo.getName())) {
+					strongestFrom = lclStrongest;
+					weakestTo = lclWeakest;
+				}
+			}
+			rsp.setFromCountry(strongestFrom.getName());
+			rsp.setToCountry(weakestTo.getName());
+			rsp.setNumArmies(map.getCountryArmies(strongestFrom.getName()) / 3);
+			return rsp;
+		}
 	}
 	
 	/**
@@ -278,7 +308,7 @@ public class Seth extends DefaultPlayer {
 		int bestScore = -9999;
 		String bestContinent = null;
 		for (String continentName : map.getContinents().keySet()) {
-			if (!RiskUtils.playerControlsContinent(map.getContinent(continentName), this.name)) {
+			if (!RiskUtils.playerControlsContinent(map, map.getContinent(continentName), this.name)) {
 				int score = getContinentAttainability(map, continentName, additionalArmies);
 				if (bestContinent == null || score > bestScore) {
 					bestContinent = continentName;
@@ -303,14 +333,14 @@ public class Seth extends DefaultPlayer {
 		boolean isAlreadyOwned = true;
 		
 		for (Country country : map.getContinent(continentName).getCountries()) {
-			if (country.getOwner().equals(this.name)) {
+			if (map.getCountryOwner(country.getName()).equals(this.name)) {
 				myCountries++;
-				myArmies += country.getNumArmies();
+				myArmies += map.getCountryArmies(country.getName());
 			}
 			else {
 				isAlreadyOwned = false;
 				enemyCountries++;
-				enemyArmies += country.getNumArmies();
+				enemyArmies += map.getCountryArmies(country.getName());
 			}
 		}
 		
@@ -355,15 +385,15 @@ class AttackDecider {
 		int bestStrDiff = -9999, bestSharedStrDiff = -9999, bestSharedCount = 0, bestSharedEnemyCount = 9999;
 		for (String countryName : myCountries) {
 			Country currentCountry = map.getCountries().get(countryName);
-			if (currentCountry.getNumArmies() > 1) {
+			if (map.getCountryArmies(countryName) > 1) {
 				//can attack FROM this country
 				for (Country neighbor : currentCountry.getNeighbors()) {
-					if (!neighbor.getOwner().equals(this.playerName)) {
+					if (!map.getCountryOwner(neighbor.getName()).equals(this.playerName)) {
 						//is an ENEMY country
 						int sharedNeighbors = 0, sharedEnemies = 0;;
 						if (this.attackSharedNeighborsFirst) {
 							for (Country nbrNeighbor : neighbor.getNeighbors()) {
-								if (nbrNeighbor.getOwner().equals(this.playerName) && !nbrNeighbor.equals(currentCountry)) {
+								if (map.getCountryOwner(nbrNeighbor.getName()).equals(this.playerName) && !nbrNeighbor.equals(currentCountry)) {
 									sharedNeighbors++;
 									sharedEnemies++;
 									if (this.useTargetContinent && nbrNeighbor.getContinent().equals(this.targetContinent)) {
@@ -377,7 +407,7 @@ class AttackDecider {
 							}
 						}
 						if (!this.useTargetContinent || neighbor.getContinent().equals(this.targetContinent)) {
-							int newStrDiff = currentCountry.getNumArmies() - neighbor.getNumArmies();
+							int newStrDiff = map.getCountryArmies(countryName) - map.getCountryArmies(neighbor.getName());
 							if (this.useHighestStrengthDiff) {
 								if (newStrDiff > bestStrDiff) {
 									if (!this.requirePositiveStrengthDiff || newStrDiff > 0) {
@@ -427,14 +457,11 @@ class AttackDecider {
 		if (atkCountry != null && dfdCountry != null) {
 			rsp.setAtkCountry(atkCountry.getName());
 			rsp.setDfdCountry(dfdCountry.getName());
-			int dice = atkCountry.getNumArmies() - 1;
+			int dice = map.getCountryArmies(atkCountry.getName()) - 1;
 			if (dice > RiskConstants.MAX_ATK_DICE) {
 				dice = RiskConstants.MAX_ATK_DICE;
 			}
 			rsp.setNumDice(dice);
-			if (rsp.getAtkCountry().equals("Ukraine") && rsp.getDfdCountry().equals("Northern Europe")) {
-				rsp = rsp;
-			}
 			return rsp;
 		}
 		else {

@@ -13,16 +13,22 @@ import Map.Country;
 public class RiskMap {
 	private Map<String, Continent> continents;
 	private Map<String, Country> countries;
+	private Map<String, String> owners;
+	private Map<String, Integer> armies;
 	
 	public RiskMap(RiskMap map) {
 		this.continents = new HashMap<String, Continent>();
 		this.countries = new HashMap<String, Country>();
+		this.owners = new HashMap<String, String>();
+		this.armies = new HashMap<String, Integer>();
 		copyMap(map);
 	}
 	
 	public RiskMap(String mapFile) throws IOException {
 		this.continents = new HashMap<String, Continent>();
 		this.countries = new HashMap<String, Country>();
+		this.owners = new HashMap<String, String>();
+		this.armies = new HashMap<String, Integer>();
 		
 		if (!loadMap(mapFile)) {
 			throw new IOException("RiskMap.loadMap: Invalid map file!");
@@ -55,8 +61,39 @@ public class RiskMap {
 		}
 	}
 	
+	public String getCountryOwner(String countryName) {
+		return this.owners.get(countryName);
+	}
+	
+	public void setCountryOwner(String countryName, String owner) {
+		this.owners.put(countryName, owner);
+	}
+	
+	public int getCountryArmies(String countryName) {
+		return this.armies.get(countryName);
+	}
+	
+	public void addCountryArmies(String countryName, int numArmies) {
+		this.armies.put(countryName, this.armies.get(countryName) + numArmies);
+	}
+	
+	public void setCountryArmies(String countryName, int numArmies) {
+		this.armies.put(countryName, numArmies);
+	}
+	
 	private boolean loadMap(String mapFile) {
-		try {
+		for (Continent continent : Continent.values()) {
+			continent.init();
+			this.continents.put(continent.getName(), continent);
+		}
+		for (Country country : Country.values()) {
+			country.init();
+			this.countries.put(country.getName(), country);
+			this.owners.put(country.getName(), null);
+			this.armies.put(country.getName(), 0);
+		}
+		return verifyMap();
+		/*try {
 			if (mapFile == null) {
 				return false;
 			}
@@ -100,7 +137,7 @@ public class RiskMap {
 			this.continents.clear();
 			this.countries.clear();
 			return false;
-		}
+		}*/
 	}
 	
 	private boolean verifyMap() {
@@ -127,7 +164,11 @@ public class RiskMap {
 	}
 	
 	private void copyMap(RiskMap map) {
-		for (Continent continent : map.getContinents().values()) {
+		this.continents = new HashMap<String, Continent>(map.getContinents());
+		this.countries = new HashMap<String, Country>(map.getCountries());
+		this.owners = new HashMap<String, String>(map.owners);
+		this.armies = new HashMap<String, Integer>(map.armies);
+		/*for (Continent continent : map.getContinents().values()) {
 			Continent newContinent = new Continent(continent.getName());
 			this.continents.put(newContinent.getName(), newContinent);
 			for (Country country : continent.getCountries()) {
@@ -143,7 +184,6 @@ public class RiskMap {
 			for (Country neighbor : country.getNeighbors()) {
 				this.countries.get(country.getName()).addNeighbor(this.countries.get(neighbor.getName()));
 			}
-		}
-		verifyMap();
+		}*/
 	}
 }
