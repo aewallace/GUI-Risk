@@ -360,6 +360,6 @@ public enum Country {
 	}
 	
 	public String toString() {
-		return "[Name: " + this.name + "; Continent: " + this.continent + "]";
+		return this.name;
 	}
 }

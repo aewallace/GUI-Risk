@@ -97,6 +97,6 @@ public enum Continent {
 	}
 	
 	public String toString() {
-		return "[Name: " + this.name + "]";
+		return this.name;
 	}
 }

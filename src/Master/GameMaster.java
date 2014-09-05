@@ -673,9 +673,9 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 50;
+			int numGames = 1;
 			for (int i = 0; i < numGames; i++) {
-				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_OFF);
+				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_ON);
 				System.out.print(i + " - ");
 				String victor = game.begin();
 				if (!winLog.containsKey(victor)) {
