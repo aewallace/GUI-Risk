@@ -4,35 +4,36 @@ import java.util.HashMap;
 import java.util.Map.Entry;
 import java.lang.String;
 
+import Map.Country;
 import Map.RiskMap;
 
 public class ReinforcementResponse {
-	private Map<String, Integer> allocation;
+	private Map<Country, Integer> allocation;
 	
 	public ReinforcementResponse() {
-		this.allocation = new HashMap<String, Integer>();
+		this.allocation = new HashMap<Country, Integer>();
 	}
 	
-	public ReinforcementResponse(Map<String, Integer> map) {
+	public ReinforcementResponse(Map<Country, Integer> map) {
 		if (map != null) {
 			this.allocation = map;
 		}
 		else {
-			this.allocation = new HashMap<String, Integer>();
+			this.allocation = new HashMap<Country, Integer>();
 		}
 	}
 	
-	public Map<String, Integer> getAllocation() {
+	public Map<Country, Integer> getAllocation() {
 		return this.allocation;
 	}
 	
-	public void setAllocation(Map<String, Integer> map) {
+	public void setAllocation(Map<Country, Integer> map) {
 		if (map != null) {
 			this.allocation = map;
 		}
 	}
 	
-	public int reinforce(String country, int numArmies) {
+	public int reinforce(Country country, int numArmies) {
 		if (country != null) {
 			if (allocation.containsKey(country)) {
 				allocation.put(country, allocation.get(country) + numArmies);
@@ -50,7 +51,7 @@ public class ReinforcementResponse {
 	//returns number of armies that this action takes from the player's pool of available reinforcements
 	//if they had already allocated 10 armies to X, but now try to allocate 15 armies to X, it will only]
 	//return 5, because the player's pool was already missing 10.
-	public int setReinforcements(String country, int numArmies) {
+	public int setReinforcements(Country country, int numArmies) {
 		if (country != null) {
 			if (allocation.containsKey(country) && numArmies + allocation.get(country) > 0) {
 				return numArmies - allocation.get(country);
@@ -71,11 +72,8 @@ public class ReinforcementResponse {
 	public static boolean isValidResponse(ReinforcementResponse rsp, RiskMap map, String playerName, int reinforcements) {
 		if (rsp != null) {
 			int total = 0;
-			for (Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
+			for (Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
 				if (!map.getCountryOwner(entry.getKey()).equals(playerName) || entry.getValue() < 0) {
-					return false;
-				}
-				else if (entry.getValue() < 0) {
 					return false;
 				}
 				else {

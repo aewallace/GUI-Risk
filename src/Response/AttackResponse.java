@@ -1,10 +1,11 @@
 package Response;
+import Map.Country;
 import Map.RiskMap;
 import Util.RiskConstants;
 
 public class AttackResponse {
-	private String atkCountry;
-	private String dfdCountry;
+	private Country atkCountry;
+	private Country dfdCountry;
 	private int numDice;
 	
 	public AttackResponse() {
@@ -13,7 +14,7 @@ public class AttackResponse {
 		this.numDice = 1;
 	}
 	
-	public AttackResponse(String atk, String dfd, int numIn) {
+	public AttackResponse(Country atk, Country dfd, int numIn) {
 		this.atkCountry = atk;
 		this.dfdCountry = dfd;
 		this.numDice = numIn;
@@ -25,19 +26,19 @@ public class AttackResponse {
 		this.numDice = original.getNumDice();
 	}
 	
-	public String getAtkCountry() {
+	public Country getAtkCountry() {
 		return this.atkCountry;
 	}
 	
-	public void setAtkCountry(String countryIn) {
+	public void setAtkCountry(Country countryIn) {
 		this.atkCountry = countryIn;
 	}
 	
-	public String getDfdCountry() {
+	public Country getDfdCountry() {
 		return this.dfdCountry;
 	}
 	
-	public void setDfdCountry(String countryIn) {
+	public void setDfdCountry(Country countryIn) {
 		this.dfdCountry = countryIn;
 	}
 	
@@ -52,10 +53,8 @@ public class AttackResponse {
 	public static boolean isValidResponse(AttackResponse rsp, RiskMap map, String playerName) {
 		if (rsp != null && rsp.getNumDice() > 0 && rsp.getNumDice() <= RiskConstants.MAX_ATK_DICE) {
 			if (rsp.getAtkCountry() != null
-				&& map.getCountries().containsKey(rsp.getAtkCountry())
 				&& map.getCountryArmies(rsp.getAtkCountry()) > rsp.getNumDice()) {
 				if (rsp.getDfdCountry() != null
-					&& map.getCountries().containsKey(rsp.getDfdCountry())
 					&& !map.getCountryOwner(rsp.getDfdCountry()).equals(playerName)) {
 					return true;
 				}

@@ -24,7 +24,7 @@ import Util.RiskUtils;
  */
 public class DefaultPlayer implements Player {
 	protected String name;
-	protected String lastCountryReinforced;
+	protected Country lastCountryReinforced;
 	
 	public DefaultPlayer(String nameIn) {
 		this.name = nameIn;
@@ -40,13 +40,13 @@ public class DefaultPlayer implements Player {
 	 */
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		while (reinforcements > 0) {
-			for (String countryName : myCountries) {
+			for (Country country : myCountries) {
 				if (reinforcements > 0) {
-					rsp.reinforce(countryName, 1);
+					rsp.reinforce(country, 1);
 					reinforcements--;
-					this.lastCountryReinforced = countryName;
+					this.lastCountryReinforced = country;
 				}
 			}
 		}
@@ -158,16 +158,16 @@ public class DefaultPlayer implements Player {
 	 */
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		boolean beginReinforce = !myCountries.contains(this.lastCountryReinforced);
 		while (reinforcements > 0) {
-			for (String countryName : myCountries) {
+			for (Country country : myCountries) {
 				if (beginReinforce && reinforcements > 0) {
-					rsp.reinforce(countryName, 1);
+					rsp.reinforce(country, 1);
 					reinforcements--;
-					this.lastCountryReinforced = countryName;
+					this.lastCountryReinforced = country;
 				}
-				if (this.lastCountryReinforced.equals(countryName)) {
+				if (this.lastCountryReinforced == country) {
 					beginReinforce = true;
 				}
 			}
@@ -180,14 +180,13 @@ public class DefaultPlayer implements Player {
 	 */
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		AttackResponse rsp = new AttackResponse();
-		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
-		Country atkCountry = null, dfdCountry = null, currentCountry;
-		for (String countryName : myCountries) {
-			currentCountry = map.getCountries().get(countryName);
-			if (map.getCountryArmies(countryName) > 1) {
+		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Country atkCountry = null, dfdCountry = null;
+		for (Country currentCountry : myCountries) {
+			if (map.getCountryArmies(currentCountry) > 1) {
 				for (Country neighbor : currentCountry.getNeighbors()) {
-					if (!map.getCountryOwner(neighbor.getName()).equals(this.name) && (dfdCountry == null
-						|| (dfdCountry != null && map.getCountryArmies(dfdCountry.getName()) > map.getCountryArmies(neighbor.getName())))) {
+					if (!map.getCountryOwner(neighbor).equals(this.name) && (dfdCountry == null
+						|| (dfdCountry != null && map.getCountryArmies(dfdCountry) > map.getCountryArmies(neighbor)))) {
 						atkCountry = currentCountry;
 						dfdCountry = neighbor;
 					}
@@ -195,9 +194,9 @@ public class DefaultPlayer implements Player {
 			}
 		}
 		if (atkCountry != null && dfdCountry != null) {
-			rsp.setAtkCountry(atkCountry.getName());
-			rsp.setDfdCountry(dfdCountry.getName());
-			int dice = map.getCountryArmies(atkCountry.getName()) - 1;
+			rsp.setAtkCountry(atkCountry);
+			rsp.setDfdCountry(dfdCountry);
+			int dice = map.getCountryArmies(atkCountry) - 1;
 			if (dice > RiskConstants.MAX_ATK_DICE) {
 				dice = RiskConstants.MAX_ATK_DICE;
 			}
@@ -209,9 +208,9 @@ public class DefaultPlayer implements Player {
 	/**
 	 * Advance all available armies.
 	 */
-	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountryName, String toCountryName, int min) {
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min) {
 		AdvanceResponse rsp = new AdvanceResponse();
-		rsp.setNumArmies(map.getCountryArmies(fromCountryName) - 1);
+		rsp.setNumArmies(map.getCountryArmies(fromCountry) - 1);
 		return rsp;
 	}
 	
@@ -221,28 +220,27 @@ public class DefaultPlayer implements Player {
 	 */
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		FortifyResponse rsp = new FortifyResponse();
-		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, this.name);
-		for (String countryName : myCountries) {
-			Country currentCountry = map.getCountries().get(countryName);
+		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		for (Country currentCountry : myCountries) {
 			Country exteriorNeighbor = null;
-			if (map.getCountryArmies(countryName) > 1) {
+			if (map.getCountryArmies(currentCountry) > 1) {
 				boolean isInterior = true;
 				for (Country neighbor : currentCountry.getNeighbors()) {
-					if (!map.getCountryOwner(neighbor.getName()).equals(this.name)) {
+					if (!map.getCountryOwner(neighbor).equals(this.name)) {
 						isInterior = false;
 					}
 					else if (exteriorNeighbor == null) {
 						for (Country potentialEnemy : neighbor.getNeighbors()) {
-							if (!map.getCountryOwner(potentialEnemy.getName()).equals(this.name)) {
+							if (!map.getCountryOwner(potentialEnemy).equals(this.name)) {
 								exteriorNeighbor = neighbor;
 							}
 						}
 					}
 				}
 				if (isInterior && exteriorNeighbor != null) {
-					rsp.setFromCountry(countryName);
-					rsp.setToCountry(exteriorNeighbor.getName());
-					rsp.setNumArmies(map.getCountryArmies(countryName) - 1);
+					rsp.setFromCountry(currentCountry);
+					rsp.setToCountry(exteriorNeighbor);
+					rsp.setNumArmies(map.getCountryArmies(currentCountry) - 1);
 					return rsp;
 				}
 			}
@@ -253,7 +251,7 @@ public class DefaultPlayer implements Player {
 	/**
 	 * Defend with as many dice as possible.
 	 */
-	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String atkCountry, String dfdCountry, int numAtkDice) {
+	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country atkCountry, Country dfdCountry, int numAtkDice) {
 		DefendResponse rsp = new DefendResponse();
 		int numDice = map.getCountryArmies(dfdCountry);
 		if (numDice > RiskConstants.MAX_DFD_DICE) {

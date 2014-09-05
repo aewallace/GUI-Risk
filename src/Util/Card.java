@@ -3,11 +3,13 @@ import java.lang.IllegalArgumentException;
 import java.lang.String;
 import java.util.Collection;
 
+import Map.Country;
+
 public class Card {
-	private String country;
+	private Country country;
 	private String type;
 	
-	public Card(String typeIn, String countryIn) throws IllegalArgumentException {
+	public Card(String typeIn, Country countryIn) throws IllegalArgumentException {
 		if (typeIn == null) {
 			throw new IllegalArgumentException("Card.Card: Type must not be null.");
 		}
@@ -25,14 +27,14 @@ public class Card {
 		return this.type;
 	}
 	
-	public String getCountry() {
+	public Country getCountry() {
 		return this.country;
 	}
 	
 	@Override
 	public boolean equals(Object obj) {
 		Card other = (Card) obj;
-		return (this.country != null && this.country.equals(other.getCountry()))
+		return (this.country != null && this.country == other.getCountry())
 				|| (this.type.equals(RiskConstants.WILD_CARD) && this.type.equals(other.getType()));
 	}
 	

@@ -22,7 +22,7 @@ public class DefendResponse {
 		this.numDice = numIn;
 	}
 	
-	public static boolean isValidResponse(DefendResponse rsp, RiskMap map, String dfdCountry) {
+	public static boolean isValidResponse(DefendResponse rsp, RiskMap map, Country dfdCountry) {
 		if (rsp != null) {
 			int n = rsp.getNumDice();
 			return (n > 0 && n <= RiskConstants.MAX_DFD_DICE) && (n <= map.getCountryArmies(dfdCountry));

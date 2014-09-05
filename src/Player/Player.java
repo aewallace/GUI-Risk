@@ -2,6 +2,7 @@ package Player;
 import java.util.Collection;
 import java.util.Map;
 
+import Map.Country;
 import Map.RiskMap;
 import Response.AdvanceResponse;
 import Response.AttackResponse;
@@ -68,7 +69,7 @@ public abstract interface Player {
 	 * @param min
 	 * @return advance choice
 	 */
-	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String fromCountry, String toCountry, int min);
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min);
 	
 	/**
 	 * Propose a fortification transfer.
@@ -91,7 +92,7 @@ public abstract interface Player {
 	 * @param numAtkDice
 	 * @return defense choice
 	 */
-	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, String atkCountry, String dfdCountry, int numAtkDice);
+	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country atkCountry, Country dfdCountry, int numAtkDice);
 	
 	/**
 	 * Getter for the player name.

@@ -21,7 +21,7 @@ public class RiskUtils {
 		if (reinforcements < RiskConstants.MIN_REINFORCEMENTS) {
 			reinforcements = RiskConstants.MIN_REINFORCEMENTS;
 		}
-		for (Continent continent : map.getContinents().values()) {
+		for (Continent continent : map.getContinents()) {
 			if (playerControlsContinent(map, continent, playerName)) {
 				reinforcements += RiskConstants.CONTINENT_BONUSES.get(continent.getName());
 			}
@@ -29,21 +29,21 @@ public class RiskUtils {
 		return reinforcements;
 	}
 
-	public static Collection<String> getPlayerCountries(RiskMap map, String playerName) {
-		Collection<String> playerCountries = new ArrayList<String>();
-		for (String countryName : map.getCountries().keySet()) {
-			if (map.getCountryOwner(countryName).equals(playerName)) {
-				playerCountries.add(countryName);
+	public static Collection<Country> getPlayerCountries(RiskMap map, String playerName) {
+		Collection<Country> playerCountries = new ArrayList<Country>();
+		for (Country country : map.getCountries()) {
+			if (map.getCountryOwner(country).equals(playerName)) {
+				playerCountries.add(country);
 			}
 		}
 		return playerCountries;
 	}
 	
-	public static Collection<String> getPlayerContinents(RiskMap map, String playerName) {
-		Collection<String> playerContinents = new ArrayList<String>();
-		for (Continent continent : map.getContinents().values()) {
+	public static Collection<Continent> getPlayerContinents(RiskMap map, String playerName) {
+		Collection<Continent> playerContinents = new ArrayList<Continent>();
+		for (Continent continent : map.getContinents()) {
 			if (playerControlsContinent(map, continent, playerName)) {
-				playerContinents.add(continent.getName());
+				playerContinents.add(continent);
 			}
 		}
 		return playerContinents;
@@ -51,7 +51,7 @@ public class RiskUtils {
 	
 	public static boolean playerControlsContinent(RiskMap map, Continent continent, String playerName) {
 		for (Country country : continent.getCountries()) {
-			if (!playerName.equals(map.getCountryOwner(country.getName()))) {
+			if (!playerName.equals(map.getCountryOwner(country))) {
 				return false;
 			}
 		}
@@ -60,26 +60,26 @@ public class RiskUtils {
 	
 	public static int countPlayerArmies(RiskMap map, String playerName) {
 		int numArmies = 0;
-		for (String countryName : getPlayerCountries(map, playerName)) {
-			numArmies += map.getCountryArmies(countryName);
+		for (Country country : getPlayerCountries(map, playerName)) {
+			numArmies += map.getCountryArmies(country);
 		}
 		return numArmies;
 	}
 	
 	public static boolean areConnected(RiskMap map, Country start, Country end, String playerName) {
-		Set<String> traversed = new HashSet<String>();
+		Set<Country> traversed = new HashSet<Country>();
 		Deque<Country> toSearch = new LinkedList<Country>();
 		toSearch.addLast(start);
 		
 		while (toSearch.size() > 0) {
 			Country current = toSearch.removeFirst();
-			if (current.equals(end)) {
+			if (current == end) {
 				return true;
 			}
 			else {
-				traversed.add(current.getName());
+				traversed.add(current);
 				for (Country neighbor : current.getNeighbors()) {
-					if (map.getCountryOwner(neighbor.getName()).equals(playerName) && !traversed.contains(neighbor.getName())) {
+					if (!traversed.contains(neighbor.getName()) && map.getCountryOwner(neighbor).equals(playerName)) {
 						toSearch.addLast(neighbor);
 					}
 				}
@@ -88,18 +88,18 @@ public class RiskUtils {
 		return false;
 	}
 	
-	public static Collection<Set<String>> getAllConnectedCountrySets(RiskMap map, String playerName) {
-		Collection<String> myCountries = RiskUtils.getPlayerCountries(map, playerName);
-		Collection<Set<String>> allConnectedSets = new ArrayList<Set<String>>();
-		for (String countryName : myCountries) {
+	public static Collection<Set<Country>> getAllConnectedCountrySets(RiskMap map, String playerName) {
+		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, playerName);
+		Collection<Set<Country>> allConnectedSets = new ArrayList<Set<Country>>();
+		for (Country country : myCountries) {
 			boolean alreadyAssigned = false;
-			for (Set<String> set : allConnectedSets) {
-				if (set.contains(countryName)) {
+			for (Set<Country> set : allConnectedSets) {
+				if (set.contains(country)) {
 					alreadyAssigned = true;
 				}
 			}
 			if (!alreadyAssigned) {
-				Set<String> newSet = new HashSet<String>(getConnectedCountries(map, countryName));
+				Set<Country> newSet = new HashSet<Country>(getConnectedCountries(map, country));
 				allConnectedSets.add(newSet);
 			}
 		}
@@ -112,17 +112,17 @@ public class RiskUtils {
 	 * @param originName
 	 * @return
 	 */
-	public static Set<String> getConnectedCountries(RiskMap map, String originName) {
-		Set<String> connectedSet = new HashSet<String>();
+	public static Set<Country> getConnectedCountries(RiskMap map, Country origin) {
+		Set<Country> connectedSet = new HashSet<Country>();
 		Deque<Country> toSearch = new LinkedList<Country>();
-		toSearch.addLast(map.getCountry(originName));
-		String playerName = map.getCountryOwner(originName);
+		toSearch.addLast(origin);
+		String playerName = map.getCountryOwner(origin);
 		
 		while (toSearch.size() > 0) {
 			Country current = toSearch.removeFirst();
-			connectedSet.add(current.getName());
+			connectedSet.add(current);
 			for (Country neighbor : current.getNeighbors()) {
-				if (map.getCountryOwner(neighbor.getName()).equals(playerName) && !connectedSet.contains(neighbor.getName())) {
+				if (map.getCountryOwner(neighbor).equals(playerName) && !connectedSet.contains(neighbor)) {
 					toSearch.addLast(neighbor);
 				}
 			}
@@ -130,19 +130,18 @@ public class RiskUtils {
 		return connectedSet;
 	}
 	
-	public static Collection<String> filterCountriesByBorderStatus(RiskMap map, String playerName, Collection<String> allCountries, boolean selectInterior) {
-		Collection<String> selectedCountries = new ArrayList<String>();
+	public static Collection<Country> filterCountriesByBorderStatus(RiskMap map, String playerName, Collection<Country> allCountries, boolean selectInterior) {
+		Collection<Country> selectedCountries = new ArrayList<Country>();
 		
-		for (String countryName : allCountries) {
-			Country current = map.getCountry(countryName);
+		for (Country country : allCountries) {
 			boolean interior = true;
-			for (Country neighbor : current.getNeighbors()) {
-				if (!map.getCountryOwner(current.getName()).equals(map.getCountryOwner(neighbor.getName()))) {
+			for (Country neighbor : country.getNeighbors()) {
+				if (!map.getCountryOwner(country).equals(map.getCountryOwner(neighbor))) {
 					interior = false;
 				}
 			}
 			if (interior && selectInterior || !interior && !selectInterior) {
-				selectedCountries.add(current.getName());
+				selectedCountries.add(country);
 			}
 		}
 		

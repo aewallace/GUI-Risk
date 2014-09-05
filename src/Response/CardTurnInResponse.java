@@ -2,12 +2,13 @@ package Response;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import Map.Country;
 import Util.Card;
 import Util.RiskConstants;
 
 public class CardTurnInResponse {
 	private Collection<Card> cards;
-	private String bonusCountry;
+	private Country bonusCountry;
 	
 	public CardTurnInResponse() {
 		this.cards = new ArrayList<Card>();
@@ -23,10 +24,10 @@ public class CardTurnInResponse {
 		}
 	}
 	
-	public boolean setBonusCountry(String country) {
+	public boolean setBonusCountry(Country country) {
 		if (country != null) {
 			for (Card card : this.cards) {
-				if (card.getCountry().equals(country)) {
+				if (card.getCountry() == country) {
 					this.bonusCountry = country;
 					return true;
 				}
@@ -39,7 +40,7 @@ public class CardTurnInResponse {
 		return this.cards;
 	}
 	
-	public String getBonusCountry() {
+	public Country getBonusCountry() {
 		return this.bonusCountry;
 	}
 	

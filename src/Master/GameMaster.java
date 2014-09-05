@@ -58,7 +58,7 @@ public class GameMaster {
 		}
 		writeLogLn("Loading map from " + mapFile + "...");
 		if (starterMap == null) {
-			starterMap = new RiskMap(mapFile);
+			starterMap = new RiskMap();
 		}
 		this.map = starterMap.getCopy();
 		loadDeck();
@@ -167,10 +167,13 @@ public class GameMaster {
 			attempts++;
 			ReinforcementResponse rsp = tryReinforce(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, reinforcements);
 			if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
-				for (Map.Entry<String, Integer> entry : rsp.getAllocation().entrySet()) {
+				for (Map.Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
 					this.map.addCountryArmies(entry.getKey(), entry.getValue());
-					writeLogLn(entry.getValue() + " " + entry.getKey());
+					writeLogLn(entry.getValue() + " " + entry.getKey().getName());
 				}
+			}
+			else {
+				rsp = null;
 			}
 		}
 		if (!valid) {
@@ -270,7 +273,7 @@ public class GameMaster {
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 			attempts++;
 			AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
-			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map.getCountryArmies(atkRsp.getAtkCountry()))) {
+			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map)) {
 				writeLogLn(attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
 				this.map.addCountryArmies(atkRsp.getAtkCountry(), -1 * advRsp.getNumArmies());
 				this.map.addCountryArmies(atkRsp.getDfdCountry(), advRsp.getNumArmies());
@@ -288,10 +291,10 @@ public class GameMaster {
 		}
 	}
 	
-	private void checkForElimination(Player attacker, String loserName, String takenCountryName, boolean allowReinforce) throws PlayerEliminatedException {
+	private void checkForElimination(Player attacker, String loserName, Country takenCountry, boolean allowReinforce) throws PlayerEliminatedException {
 		try {
 			if (RiskUtils.getPlayerCountries(this.map, loserName).size() == 0) {
-				eliminate(getPlayerObject(loserName), attacker, "You were eliminated by " + attacker.getName() + " at " + takenCountryName + ".");
+				eliminate(getPlayerObject(loserName), attacker, "You were eliminated by " + attacker.getName() + " at " + takenCountry.getName() + ".");
 			}
 		}
 		catch (PlayerEliminatedException defenderException) {
@@ -345,8 +348,9 @@ public class GameMaster {
 	}
 	
 	private ReinforcementResponse tryReinforce(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, int reinforcements) {
+		ReinforcementResponse rsp;
 		try {
-			ReinforcementResponse rsp = player.reinforce(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
+			rsp = player.reinforce(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -399,21 +403,21 @@ public class GameMaster {
 		}
 	}
 	
-	private boolean validateInitialAllocation(Map<String, Integer> allocation, String playerName, int armies) {
-		Map<String, Boolean> allocatedCheck = new HashMap<String, Boolean>();
-		for (String country : RiskUtils.getPlayerCountries(this.map, playerName)) {
+	private boolean validateInitialAllocation(Map<Country, Integer> allocation, String playerName, int armies) {
+		Map<Country, Boolean> allocatedCheck = new HashMap<Country, Boolean>();
+		for (Country country : RiskUtils.getPlayerCountries(this.map, playerName)) {
 			allocatedCheck.put(country, false);
 		}
-		for (String countryName : allocation.keySet()) {
-			if (!allocatedCheck.containsKey(countryName)) {
+		for (Country country : allocation.keySet()) {
+			if (!allocatedCheck.containsKey(country)) {
 				return false;
 			}
-			else if (allocation.get(countryName) < 1) {
+			else if (allocation.get(country) < 1) {
 				return false;
 			}
 			else {
-				allocatedCheck.put(countryName, true);
-				armies -= allocation.get(countryName);
+				allocatedCheck.put(country, true);
+				armies -= allocation.get(country);
 			}
 		}
 		for (Boolean check : allocatedCheck.values()) {
@@ -424,11 +428,11 @@ public class GameMaster {
 		return armies == 0;
 	}
 	
-	private void allocateArmies(String playerName, Map<String, Integer> allocation, int reinforcements) {
+	private void allocateArmies(String playerName, Map<Country, Integer> allocation, int reinforcements) {
 		writeLogLn(playerName + " reinforcing with " + reinforcements + " armies.");
-		for (Map.Entry<String, Integer> entry : allocation.entrySet()) {
+		for (Map.Entry<Country, Integer> entry : allocation.entrySet()) {
 			this.map.setCountryArmies(entry.getKey(), entry.getValue());
-			writeLogLn(entry.getValue() + " " + entry.getKey());
+			writeLogLn(entry.getValue() + " " + entry.getKey().getName());
 		}
 		writeLogLn(EVENT_DELIM);
 	}
@@ -445,7 +449,7 @@ public class GameMaster {
 					cardBonus = RiskConstants.advanceTurnIn();
 					writeLogLn(currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
 					if (rsp.getBonusCountry() != null) {
-						if (this.map.getCountries().containsKey(rsp.getBonusCountry()) && this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
+						if (this.map.getCountries().contains(rsp.getBonusCountry()) && this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
 							this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
 						}
 					}
@@ -486,8 +490,8 @@ public class GameMaster {
 		return copy;
 	}
 	
-	private Player getOwnerObject(String countryName) {
-		String playerName = this.map.getCountryOwner(countryName);
+	private Player getOwnerObject(Country country) {
+		String playerName = this.map.getCountryOwner(country);
 		return getPlayerObject(playerName);
 	}
 	
@@ -512,8 +516,8 @@ public class GameMaster {
 		writeLogLn("Building deck...");
 		List<Card> newDeck = new ArrayList<Card>();
 		int i = 0;
-		for (Country country : this.map.getCountries().values()) {
-			newDeck.add(new Card(RiskConstants.REG_CARD_TYPES[i % RiskConstants.REG_CARD_TYPES.length], country.getName()));
+		for (Country country : this.map.getCountries()) {
+			newDeck.add(new Card(RiskConstants.REG_CARD_TYPES[i % RiskConstants.REG_CARD_TYPES.length], country));
 			i++;
 		}
 		for (i = 0; i < RiskConstants.NUM_WILD_CARDS; i++) {
@@ -580,15 +584,15 @@ public class GameMaster {
 	private void allocateUnownedCountries() {
 		if (this.players.size() > 0) {
 			writeLogLn("Re-allocating eliminated player's countries...");
-			Collection<String> countries = this.map.getCountries().keySet();
-			for (String countryName : countries) {
-				if (map.getCountryOwner(countryName) == null) {
-					map.setCountryOwner(countryName, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+			Collection<Country> countries = this.map.getCountries();
+			for (Country country : countries) {
+				if (map.getCountryOwner(country) == null) {
+					map.setCountryOwner(country, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					if (this.round > 0) {
 						//If these countries are being eliminated during a game,
 						//it is due to a player being eliminated by the Master,
 						//and so the re-allocated countries must be occupied.
-						map.setCountryArmies(countryName, 1);
+						map.setCountryArmies(country, 1);
 					}
 					allocationIdx++;
 				}
@@ -612,13 +616,13 @@ public class GameMaster {
 	private void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
 		if (this.playerMap.containsKey(loser.getName())) {
 			writeLogLn(loser.getName() + " Eliminated! " + reason);
-			for (String countryName : this.map.getCountries().keySet()) {
-				if (map.getCountryOwner(countryName).equals(loser.getName())) {
+			for (Country country : this.map.getCountries()) {
+				if (map.getCountryOwner(country).equals(loser.getName())) {
 					if (eliminator != null) {
-						map.setCountryOwner(countryName, eliminator.getName());
+						map.setCountryOwner(country, eliminator.getName());
 					}
 					else {
-						map.setCountryOwner(countryName, null);
+						map.setCountryOwner(country, null);
 					}
 				}
 			}
@@ -627,6 +631,9 @@ public class GameMaster {
 					this.playerCardMap.get(eliminator.getName()).add(card);
 				}
 				this.playerCardMap.get(loser.getName()).clear();
+			}
+			else {
+				writeLogLn(loser.getName() + " Eliminated! " + reason);
 			}
 			this.players.remove(loser.getName());
 			this.playerMap.remove(loser.getName());

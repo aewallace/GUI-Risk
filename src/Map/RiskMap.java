@@ -3,149 +3,87 @@ import java.io.IOException;
 import java.io.File;
 import java.lang.Exception;
 import java.lang.String;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Scanner;
+import java.util.Set;
 
 import Map.Continent;
 import Map.Country;
 
 public class RiskMap {
-	private Map<String, Continent> continents;
-	private Map<String, Country> countries;
-	private Map<String, String> owners;
-	private Map<String, Integer> armies;
+	private Set<Continent> continents;
+	private Set<Country> countries;
+	private Map<Country, String> owners;
+	private Map<Country, Integer> armies;
 	
 	public RiskMap(RiskMap map) {
-		this.continents = new HashMap<String, Continent>();
-		this.countries = new HashMap<String, Country>();
-		this.owners = new HashMap<String, String>();
-		this.armies = new HashMap<String, Integer>();
+		this.continents = new HashSet<Continent>();
+		this.countries = new HashSet<Country>();
+		this.owners = new HashMap<Country, String>();
+		this.armies = new HashMap<Country, Integer>();
 		copyMap(map);
 	}
 	
-	public RiskMap(String mapFile) throws IOException {
-		this.continents = new HashMap<String, Continent>();
-		this.countries = new HashMap<String, Country>();
-		this.owners = new HashMap<String, String>();
-		this.armies = new HashMap<String, Integer>();
+	public RiskMap() {
+		this.continents = new HashSet<Continent>();
+		this.countries = new HashSet<Country>();
+		this.owners = new HashMap<Country, String>();
+		this.armies = new HashMap<Country, Integer>();
 		
-		if (!loadMap(mapFile)) {
-			throw new IOException("RiskMap.loadMap: Invalid map file!");
-		}
+		loadMap();
 	}
 	
-	public Map<String, Continent> getContinents() {
+	public Set<Continent> getContinents() {
 		return this.continents;
 	}
 	
-	public Continent getContinent(String continent) {
-		if (this.continents.containsKey(continent)) {
-			return this.continents.get(continent);
-		}
-		else {
-			return null;
-		}
-	}
-	
-	public Map<String, Country> getCountries() {
+	public Set<Country> getCountries() {
 		return this.countries;
 	}
 	
-	public Country getCountry(String country) {
-		if (this.countries.containsKey(country)) {
-			return this.countries.get(country);
-		}
-		else {
-			return null;
-		}
+	public String getCountryOwner(Country country) {
+		return this.owners.get(country);
 	}
 	
-	public String getCountryOwner(String countryName) {
-		return this.owners.get(countryName);
+	public void setCountryOwner(Country country, String owner) {
+		this.owners.put(country, owner);
 	}
 	
-	public void setCountryOwner(String countryName, String owner) {
-		this.owners.put(countryName, owner);
+	public int getCountryArmies(Country country) {
+		return this.armies.get(country);
 	}
 	
-	public int getCountryArmies(String countryName) {
-		return this.armies.get(countryName);
+	public void addCountryArmies(Country country, int numArmies) {
+		this.armies.put(country, this.armies.get(country) + numArmies);
 	}
 	
-	public void addCountryArmies(String countryName, int numArmies) {
-		this.armies.put(countryName, this.armies.get(countryName) + numArmies);
+	public void setCountryArmies(Country country, int numArmies) {
+		this.armies.put(country, numArmies);
 	}
 	
-	public void setCountryArmies(String countryName, int numArmies) {
-		this.armies.put(countryName, numArmies);
-	}
-	
-	private boolean loadMap(String mapFile) {
+	private boolean loadMap() {
 		for (Continent continent : Continent.values()) {
 			continent.init();
-			this.continents.put(continent.getName(), continent);
+			this.continents.add(continent);
 		}
 		for (Country country : Country.values()) {
 			country.init();
-			this.countries.put(country.getName(), country);
-			this.owners.put(country.getName(), null);
-			this.armies.put(country.getName(), 0);
+			this.countries.add(country);
+			this.owners.put(country, null);
+			this.armies.put(country, 0);
 		}
 		return verifyMap();
-		/*try {
-			if (mapFile == null) {
-				return false;
-			}
-			else {
-				Scanner reader = new Scanner(new File(mapFile));
-				Country country = null;
-				while (reader.hasNext()) {
-					String next = reader.nextLine();
-					if (next.equals("$")) {
-						String countryName = reader.nextLine();
-						String continentName = reader.nextLine();
-						//current country
-						if (!this.countries.containsKey(countryName)) {
-							this.countries.put(countryName, new Country(countryName));
-						}
-						country = this.countries.get(countryName);
-						country.setContinent(continentName);
-						//current continent
-						if (!this.continents.containsKey(continentName)) {
-							this.continents.put(continentName, new Continent(continentName));
-						}
-						this.continents.get(continentName).addCountry(country);
-						next = reader.nextLine();
-					}
-					//neighbor country
-					String neighborName = next;
-					Country neighborCountry;
-					if (!this.countries.containsKey(neighborName)) {
-						this.countries.put(neighborName, new Country(neighborName));
-					}
-					neighborCountry = this.countries.get(neighborName);
-					//add neighbor to current country
-					country.addNeighbor(neighborCountry);
-				}
-				reader.close();
-				return verifyMap();
-			}
-		}
-		catch (Exception e) {
-			//any new data cannot be trusted
-			this.continents.clear();
-			this.countries.clear();
-			return false;
-		}*/
+		
 	}
 	
 	private boolean verifyMap() {
-		for (Continent continent : this.continents.values()) {
+		for (Continent continent : this.continents) {
 			for (Country country : continent.getCountries()) {
 				//check country-continent mapping symmetry
 				if (!continent.getName().equals(country.getContinent())
-				|| !this.countries.containsKey(country.getName())) {
+				|| !this.countries.contains(country)) {
 					return false;
 				}
 				//check neighbor symmetry
@@ -164,26 +102,10 @@ public class RiskMap {
 	}
 	
 	private void copyMap(RiskMap map) {
-		this.continents = new HashMap<String, Continent>(map.getContinents());
-		this.countries = new HashMap<String, Country>(map.getCountries());
-		this.owners = new HashMap<String, String>(map.owners);
-		this.armies = new HashMap<String, Integer>(map.armies);
-		/*for (Continent continent : map.getContinents().values()) {
-			Continent newContinent = new Continent(continent.getName());
-			this.continents.put(newContinent.getName(), newContinent);
-			for (Country country : continent.getCountries()) {
-				Country newCountry = new Country(country.getName());
-				newContinent.addCountry(newCountry);
-				newCountry.setContinent(country.getContinent());
-				newCountry.setOwner(country.getOwner());
-				newCountry.addArmies(country.getNumArmies());
-				this.countries.put(newCountry.getName(), newCountry);
-			}
-		}
-		for (Country country : map.getCountries().values()) {
-			for (Country neighbor : country.getNeighbors()) {
-				this.countries.get(country.getName()).addNeighbor(this.countries.get(neighbor.getName()));
-			}
-		}*/
+		this.continents = new HashSet<Continent>(map.getContinents());
+		this.countries = new HashSet<Country>(map.getCountries());
+		this.owners = new HashMap<Country, String>(map.owners);
+		this.armies = new HashMap<Country, Integer>(map.armies);
+		
 	}
 }
