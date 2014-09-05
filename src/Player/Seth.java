@@ -76,7 +76,7 @@ public class Seth extends DefaultPlayer {
 		boolean hopeless = true;
 		int best = -9999;
 		Continent targetContinent = null;
-		for (Continent continent : map.getContinents()) {
+		for (Continent continent : Continent.values()) {
 			int score = getContinentAttainability(map, continent, 0);
 			continentAttainability.put(continent, score);
 			if (score >= 0) {
@@ -309,7 +309,7 @@ public class Seth extends DefaultPlayer {
 	private Continent getTargetContinent(RiskMap map, int additionalArmies) {
 		int bestScore = -9999;
 		Continent bestContinent = null;
-		for (Continent continent : map.getContinents()) {
+		for (Continent continent : Continent.values()) {
 			if (!RiskUtils.playerControlsContinent(map, continent, this.name)) {
 				int score = getContinentAttainability(map, continent, additionalArmies);
 				if (bestContinent == null || score > bestScore) {

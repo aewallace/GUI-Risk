@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.File;
 import java.lang.Exception;
 import java.lang.String;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.HashMap;
@@ -13,34 +14,24 @@ import Map.Continent;
 import Map.Country;
 
 public class RiskMap {
-	private Set<Continent> continents;
-	private Set<Country> countries;
+	private static final boolean READ_ONLY = true;
 	private Map<Country, String> owners;
 	private Map<Country, Integer> armies;
 	
-	public RiskMap(RiskMap map) {
-		this.continents = new HashSet<Continent>();
-		this.countries = new HashSet<Country>();
-		this.owners = new HashMap<Country, String>();
-		this.armies = new HashMap<Country, Integer>();
-		copyMap(map);
+	public RiskMap(RiskMap map, boolean access) {
+		if (access == READ_ONLY) {
+			copyMapReadOnly(map);
+		}
+		else {
+			copyMap(map);
+		}
 	}
 	
 	public RiskMap() {
-		this.continents = new HashSet<Continent>();
-		this.countries = new HashSet<Country>();
 		this.owners = new HashMap<Country, String>();
 		this.armies = new HashMap<Country, Integer>();
 		
 		loadMap();
-	}
-	
-	public Set<Continent> getContinents() {
-		return this.continents;
-	}
-	
-	public Set<Country> getCountries() {
-		return this.countries;
 	}
 	
 	public String getCountryOwner(Country country) {
@@ -63,49 +54,32 @@ public class RiskMap {
 		this.armies.put(country, numArmies);
 	}
 	
-	private boolean loadMap() {
+	private void loadMap() {
 		for (Continent continent : Continent.values()) {
 			continent.init();
-			this.continents.add(continent);
 		}
 		for (Country country : Country.values()) {
 			country.init();
-			this.countries.add(country);
 			this.owners.put(country, null);
 			this.armies.put(country, 0);
 		}
-		return verifyMap();
-		
-	}
-	
-	private boolean verifyMap() {
-		for (Continent continent : this.continents) {
-			for (Country country : continent.getCountries()) {
-				//check country-continent mapping symmetry
-				if (!continent.getName().equals(country.getContinent())
-				|| !this.countries.contains(country)) {
-					return false;
-				}
-				//check neighbor symmetry
-				for (Country neighbor : country.getNeighbors()) {
-					if (!neighbor.getNeighbors().contains(country)) {
-						return false;
-					}
-				}
-			}
-		}
-		return true;
 	}
 	
 	public RiskMap getCopy() {
-		return new RiskMap(this);
+		return new RiskMap(this, !READ_ONLY);
+	}
+	
+	public RiskMap getReadOnlyCopy() {
+		return new RiskMap(this, READ_ONLY);
 	}
 	
 	private void copyMap(RiskMap map) {
-		this.continents = new HashSet<Continent>(map.getContinents());
-		this.countries = new HashSet<Country>(map.getCountries());
-		this.owners = new HashMap<Country, String>(map.owners);
-		this.armies = new HashMap<Country, Integer>(map.armies);
-		
+		this.owners = map.owners;
+		this.armies = map.armies;
+	}
+
+	private void copyMapReadOnly(RiskMap map) {
+		this.owners = Collections.unmodifiableMap(map.owners);
+		this.armies = Collections.unmodifiableMap(map.armies);
 	}
 }

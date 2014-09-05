@@ -21,7 +21,7 @@ public class RiskUtils {
 		if (reinforcements < RiskConstants.MIN_REINFORCEMENTS) {
 			reinforcements = RiskConstants.MIN_REINFORCEMENTS;
 		}
-		for (Continent continent : map.getContinents()) {
+		for (Continent continent : Continent.values()) {
 			if (playerControlsContinent(map, continent, playerName)) {
 				reinforcements += RiskConstants.CONTINENT_BONUSES.get(continent.getName());
 			}
@@ -31,7 +31,7 @@ public class RiskUtils {
 
 	public static Collection<Country> getPlayerCountries(RiskMap map, String playerName) {
 		Collection<Country> playerCountries = new ArrayList<Country>();
-		for (Country country : map.getCountries()) {
+		for (Country country : Country.values()) {
 			if (map.getCountryOwner(country).equals(playerName)) {
 				playerCountries.add(country);
 			}
@@ -41,7 +41,7 @@ public class RiskUtils {
 	
 	public static Collection<Continent> getPlayerContinents(RiskMap map, String playerName) {
 		Collection<Continent> playerContinents = new ArrayList<Continent>();
-		for (Continent continent : map.getContinents()) {
+		for (Continent continent : Continent.values()) {
 			if (playerControlsContinent(map, continent, playerName)) {
 				playerContinents.add(continent);
 			}

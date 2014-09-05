@@ -327,7 +327,7 @@ public class GameMaster {
 	
 	private ReinforcementResponse tryInitialAllocation(Player player, int reinforcements) {
 		try {
-			ReinforcementResponse rsp = player.getInitialAllocation(this.map.getCopy(), reinforcements);
+			ReinforcementResponse rsp = player.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -338,7 +338,7 @@ public class GameMaster {
 	
 	private CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired) {
 		try {
-			CardTurnInResponse rsp = player.proposeTurnIn(this.map.getCopy(), cardSet, oppCards, turnInRequired);
+			CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -350,7 +350,7 @@ public class GameMaster {
 	private ReinforcementResponse tryReinforce(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, int reinforcements) {
 		ReinforcementResponse rsp;
 		try {
-			rsp = player.reinforce(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
+			rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -361,7 +361,7 @@ public class GameMaster {
 	
 	private AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) {
 		try {
-			AttackResponse rsp = player.attack(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards);
+			AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -372,7 +372,7 @@ public class GameMaster {
 	
 	private DefendResponse tryDefend(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) {
 		try {
-			DefendResponse rsp = player.defend(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+			DefendResponse rsp = player.defend(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -383,7 +383,7 @@ public class GameMaster {
 	
 	private AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) {
 		try {
-			AdvanceResponse rsp = player.advance(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+			AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -394,7 +394,7 @@ public class GameMaster {
 	
 	private FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) {
 		try {
-			FortifyResponse rsp = player.fortify(this.map.getCopy(), createCardSetCopy(player.getName()), oppCards);
+			FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 			validatePlayerName(player);
 			return rsp;
 		}
@@ -449,7 +449,7 @@ public class GameMaster {
 					cardBonus = RiskConstants.advanceTurnIn();
 					writeLogLn(currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
 					if (rsp.getBonusCountry() != null) {
-						if (this.map.getCountries().contains(rsp.getBonusCountry()) && this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
+						if (this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
 							this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
 						}
 					}
@@ -516,7 +516,7 @@ public class GameMaster {
 		writeLogLn("Building deck...");
 		List<Card> newDeck = new ArrayList<Card>();
 		int i = 0;
-		for (Country country : this.map.getCountries()) {
+		for (Country country : Country.values()) {
 			newDeck.add(new Card(RiskConstants.REG_CARD_TYPES[i % RiskConstants.REG_CARD_TYPES.length], country));
 			i++;
 		}
@@ -584,8 +584,7 @@ public class GameMaster {
 	private void allocateUnownedCountries() {
 		if (this.players.size() > 0) {
 			writeLogLn("Re-allocating eliminated player's countries...");
-			Collection<Country> countries = this.map.getCountries();
-			for (Country country : countries) {
+			for (Country country : Country.values()) {
 				if (map.getCountryOwner(country) == null) {
 					map.setCountryOwner(country, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					if (this.round > 0) {
@@ -616,7 +615,7 @@ public class GameMaster {
 	private void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
 		if (this.playerMap.containsKey(loser.getName())) {
 			writeLogLn(loser.getName() + " Eliminated! " + reason);
-			for (Country country : this.map.getCountries()) {
+			for (Country country : Country.values()) {
 				if (map.getCountryOwner(country).equals(loser.getName())) {
 					if (eliminator != null) {
 						map.setCountryOwner(country, eliminator.getName());
