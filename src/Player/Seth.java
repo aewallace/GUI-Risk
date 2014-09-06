@@ -2,6 +2,7 @@ package Player;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -126,27 +127,44 @@ public class Seth extends DefaultPlayer {
 				}
 			}
 		}
+		Set<Country> reinforceable = new HashSet<Country>();
+		boolean useSet = false;
 		while (reinforcements > 0) {
-			for (Country currentCountry : myCountries) {
+			for (Country currentCountry : useSet ? reinforceable : myCountries) {
 				if (hopeless || continentAttainability.get(currentCountry.getContinent()) >= 0) {
-					if (beginReinforce && reinforcements > 0) {
-						for (Country neighbor : currentCountry.getNeighbors()) {
-							if (!map.getCountryOwner(neighbor).equals(this.name) && reinforcements > 0) {
+					for (Country neighbor : currentCountry.getNeighbors()) {
+						if (!map.getCountryOwner(neighbor).equals(this.name) && reinforcements > 0) {
+							if (beginReinforce) {
 								reinforcements -= rsp.reinforce(currentCountry, 1);
 								this.lastCountryReinforced = currentCountry;
 							}
+							if (!useSet) {
+								reinforceable.add(currentCountry);
+							}
 						}
 					}
-					if (this.lastCountryReinforced == currentCountry) {
-						beginReinforce = true;
+				}
+				else if (!hopeless) {
+					for (Country neighbor : currentCountry.getNeighbors()) {
+						if (!map.getCountryOwner(neighbor).equals(this.name)
+							&& continentAttainability.get(neighbor.getContinent()) >= 0
+							&& reinforcements > 0) {
+							if (beginReinforce) {
+								reinforcements -= rsp.reinforce(currentCountry, 1);
+								this.lastCountryReinforced = currentCountry;
+							}
+							if (!useSet) {
+								reinforceable.add(currentCountry);
+							}
+						}
 					}
 				}
+				if (this.lastCountryReinforced == currentCountry) {
+					beginReinforce = true;
+				}
 			}
+			useSet = true;
 			beginReinforce = true;
-		}
-		if (!ReinforcementResponse.isValidResponse(rsp, map, this.name, temp)) {
-			ReinforcementResponse.isValidResponse(rsp, map, this.name, temp);
-			return rsp;
 		}
 		return rsp;
 	}
@@ -333,6 +351,7 @@ public class Seth extends DefaultPlayer {
 		int myArmies = additionalArmies;
 		int enemyArmies = 0;
 		boolean isAlreadyOwned = true;
+		Set<Country> checked = new HashSet<Country>();
 		
 		for (Country country : continent.getCountries()) {
 			if (map.getCountryOwner(country).equals(this.name)) {
@@ -343,6 +362,18 @@ public class Seth extends DefaultPlayer {
 				isAlreadyOwned = false;
 				enemyCountries++;
 				enemyArmies += map.getCountryArmies(country);
+			}
+			for (Country neighbor : country.getNeighbors()) {
+				if (neighbor.getContinent() != continent && !checked.contains(neighbor)) {
+					checked.add(neighbor);
+					//only add armies, not countries, as the countries are not in the target continent, but the armies could eventually be
+					if (map.getCountryOwner(neighbor).equals(this.name)) {
+						myArmies += map.getCountryArmies(neighbor) - 1;
+					}
+					else {
+						enemyArmies += map.getCountryArmies(neighbor) - 1;
+					}
+				}
 			}
 		}
 		

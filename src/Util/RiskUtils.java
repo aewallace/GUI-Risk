@@ -23,7 +23,7 @@ public class RiskUtils {
 		}
 		for (Continent continent : Continent.values()) {
 			if (playerControlsContinent(map, continent, playerName)) {
-				reinforcements += RiskConstants.CONTINENT_BONUSES.get(continent.getName());
+				reinforcements += RiskConstants.CONTINENT_BONUSES.get(continent);
 			}
 		}
 		return reinforcements;

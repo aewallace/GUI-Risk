@@ -28,7 +28,6 @@ import Util.RiskConstants;
 import Util.RiskUtils;
 import Util.RollOutcome;
 
-//TODO: Implement Master Credentials to prevent improper alteration of objects.
 public class GameMaster {
 	private static final String LOGFILE = "LOG.txt";
 	private static final String STATSFILE = "STATS.txt";
@@ -653,7 +652,7 @@ public class GameMaster {
 	}
 	
 	private void writeStatsLn() {
-		if (this.stats != null)
+		if (this.stats != null) {
 			try {
 				stats.write(this.turnCount + " " + this.round + " ");
 				for (String playerName : this.allPlayers) {
@@ -667,15 +666,18 @@ public class GameMaster {
 			}
 			catch (IOException e) {
 			}
+		}
 	}
 	
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 1;
+			int numGames = 1000;
+			RiskConstants.SEED = 4;
 			for (int i = 0; i < numGames; i++) {
-				GameMaster game = new GameMaster("Countries.txt", null, LOGGING_ON);
-				System.out.print(i + " - ");
+				RiskConstants.resetTurnIn();
+				GameMaster game = new GameMaster("Countries.txt", null, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				System.out.print((i + 1) + " - ");
 				String victor = game.begin();
 				if (!winLog.containsKey(victor)) {
 					winLog.put(victor, 0);

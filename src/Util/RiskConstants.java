@@ -3,6 +3,8 @@ package Util;
 import java.util.HashMap;
 import java.util.Map;
 
+import Map.Continent;
+
 public class RiskConstants {
 	public static int SEED = 0;
 	
@@ -22,15 +24,15 @@ public class RiskConstants {
 	public static final int MIN_REINFORCEMENTS = 3;
 	public static final int COUNTRY_ARMY_DIVISOR = 3;
 	public static final int BONUS_COUNTRY_ARMIES = 2;
-	public static final Map<String, Integer> CONTINENT_BONUSES;
+	public static final Map<Continent, Integer> CONTINENT_BONUSES;
 	static {
-		CONTINENT_BONUSES = new HashMap<String, Integer>();
-		CONTINENT_BONUSES.put("Asia", 7);
-		CONTINENT_BONUSES.put("North America", 5);
-		CONTINENT_BONUSES.put("Europe", 5);
-		CONTINENT_BONUSES.put("Africa", 3);
-		CONTINENT_BONUSES.put("South America", 2);
-		CONTINENT_BONUSES.put("Australia", 2);
+		CONTINENT_BONUSES = new HashMap<Continent, Integer>();
+		CONTINENT_BONUSES.put(Continent.ASIA, 7);
+		CONTINENT_BONUSES.put(Continent.NORTHAMERICA, 5);
+		CONTINENT_BONUSES.put(Continent.EUROPE, 5);
+		CONTINENT_BONUSES.put(Continent.AFRICA, 3);
+		CONTINENT_BONUSES.put(Continent.SOUTHAMERICA, 2);
+		CONTINENT_BONUSES.put(Continent.AUSTRALIA, 2);
 	};
 	
 	public static final int MAX_ATTEMPTS = 5;
@@ -64,5 +66,9 @@ public class RiskConstants {
 	
 	public static int peekNextTurnIn() {
 		return getNextTurnInValue();
+	}
+	
+	public static void resetTurnIn() {
+		LAST_TURN_IN = 0;
 	}
 }
