@@ -12,7 +12,9 @@ import java.util.Random;
 
 import Map.Country;
 import Map.RiskMap;
-import Player.DefaultPlayer;
+import Player.EasyDefaultPlayer;
+import Player.HardDefaultPlayer;
+import Player.NormalDefaultPlayer;
 import Player.Player;
 import Player.Seth;
 import Response.AdvanceResponse;
@@ -75,6 +77,9 @@ public class GameMaster {
 				if (turn == 0) {
 					this.round++;
 					writeLogLn("Beginning Round " + round + "!");
+					if (this.round > RiskConstants.MAX_ROUNDS) {
+						return "Stalemate!";
+					}
 				}
 				Player currentPlayer = this.playerMap.get(this.players.get(turn));
 				writeLogLn(currentPlayer.getName() + " is starting their turn.");
@@ -87,7 +92,6 @@ public class GameMaster {
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
 				}
 				catch (PlayerEliminatedException e) {
-					//TODO: write message and reason to logfile
 					//If an elimination exception is thrown up to this level,
 					//then it was currentPlayer who was eliminated.
 					turn %= this.players.size();
@@ -137,7 +141,6 @@ public class GameMaster {
 					eliminate(player, null, "You failed to provide a valid initial army allocation.");
 				}
 				catch (PlayerEliminatedException e) {
-					//TODO: write message and reason to logfile
 					playerIndex = 0;
 				}
 			}
@@ -164,15 +167,12 @@ public class GameMaster {
 		writeLogLn(currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS) {
 			attempts++;
-			ReinforcementResponse rsp = tryReinforce(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, reinforcements);
+			ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
 			if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
 				for (Map.Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
 					this.map.addCountryArmies(entry.getKey(), entry.getValue());
 					writeLogLn(entry.getValue() + " " + entry.getKey().getName());
 				}
-			}
-			else {
-				rsp = null;
 			}
 		}
 		if (!valid) {
@@ -331,6 +331,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -342,11 +343,12 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
 	
-	private ReinforcementResponse tryReinforce(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, int reinforcements) {
+	private ReinforcementResponse tryReinforce(Player player, Map<String, Integer> oppCards, int reinforcements) {
 		ReinforcementResponse rsp;
 		try {
 			rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
@@ -354,6 +356,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -365,6 +368,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -376,6 +380,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -387,6 +392,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -398,6 +404,7 @@ public class GameMaster {
 			return rsp;
 		}
 		catch (Exception e) {
+			//e.printStackTrace();
 			return null;
 		}
 	}
@@ -461,17 +468,6 @@ public class GameMaster {
 			else {
 				//if a turn-in is not required, a null response is taken as the player declining
 				valid = !turnInRequired;
-			}
-			if (!valid && attempts == 0) {
-				System.out.println("Player Cards:");
-				for (Card card : this.playerCardMap.get(currentPlayer.getName())) {
-					System.out.println("\t" + card);
-				}
-				System.out.println("Player Proposed Turn-In:");
-				for (Card card : this.playerCardMap.get(currentPlayer.getName())) {
-					System.out.println("\t" + card);
-				}
-				attempts = attempts + 0;
 			}
 			attempts++;
 		}
@@ -541,12 +537,12 @@ public class GameMaster {
 		writeLogLn("Loading players...");
 		this.playerMap = new HashMap<String, Player>();
 		this.allPlayers = new ArrayList<String>();
-		this.playerMap.put("Player 1", new DefaultPlayer("Player 1"));
-		this.allPlayers.add("Player 1");
-		this.playerMap.put("Player 2", new DefaultPlayer("Player 2"));
-		this.allPlayers.add("Player 2");
-		this.playerMap.put("Player 3", new DefaultPlayer("Player 3"));
-		this.allPlayers.add("Player 3");
+		this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
+		this.allPlayers.add("Easy 1");
+		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
+		this.allPlayers.add("Normal 2");
+		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
+		this.allPlayers.add("Hard 3");
 		this.playerMap.put("Seth", new Seth());
 		this.allPlayers.add("Seth");
 		this.players = new ArrayList<String>(this.allPlayers);
@@ -630,9 +626,6 @@ public class GameMaster {
 				}
 				this.playerCardMap.get(loser.getName()).clear();
 			}
-			else {
-				writeLogLn(loser.getName() + " Eliminated! " + reason);
-			}
 			this.players.remove(loser.getName());
 			this.playerMap.remove(loser.getName());
 			allocateUnownedCountries();
@@ -672,8 +665,8 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 1000;
-			RiskConstants.SEED = 4;
+			int numGames = 5000;
+			RiskConstants.SEED = 1;
 			for (int i = 0; i < numGames; i++) {
 				RiskConstants.resetTurnIn();
 				GameMaster game = new GameMaster("Countries.txt", null, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);

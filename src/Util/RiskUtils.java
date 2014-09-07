@@ -14,6 +14,12 @@ import Map.RiskMap;
 
 public class RiskUtils {
 	
+	/**
+	 * Calculates the number of country and continent reinforcements that a player will receive.
+	 * @param map
+	 * @param playerName
+	 * @return
+	 */
 	public static int calculateReinforcements(RiskMap map, String playerName) {
 		int reinforcements;
 		int numCountries = getPlayerCountries(map, playerName).size();
@@ -28,7 +34,10 @@ public class RiskUtils {
 		}
 		return reinforcements;
 	}
-
+	
+	/**
+	 * Returns all countries that are controlled by the specified player.
+	 */
 	public static Collection<Country> getPlayerCountries(RiskMap map, String playerName) {
 		Collection<Country> playerCountries = new ArrayList<Country>();
 		for (Country country : Country.values()) {
@@ -39,6 +48,9 @@ public class RiskUtils {
 		return playerCountries;
 	}
 	
+	/**
+	 * Returns all continents that are controlled by the specified player.
+	 */
 	public static Collection<Continent> getPlayerContinents(RiskMap map, String playerName) {
 		Collection<Continent> playerContinents = new ArrayList<Continent>();
 		for (Continent continent : Continent.values()) {
@@ -49,6 +61,9 @@ public class RiskUtils {
 		return playerContinents;
 	}
 	
+	/**
+	 * Returns true IFF the specified player controls the specified continent.
+	 */
 	public static boolean playerControlsContinent(RiskMap map, Continent continent, String playerName) {
 		for (Country country : continent.getCountries()) {
 			if (!playerName.equals(map.getCountryOwner(country))) {
@@ -58,6 +73,9 @@ public class RiskUtils {
 		return true;
 	}
 	
+	/**
+	 * Counts the number of armies controlled by a given player.
+	 */
 	public static int countPlayerArmies(RiskMap map, String playerName) {
 		int numArmies = 0;
 		for (Country country : getPlayerCountries(map, playerName)) {
@@ -66,7 +84,10 @@ public class RiskUtils {
 		return numArmies;
 	}
 	
-	public static boolean areConnected(RiskMap map, Country start, Country end, String playerName) {
+	/**
+	 * Returns true IFF start and end are connected by the given player's countries.
+	 */
+	public static boolean areConnected(RiskMap map, Country start, Country end, String playerName, boolean throughFriendlies) {
 		Set<Country> traversed = new HashSet<Country>();
 		Deque<Country> toSearch = new LinkedList<Country>();
 		toSearch.addLast(start);
@@ -79,7 +100,7 @@ public class RiskUtils {
 			else {
 				traversed.add(current);
 				for (Country neighbor : current.getNeighbors()) {
-					if (!traversed.contains(neighbor.getName()) && map.getCountryOwner(neighbor).equals(playerName)) {
+					if (!traversed.contains(neighbor) && throughFriendlies == map.getCountryOwner(neighbor).equals(playerName)) {
 						toSearch.addLast(neighbor);
 					}
 				}
@@ -88,6 +109,9 @@ public class RiskUtils {
 		return false;
 	}
 	
+	/**
+	 * For a given player, return all disjoint sets of connected countries that are owned by that player.
+	 */
 	public static Collection<Set<Country>> getAllConnectedCountrySets(RiskMap map, String playerName) {
 		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, playerName);
 		Collection<Set<Country>> allConnectedSets = new ArrayList<Set<Country>>();
@@ -108,9 +132,6 @@ public class RiskUtils {
 	
 	/**
 	 * The returned set includes the country of origin.
-	 * @param map
-	 * @param originName
-	 * @return
 	 */
 	public static Set<Country> getConnectedCountries(RiskMap map, Country origin) {
 		Set<Country> connectedSet = new HashSet<Country>();
@@ -130,6 +151,9 @@ public class RiskUtils {
 		return connectedSet;
 	}
 	
+	/**
+	 * Returns the subset of allCountries that is interior or exterior, based on the value of selectInterior.
+	 */
 	public static Collection<Country> filterCountriesByBorderStatus(RiskMap map, String playerName, Collection<Country> allCountries, boolean selectInterior) {
 		Collection<Country> selectedCountries = new ArrayList<Country>();
 		
@@ -146,5 +170,20 @@ public class RiskUtils {
 		}
 		
 		return selectedCountries;
+	}
+	
+	/**
+	 * Returns all border countries of a given continent.
+	 */
+	public static Set<Country> getContinentBorders(RiskMap map, Continent continent) {
+		Set<Country> borderCountries = new HashSet<Country>();
+		for (Country country : continent.getCountries()) {
+			for (Country neighbor : country.getNeighbors()) {
+				if (neighbor.getContinent() != continent) {
+					borderCountries.add(country);
+				}
+			}
+		}
+		return borderCountries;
 	}
 }

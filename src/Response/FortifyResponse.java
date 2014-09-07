@@ -52,7 +52,7 @@ public class FortifyResponse {
 			Country to = rsp.getToCountry();
 			return map.getCountryOwner(from).equals(playerName)
 					&& map.getCountryOwner(to).equals(playerName)
-					&& RiskUtils.areConnected(map, from, to, playerName);
+					&& RiskUtils.areConnected(map, from, to, playerName, true);
 		}
 		else {
 			return false;
