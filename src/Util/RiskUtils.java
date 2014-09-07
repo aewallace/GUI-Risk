@@ -123,7 +123,7 @@ public class RiskUtils {
 				}
 			}
 			if (!alreadyAssigned) {
-				Set<Country> newSet = new HashSet<Country>(getConnectedCountries(map, country));
+				Set<Country> newSet = new HashSet<Country>(getConnectedCountries(map, country, playerName, true, false));
 				allConnectedSets.add(newSet);
 			}
 		}
@@ -133,17 +133,18 @@ public class RiskUtils {
 	/**
 	 * The returned set includes the country of origin.
 	 */
-	public static Set<Country> getConnectedCountries(RiskMap map, Country origin) {
+	public static Set<Country> getConnectedCountries(RiskMap map, Country origin, String playerName, boolean ownedByPlayer, boolean restrictToOriginContinent) {
 		Set<Country> connectedSet = new HashSet<Country>();
 		Deque<Country> toSearch = new LinkedList<Country>();
 		toSearch.addLast(origin);
-		String playerName = map.getCountryOwner(origin);
 		
 		while (toSearch.size() > 0) {
 			Country current = toSearch.removeFirst();
 			connectedSet.add(current);
 			for (Country neighbor : current.getNeighbors()) {
-				if (map.getCountryOwner(neighbor).equals(playerName) && !connectedSet.contains(neighbor)) {
+				if (ownedByPlayer == map.getCountryOwner(neighbor).equals(playerName)
+					&& !connectedSet.contains(neighbor)
+					&& restrictToOriginContinent == (neighbor.getContinent() == origin.getContinent())) {
 					toSearch.addLast(neighbor);
 				}
 			}
