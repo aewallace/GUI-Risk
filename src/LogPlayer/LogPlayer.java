@@ -10,9 +10,17 @@ import java.util.Scanner;
 import javafx.application.Application;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
+import javafx.geometry.HPos;
+import javafx.geometry.VPos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+import javafx.scene.control.TextArea;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -26,8 +34,7 @@ public class LogPlayer extends Application {
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final String LOG_FILE = "LOG.txt";
 	private static final String EVENT_DELIM = "...";
-    private Stage stage;
-    private Pane root;
+    private ScrollPane scrollPane;
     private Scene scene;
     private Pane pane;
     private Text eventTitle;
@@ -42,19 +49,12 @@ public class LogPlayer extends Application {
  
     @Override
     public void start(Stage primaryStage) {
-        preSetup(primaryStage);
-        setup();
-        postSetup();
-    }
- 
-    protected void setup() {
     	try {
-    		this.log = new Scanner(new File(LOG_FILE));
-    		this.nextToken = null;
-    	
+			this.log = new Scanner(new File(LOG_FILE));
+			this.nextToken = null;
 	        pane = new Pane();
-	        pane.getStyleClass().add("RiskBoard");
 	        pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
 	        
 	        loadTextNodes("TextNodes.txt");
 	        loadPlayers();
@@ -90,25 +90,17 @@ public class LogPlayer extends Application {
 	        });
 	        
 	        pane.getChildren().add(nextActionBtn);
-	        root.getChildren().addAll(pane);
+	
+			scrollPane = new ScrollPane();
+			scrollPane.setContent(pane);
+			
+			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+	        primaryStage.setScene(scene);
+	        primaryStage.show();
     	}
     	catch (FileNotFoundException e) {
     	}
-    }
- 
-    protected void preSetup(Stage primaryStage) {
-        stage = primaryStage;
-        stage.setTitle(getAppTitle());
-        root = new StackPane();
-        root.getStyleClass().add("root-pane");
-        scene = new Scene(root, getAppWidth(), getAppHeight());
-        stage.setScene(scene);
-        setupCss();
-    }
- 
-    protected void postSetup() {
-        stage.centerOnScreen();
-        stage.show();
+        ////////////////////////////////////////////
     }
  
     // override to change APP WIDTH
@@ -125,18 +117,12 @@ public class LogPlayer extends Application {
     protected String getAppTitle() {
         return "Risk Log Player";
     }
- 
-    // override to add CSS styles
-    protected void setupCss() {
-        scene.getStylesheets().add("style.css");
-    }
     
     private void loadTextNodes(String nodeFile) {
 		try {
 			if (nodeFile != null) {
 				this.textNodeMap = new HashMap<String, Text>();
 				Scanner reader = new Scanner(new File(nodeFile));
-				int i = 0;
 				while (reader.hasNext()) {
 					int nextX = reader.nextInt();
 					int nextY = reader.nextInt();
