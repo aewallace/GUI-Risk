@@ -54,7 +54,7 @@ public class LogPlayer extends Application {
 			this.log = new Scanner(new File(LOG_FILE));
 			this.nextToken = null;
 	        pane = new Pane();
-	        pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
 	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
 	        
 	        loadTextNodes("TextNodes.txt");
