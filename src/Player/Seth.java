@@ -454,6 +454,8 @@ public class Seth implements Player {
 	private FortifyResponse fortifyInternalExternal(RiskMap map, Collection<Set<Country>> allConnectedSets, Map<Continent, Integer> continentBaseScores, Continent targetContinent) {
 		Country strongestFrom = null, weakestTo = null;
 		int bestEnemyStr = 0, bestTargetEnemyStr = 0;
+		Country borderFortifyFrom = null, borderFortifyTo = null;
+		int bestBorderStrDiff = 1;
 		for (Set<Country> connectedSet : allConnectedSets) {
 			Collection<Country> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
 			Collection<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
@@ -468,6 +470,8 @@ public class Seth implements Player {
 			for (Country currentCountry : exteriorCountries) {
 				int enemyForcesInTarget = 0;
 				int enemyStr = 0;
+				//this country might be the external border of an owned continent
+				boolean isOwnedBorder = continentBaseScores.get(currentCountry.getContinent()) == -9999;
 				for (Country neighbor : currentCountry.getNeighbors()) {
 					if (!map.getCountryOwner(neighbor).equals(this.name)) {
 						enemyStr += map.getCountryArmies(neighbor);
@@ -475,6 +479,14 @@ public class Seth implements Player {
 							enemyForcesInTarget += map.getCountryArmies(neighbor);
 						}
 					}
+				}
+				int strDiff = map.getCountryArmies(currentCountry) - enemyStr;
+				if (isOwnedBorder
+					&& strDiff <= 0
+					&& (borderFortifyTo == null
+						|| strDiff < bestBorderStrDiff)) {
+					borderFortifyTo = currentCountry;
+					borderFortifyFrom = interiorCountry;
 				}
 				if (exteriorCountry == null
 					|| enemyForcesInTarget > bestTargetEnemyStr) {
@@ -500,6 +512,10 @@ public class Seth implements Player {
 				strongestFrom = interiorCountry;
 				weakestTo = exteriorCountry;
 			}
+		}
+		if (borderFortifyFrom != null && borderFortifyTo != null) {
+			strongestFrom = borderFortifyFrom;
+			weakestTo = borderFortifyTo;
 		}
 		if (strongestFrom != null && weakestTo != null) {
 			FortifyResponse rsp = new FortifyResponse();
