@@ -17,6 +17,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.TextArea;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
@@ -93,6 +94,12 @@ public class LogPlayer extends Application {
 	
 			scrollPane = new ScrollPane();
 			scrollPane.setContent(pane);
+			scrollPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
+	        	@Override
+	        	public void handle(KeyEvent event) {
+	        		readNextLogEvent(LOG_FILE);
+	        	}
+	        });
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
 	        primaryStage.setScene(scene);
