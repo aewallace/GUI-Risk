@@ -43,7 +43,7 @@ public class GameMaster {
 	private Map<String, Collection<Card>> playerCardMap;
 	
 	private static RiskMap starterMap = null;
-	private static Random rand = new Random(RiskConstants.SEED);
+	private static Random rand;
 	private static int allocationIdx = 0;
 	
 	private FileWriter log, stats;
@@ -53,6 +53,9 @@ public class GameMaster {
 	public GameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
 		this.round = 0;
 		this.turnCount = 0;
+		if (rand == null) {
+			rand = new Random(RiskConstants.SEED);
+		}
 		if (logSwitch == LOGGING_ON) {
 			this.log = new FileWriter(LOGFILE);
 			this.stats = new FileWriter(STATSFILE);
