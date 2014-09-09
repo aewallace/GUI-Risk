@@ -144,7 +144,7 @@ public class RiskUtils {
 			for (Country neighbor : current.getNeighbors()) {
 				if (ownedByPlayer == map.getCountryOwner(neighbor).equals(playerName)
 					&& !connectedSet.contains(neighbor)
-					&& restrictToOriginContinent == (neighbor.getContinent() == origin.getContinent())) {
+					&& (!restrictToOriginContinent || neighbor.getContinent() == origin.getContinent())) {
 					toSearch.addLast(neighbor);
 				}
 			}

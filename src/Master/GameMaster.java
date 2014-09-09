@@ -538,23 +538,23 @@ public class GameMaster {
 		this.playerMap = new HashMap<String, Player>();
 		this.allPlayers = new ArrayList<String>();
 		
-		//this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
-		//this.allPlayers.add("Easy 1");
+		this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
+		this.allPlayers.add("Easy 1");
 		
-		//this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
-		//this.allPlayers.add("Normal 2");
+		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
+		this.allPlayers.add("Normal 2");
 		
-		//this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
-		//this.allPlayers.add("Hard 3");
+		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
+		this.allPlayers.add("Hard 3");
 		
 		this.playerMap.put("Seth 1", new Seth("Seth 1"));
 		this.allPlayers.add("Seth 1");
 		
-		this.playerMap.put("Seth 2", new Seth("Seth 2"));
-		this.allPlayers.add("Seth 2");
+		//this.playerMap.put("Seth 2", new Seth("Seth 2"));
+		//this.allPlayers.add("Seth 2");
 		
-		this.playerMap.put("Seth 3", new Seth("Seth 3"));
-		this.allPlayers.add("Seth 3");
+		//this.playerMap.put("Seth 3", new Seth("Seth 3"));
+		//this.allPlayers.add("Seth 3");
 		
 		this.players = new ArrayList<String>(this.allPlayers);
 		shufflePlayers(this.players);//choose a random turn order

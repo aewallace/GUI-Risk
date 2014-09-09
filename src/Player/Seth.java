@@ -27,17 +27,20 @@ public class Seth implements Player {
 	protected String name;
 	protected Country lastCountryReinforced;
 	protected int lastCardCount;
+	protected boolean hasGottenCard;
 	
 	public Seth() {
 		this.name = "Seth";
 		this.lastCountryReinforced = null;
 		this.lastCardCount = 0;
+		this.hasGottenCard = false;
 	}
 	
 	public Seth(String nameIn) {
 		this.name = nameIn;
 		this.lastCountryReinforced = null;
 		this.lastCardCount = 0;
+		this.hasGottenCard = false;
 	}
 	
 	/**
@@ -62,8 +65,11 @@ public class Seth implements Player {
 	 * Only returns a set when it is required.
 	 */
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired) {
-		this.lastCardCount -= RiskConstants.NUM_CARD_TURN_IN;
-		return turnInCards(map, myCards);
+		CardTurnInResponse rsp = turnInCards(map, myCards);
+		if (rsp != null) {
+			this.lastCardCount -= RiskConstants.NUM_CARD_TURN_IN;
+		}
+		return rsp;
 	}
 	
 	/**
@@ -311,40 +317,35 @@ public class Seth implements Player {
 	 * If no ideal option exists, and no card has been attained, be more aggressive.
 	 */
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
-		boolean hasGottenCard = myCards.size() > this.lastCardCount;
-		if (hasGottenCard) {
-			this.lastCardCount = myCards.size() - 1;
-		}
+		this.hasGottenCard = this.hasGottenCard || myCards.size() > this.lastCardCount;
 		AttackResponse rsp = decide(map, true);
 		
-		if (rsp != null) {
-			return rsp;
+		if (rsp == null && !this.hasGottenCard) {
+			rsp = decide(map, false);
 		}
-		else if (!hasGottenCard) {
-			return decide(map, false);
-		}
-		else {
-			this.lastCardCount++;
-			return null;
-		}
+		return rsp;
 	}
 	
 	private AttackResponse decide(RiskMap map, boolean tryIdealAttack) {
 		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		AttackDecider decider = new AttackDecider(this.name);
-		decider.attackSharedNeighborsFirst = true;
 		decider.useCombinedAttackStrength = true;
 		decider.useFirstValidOption = false;
 		decider.useStrDiffThreshold = true;
 		
 		if (tryIdealAttack) {
+			decider.attackSharedNeighborsFirst = true;
 			decider.useLowestStrengthDiff = true;
 			decider.useHighestStrengthDiff = false;
 			decider.strDiffThresh = 2;
 			decider.targetContinent = getTargetContinent(map, 0);
-			decider.useTargetContinent = decider.targetContinent != null && (getContinentAttainability(map, decider.targetContinent, 0) > 0 || !tryIdealAttack);
+			decider.useTargetContinent = decider.targetContinent != null;
+			if (getContinentAttainability(map, decider.targetContinent, 0) < AttackDecider.MIN_SCORE) {
+				return null;
+			}
 		}
 		else {
+			decider.attackSharedNeighborsFirst = false;
 			decider.useLowestStrengthDiff = false;
 			decider.useHighestStrengthDiff = true;
 			decider.useTargetContinent = false;
@@ -431,6 +432,9 @@ public class Seth implements Player {
 	 * has at least one enemy neighbor.
 	 */
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
+		this.lastCardCount = myCards.size();
+		//reset card flag for next turn
+		this.hasGottenCard = false;
 		FortifyResponse rsp = new FortifyResponse();
 		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 		Map<Continent, Integer> continentBaseScores = getallAttainabilities(map, 0);
@@ -688,6 +692,8 @@ public class Seth implements Player {
 }
 
 class AttackDecider {
+	public static final int MIN_SCORE = 5;
+	
 	String playerName;
 
 	boolean useHighestStrengthDiff;//chooses the option with the largest strength mismatch
