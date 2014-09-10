@@ -794,6 +794,7 @@ class AttackDecider {
 								}
 								if (map.getCountryArmies(neighbor) <= RiskConstants.MAX_DFD_DICE
 									&& map.getCountryArmies(nbrNeighbor) > map.getCountryArmies(currentCountry)) {
+									//if this country is the main attack force's only way into the target continent, defer
 									int numOptions = 0;
 									for (Country mainAtkPathCountry : nbrNeighbor.getNeighbors()) {
 										if (!map.getCountryOwner(mainAtkPathCountry).equals(this.playerName)) {
@@ -804,6 +805,18 @@ class AttackDecider {
 										}
 									}
 									skipThisOption = numOptions == 1;
+									if (skipThisOption) {
+										//only defer to the main attack force if you can't handle all of these countries yourself
+										int totalEnemiesLeft = map.getCountryArmies(currentCountry);
+										Collection<Country> enemyCountriesLeft = RiskUtils.getConnectedCountries(map, neighbor, this.playerName, false, true);
+										for (Country remainingEnemy : enemyCountriesLeft) {
+											totalEnemiesLeft -= map.getCountryArmies(remainingEnemy) - 1;
+											if (this.useStrDiffThreshold) {
+												totalEnemiesLeft -= this.strDiffThresh;
+											}
+										}
+										skipThisOption = totalEnemiesLeft < 0;
+									}
 								}
 							}
 						}
