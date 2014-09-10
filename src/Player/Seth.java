@@ -24,6 +24,7 @@ import Util.RiskConstants;
 import Util.RiskUtils;
 
 public class Seth implements Player {
+	protected static final int MIN_SCORE = -9999;
 	protected String name;
 	protected Country lastCountryReinforced;
 	protected int lastCardCount;
@@ -51,7 +52,7 @@ public class Seth implements Player {
 	 */
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		//For initial allocation, every country must have at least one army
 		for (Country country : myCountries) {
 			reinforcements -= rsp.reinforce(country, 1);
@@ -181,7 +182,7 @@ public class Seth implements Player {
 			reinforcements -= reinforceTargetContinent(map, rsp, targetContinent, reinforcements);
 		}
 		else {
-			reinforcements -= reinforceAll(map, rsp, reinforcements, continentAttainability, targetContinent);
+			reinforcements -= reinforceAll(map, rsp, reinforcements, continentAttainability);
 		}
 		return rsp;
 	}
@@ -266,11 +267,11 @@ public class Seth implements Player {
 	/**
 	 * Reinforces throughout the entire set of owned countries, giving precedence to attainable continents.
 	 */
-	private int reinforceAll(RiskMap map, ReinforcementResponse rsp, int reinforcements, Map<Continent, Integer> continentAttainability, Continent targetContinent) {
+	private int reinforceAll(RiskMap map, ReinforcementResponse rsp, int reinforcements, Map<Continent, Integer> continentAttainability) {
 		int remaining = reinforcements;
 		
-		boolean hopeless = continentAttainability.get(targetContinent) >= 0;
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		boolean hopeless = maxScoreContinent(continentAttainability) == null;
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		boolean beginReinforce = !myCountries.contains(this.lastCountryReinforced);
 		
 		Set<Country> reinforceable = new HashSet<Country>();
@@ -330,7 +331,6 @@ public class Seth implements Player {
 	}
 	
 	private AttackResponse decide(RiskMap map, boolean tryIdealAttack) {
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		AttackDecider decider = new AttackDecider(this.name);
 		decider.useCombinedAttackStrength = true;
 		decider.useFirstValidOption = false;
@@ -359,7 +359,7 @@ public class Seth implements Player {
 			decider.useTargetContinent = false;
 			decider.strDiffThresh = -2;
 		}
-		return decider.determineBattleground(map, myCountries);
+		return decider.determineBattleground(map);
 	}
 	
 	/**
@@ -453,6 +453,7 @@ public class Seth implements Player {
 		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 		Map<Continent, Integer> continentBaseScores = getallAttainabilities(map, 0);
 		Continent targetContinent = maxScoreContinent(continentBaseScores);
+		
 		rsp = fortifyInternalExternal(map, allConnectedSets, continentBaseScores, targetContinent);
 		if (rsp != null) {
 			return rsp;
@@ -471,8 +472,8 @@ public class Seth implements Player {
 		Country borderFortifyFrom = null, borderFortifyTo = null;
 		int bestBorderStrDiff = 1;
 		for (Set<Country> connectedSet : allConnectedSets) {
-			Collection<Country> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
-			Collection<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
+			Set<Country> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
+			Set<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
 			Country interiorCountry = null, exteriorCountry = null;
 			for (Country currentCountry : interiorCountries) {
 				if (interiorCountry == null && map.getCountryArmies(currentCountry) > 1
@@ -485,13 +486,18 @@ public class Seth implements Player {
 				int enemyForcesInTarget = 0;
 				int enemyStr = 0;
 				//this country might be the external border of an owned continent
-				boolean isOwnedBorder = continentBaseScores.get(currentCountry.getContinent()) == -9999;
+				boolean isOwnedBorder = continentBaseScores.get(currentCountry.getContinent()) == MIN_SCORE;
 				for (Country neighbor : currentCountry.getNeighbors()) {
 					if (!map.getCountryOwner(neighbor).equals(this.name)) {
 						enemyStr += map.getCountryArmies(neighbor);
 						if (neighbor.getContinent() == targetContinent) {
 							enemyForcesInTarget += map.getCountryArmies(neighbor);
 						}
+					}
+					else if (neighbor.getContinent() != currentCountry.getContinent()
+							&& interiorCountries.contains(neighbor)
+							&& continentBaseScores.get(neighbor.getContinent()) == MIN_SCORE) {
+						isOwnedBorder = true;
 					}
 				}
 				int strDiff = map.getCountryArmies(currentCountry) - enemyStr;
@@ -553,7 +559,7 @@ public class Seth implements Player {
 		int bestEnemyStr = 0, bestTargetEnemyStr = 0;
 		for (Set<Country> connectedSet : allConnectedSets) {
 			Country lclStrongest = null, lclWeakest = null;
-			Collection<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
+			Set<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
 			if (exteriorCountries.size() == 0) {
 				//the only way this could happen is if the player has already won, so decline
 				return null;
@@ -611,7 +617,7 @@ public class Seth implements Player {
 	 * Finds the most attainable continent that is not already owned by this player.
 	 */
 	private Continent getTargetContinent(RiskMap map, int additionalArmies) {
-		int bestScore = -9999;
+		int bestScore = MIN_SCORE;
 		Continent bestContinent = null;
 		for (Entry<Continent, Integer> entry : getallAttainabilities(map, additionalArmies).entrySet()) {
 			if (entry.getValue() > bestScore) {
@@ -626,7 +632,7 @@ public class Seth implements Player {
 	 * Finds the continent with the highest score from an existing map.
 	 */
 	private Continent maxScoreContinent(Map<Continent, Integer> scores) {
-		int best = -9999;
+		int best = MIN_SCORE;
 		Continent bestContinent = null;
 		for (Entry<Continent, Integer> entry : scores.entrySet()) {
 			if (entry.getValue() > best) {
@@ -696,7 +702,7 @@ public class Seth implements Player {
 		
 		//if it is already owned, or I cannot yet attack it, then it is worthless as a target
 		if (isAlreadyOwned || myArmies == 0) {
-			return -9999;
+			return MIN_SCORE;
 		}
 		else {
 			return myArmies + myCountries - enemyArmies - enemyCountries - borderCountries;
@@ -755,7 +761,8 @@ class AttackDecider {
 	 * NOTE: If this method is not given enough information to determine a battlefield, it will not make any assumptions, and will return null.
 	 *     For example, if useHighestStrengthDiff is set to false, and no other metrics are specified.
 	 */
-	public AttackResponse determineBattleground(RiskMap map, Collection<Country> myCountries) {
+	public AttackResponse determineBattleground(RiskMap map) {
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.playerName);
 		AttackResponse rsp = new AttackResponse();
 		Country atkCountry = null, dfdCountry = null, sharedAtk = null, sharedDfd = null;
 		int bestStrDiff, bestSharedStrDiff, bestSharedCount = 0;
@@ -764,8 +771,8 @@ class AttackDecider {
 			bestSharedStrDiff = 9999;
 		}
 		else {
-			bestStrDiff = -9999;
-			bestSharedStrDiff = -9999;
+			bestStrDiff = MIN_SCORE;
+			bestSharedStrDiff = MIN_SCORE;
 		}
 		for (Country currentCountry : myCountries) {
 			if (map.getCountryArmies(currentCountry) > 1) {
@@ -808,7 +815,7 @@ class AttackDecider {
 									if (skipThisOption) {
 										//only defer to the main attack force if you can't handle all of these countries yourself
 										int totalEnemiesLeft = map.getCountryArmies(currentCountry);
-										Collection<Country> enemyCountriesLeft = RiskUtils.getConnectedCountries(map, neighbor, this.playerName, false, true);
+										Set<Country> enemyCountriesLeft = RiskUtils.getConnectedCountries(map, neighbor, this.playerName, false, true);
 										for (Country remainingEnemy : enemyCountriesLeft) {
 											totalEnemiesLeft -= map.getCountryArmies(remainingEnemy) - 1;
 											if (this.useStrDiffThreshold) {

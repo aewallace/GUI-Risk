@@ -38,8 +38,8 @@ public class RiskUtils {
 	/**
 	 * Returns all countries that are controlled by the specified player.
 	 */
-	public static Collection<Country> getPlayerCountries(RiskMap map, String playerName) {
-		Collection<Country> playerCountries = new ArrayList<Country>();
+	public static Set<Country> getPlayerCountries(RiskMap map, String playerName) {
+		Set<Country> playerCountries = new HashSet<Country>();
 		for (Country country : Country.values()) {
 			if (map.getCountryOwner(country).equals(playerName)) {
 				playerCountries.add(country);
@@ -51,8 +51,8 @@ public class RiskUtils {
 	/**
 	 * Returns all continents that are controlled by the specified player.
 	 */
-	public static Collection<Continent> getPlayerContinents(RiskMap map, String playerName) {
-		Collection<Continent> playerContinents = new ArrayList<Continent>();
+	public static Set<Continent> getPlayerContinents(RiskMap map, String playerName) {
+		Set<Continent> playerContinents = new HashSet<Continent>();
 		for (Continent continent : Continent.values()) {
 			if (playerControlsContinent(map, continent, playerName)) {
 				playerContinents.add(continent);
@@ -76,9 +76,9 @@ public class RiskUtils {
 	/**
 	 * Counts the number of armies controlled by a given player.
 	 */
-	public static int countPlayerArmies(RiskMap map, String playerName) {
+	public static int countPlayerArmies(RiskMap map, String playerName, Set<Country> countrySet) {
 		int numArmies = 0;
-		for (Country country : getPlayerCountries(map, playerName)) {
+		for (Country country : countrySet == null ? getPlayerCountries(map, playerName) : countrySet) {
 			numArmies += map.getCountryArmies(country);
 		}
 		return numArmies;
@@ -155,8 +155,8 @@ public class RiskUtils {
 	/**
 	 * Returns the subset of allCountries that is interior or exterior, based on the value of selectInterior.
 	 */
-	public static Collection<Country> filterCountriesByBorderStatus(RiskMap map, String playerName, Collection<Country> allCountries, boolean selectInterior) {
-		Collection<Country> selectedCountries = new ArrayList<Country>();
+	public static Set<Country> filterCountriesByBorderStatus(RiskMap map, String playerName, Set<Country> allCountries, boolean selectInterior) {
+		Set<Country> selectedCountries = new HashSet<Country>();
 		
 		for (Country country : allCountries) {
 			boolean interior = true;

@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 
 import Map.Country;
 import Map.RiskMap;
@@ -147,7 +148,7 @@ public class EasyDefaultPlayer implements Player {
 	 */
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		boolean beginReinforce = this.lastCountryReinforced == null || !myCountries.contains(this.lastCountryReinforced);
 		while (reinforcements > 0) {
 			for (Country country : myCountries) {
@@ -169,7 +170,7 @@ public class EasyDefaultPlayer implements Player {
 	 */
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		AttackResponse rsp = new AttackResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		Country atkCountry = null, dfdCountry = null;
 		for (Country currentCountry : myCountries) {
 			if (map.getCountryArmies(currentCountry) > 1) {

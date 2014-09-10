@@ -3,6 +3,7 @@ package Player;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import Map.Country;
 import Map.RiskMap;
@@ -25,7 +26,7 @@ public class NormalDefaultPlayer extends EasyDefaultPlayer {
 	@Override
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		//For initial allocation, every country must have at least one army
 		for (Country country : myCountries) {
 			reinforcements -= rsp.reinforce(country, 1);
@@ -45,7 +46,7 @@ public class NormalDefaultPlayer extends EasyDefaultPlayer {
 	@Override
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, RiskUtils.getPlayerCountries(map, this.name), false);
+		Set<Country> myCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, RiskUtils.getPlayerCountries(map, this.name), false);
 		boolean beginReinforce = this.lastCountryReinforced == null || !myCountries.contains(this.lastCountryReinforced);
 		while (reinforcements > 0) {
 			for (Country country : myCountries) {
@@ -69,7 +70,7 @@ public class NormalDefaultPlayer extends EasyDefaultPlayer {
 	@Override
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		AttackResponse rsp = new AttackResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		Country atkCountry = null, dfdCountry = null;
 		for (Country currentCountry : myCountries) {
 			if (map.getCountryArmies(currentCountry) > 1) {
@@ -106,7 +107,7 @@ public class NormalDefaultPlayer extends EasyDefaultPlayer {
 	@Override
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		FortifyResponse rsp = new FortifyResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		for (Country currentCountry : myCountries) {
 			Country exteriorNeighbor = null;
 			if (map.getCountryArmies(currentCountry) > 1) {

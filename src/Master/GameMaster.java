@@ -541,24 +541,30 @@ public class GameMaster {
 		this.playerMap = new HashMap<String, Player>();
 		this.allPlayers = new ArrayList<String>();
 		
-//		this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
-//		this.allPlayers.add("Easy 1");
-//		
-//		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
-//		this.allPlayers.add("Normal 2");
-//		
-//		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
-//		this.allPlayers.add("Hard 3");
+		this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
+		this.allPlayers.add("Easy 1");
+		
+		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
+		this.allPlayers.add("Normal 2");
+		
+		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
+		this.allPlayers.add("Hard 3");
+		
+		this.playerMap.put("Hard 4", new HardDefaultPlayer("Hard 4"));
+		this.allPlayers.add("Hard 4");
+		
+		this.playerMap.put("Hard 5", new HardDefaultPlayer("Hard 5"));
+		this.allPlayers.add("Hard 5");
 		
 		this.playerMap.put("Seth 1", new Seth("Seth 1"));
 		this.allPlayers.add("Seth 1");
 		
-		this.playerMap.put("Seth 2", new Seth("Seth 2"));
-		this.allPlayers.add("Seth 2");
-		
-		this.playerMap.put("Seth 3", new Seth("Seth 3"));
-		this.allPlayers.add("Seth 3");
-		
+//		this.playerMap.put("Seth 2", new Seth("Seth 2"));
+//		this.allPlayers.add("Seth 2");
+//		
+//		this.playerMap.put("Seth 3", new Seth("Seth 3"));
+//		this.allPlayers.add("Seth 3");
+//		
 //		this.playerMap.put("Seth 4", new Seth("Seth 4"));
 //		this.allPlayers.add("Seth 4");
 //		
@@ -675,7 +681,7 @@ public class GameMaster {
 					//count player's countries
 					stats.write(RiskUtils.getPlayerCountries(this.map, playerName).size() + " ");
 					//count player's armies
-					stats.write(RiskUtils.countPlayerArmies(this.map, playerName) + " ");
+					stats.write(RiskUtils.countPlayerArmies(this.map, playerName, null) + " ");
 				}
 				stats.write("\r\n");
 				this.stats.flush();
@@ -688,7 +694,7 @@ public class GameMaster {
 	public static void main(String[] args) throws IOException {
 		try {
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 1;
+			int numGames = 2000;
 			RiskConstants.SEED = 1;
 			for (int i = 0; i < numGames; i++) {
 				RiskConstants.resetTurnIn();

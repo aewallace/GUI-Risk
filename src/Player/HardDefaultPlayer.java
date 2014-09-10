@@ -28,7 +28,7 @@ public class HardDefaultPlayer extends NormalDefaultPlayer {
 	@Override
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		//For initial allocation, every country must have at least one army
 		for (Country country : myCountries) {
 			reinforcements -= rsp.reinforce(country, 1);
@@ -48,7 +48,7 @@ public class HardDefaultPlayer extends NormalDefaultPlayer {
 	@Override
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
-		Collection<Country> myCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, RiskUtils.getPlayerCountries(map, this.name), false);
+		Set<Country> myCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, RiskUtils.getPlayerCountries(map, this.name), false);
 		boolean beginReinforce = this.lastCountryReinforced == null || !myCountries.contains(this.lastCountryReinforced);
 		while (reinforcements > 0) {
 			for (Country country : myCountries) {
@@ -75,7 +75,7 @@ public class HardDefaultPlayer extends NormalDefaultPlayer {
 	@Override
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		AttackResponse rsp = new AttackResponse();
-		Collection<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		Country atkCountry = null, dfdCountry = null;
 		int strDiffThresh = 2;
 		for (Country currentCountry : myCountries) {
@@ -144,8 +144,8 @@ public class HardDefaultPlayer extends NormalDefaultPlayer {
 		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 		Country strongestFrom = null, weakestTo = null;
 		for (Set<Country> connectedSet : allConnectedSets) {
-			Collection<Country> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
-			Collection<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
+			Set<Country> interiorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, true);
+			Set<Country> exteriorCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, connectedSet, false);
 			Country interiorCountry = null, exteriorCountry = null;
 			for (Country country : interiorCountries) {
 				if (interiorCountry == null && map.getCountryArmies(country) > 1
