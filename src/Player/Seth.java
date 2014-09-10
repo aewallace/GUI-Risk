@@ -28,12 +28,14 @@ public class Seth implements Player {
 	protected Country lastCountryReinforced;
 	protected int lastCardCount;
 	protected boolean hasGottenCard;
+	protected boolean conqueringRun;
 	
 	public Seth() {
 		this.name = "Seth";
 		this.lastCountryReinforced = null;
 		this.lastCardCount = 0;
 		this.hasGottenCard = false;
+		this.conqueringRun = false;
 	}
 	
 	public Seth(String nameIn) {
@@ -41,6 +43,7 @@ public class Seth implements Player {
 		this.lastCountryReinforced = null;
 		this.lastCardCount = 0;
 		this.hasGottenCard = false;
+		this.conqueringRun = false;
 	}
 	
 	/**
@@ -341,10 +344,15 @@ public class Seth implements Player {
 			decider.targetContinent = getTargetContinent(map, 0);
 			decider.useTargetContinent = decider.targetContinent != null;
 			if (getContinentAttainability(map, decider.targetContinent, 0) < AttackDecider.MIN_SCORE) {
+				this.conqueringRun = false;
 				return null;
+			}
+			else {
+				this.conqueringRun = true;
 			}
 		}
 		else {
+			this.conqueringRun = false;
 			decider.attackSharedNeighborsFirst = false;
 			decider.useLowestStrengthDiff = false;
 			decider.useHighestStrengthDiff = true;
@@ -372,10 +380,16 @@ public class Seth implements Player {
 				if (RiskUtils.areConnected(map, toCountry, neighbor, this.name, false)) {
 					futureEnemyArmies += map.getCountryArmies(neighbor) + 1;
 				}
+				if (neighbor.getContinent() != fromCountry.getContinent()) {
+					fromBorder = true;
+				}
 			}
-			if (neighbor.getContinent() != fromCountry.getContinent()) {
-				fromBorder = true;
-			}
+		}
+		if (this.conqueringRun
+			&& !fromBorder
+			&& fromCountry.getContinent() == toCountry.getContinent()) {
+			rsp.setNumArmies(maxAdvance);
+			return rsp;
 		}
 		boolean toInternal = true;
 		for (Country neighbor : toCountry.getNeighbors()) {
