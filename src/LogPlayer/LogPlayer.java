@@ -1,3 +1,6 @@
+//created by Seth Denney, ver y2014.mdI15.hmW59
+//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA18.hmL21
+
 package LogPlayer;
 
 import java.io.File;
@@ -42,6 +45,9 @@ public class LogPlayer extends Application {
     private Text round;
     private Text turn;
     private Text nextLogLine;
+    private Text errorDisplay;
+    private String errorText;
+    private boolean errorDisplayBit;
     private Map<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
     
@@ -55,51 +61,76 @@ public class LogPlayer extends Application {
 			this.nextToken = null;
 	        pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
-	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
+	        /*pane.setStyle....
+	        * we set the image in the pane based on whether there was an error or not.
+	        *  for reference, please see later in the start() method
+	        * it will be similar to...
+	        * pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");*/
+	       
+	        errorDisplayBit = false;
+	        errorText = "";
 	        
 	        loadTextNodes("TextNodes.txt");
 	        loadPlayers();
 	        
-	        eventTitle = new Text(1350, 515, "Initial Reinforcement\nStage");
-	        eventTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-	        eventTitle.setFill(Color.LIGHTGRAY);
-	        pane.getChildren().add(eventTitle);
 	        
-	        round = new Text(1460, 450, "");
-	        round.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-	        round.setFill(Color.LIGHTGRAY);
-	        pane.getChildren().add(round);
+	        //if there is an error, display the error
+	        if (errorDisplayBit){
+	        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
+		        errorDisplay = new Text(100, 100, errorText);
+		        errorDisplay.setFont(Font.font("Verdana", FontWeight.BOLD, 24));
+		        errorDisplay.setFill(Color.RED);
+		        pane.getChildren().add(errorDisplay);
+		        
+	        }
 	        
-	        turn = new Text(1425, 470, "");
-	        turn.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-	        turn.setFill(Color.LIGHTGRAY);
-	        pane.getChildren().add(turn);
 	        
-	        nextLogLine = new Text(600, 1030, "");
-	        nextLogLine.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-	        nextLogLine.setFill(Color.LIGHTGRAY);
-	        pane.getChildren().add(nextLogLine);
-	        
-	        Button nextActionBtn = new Button("Next Event");
-	        nextActionBtn.setLayoutX(1427);
-	        nextActionBtn.setLayoutY(560);
-	        nextActionBtn.setOnAction(new EventHandler<ActionEvent>() {
-	        	@Override
-	        	public void handle(ActionEvent event) {
-	        		readNextLogEvent(LOG_FILE);
-	        	}
-	        });
-	        
-	        pane.getChildren().add(nextActionBtn);
-	
+	        if(!errorDisplayBit){ //if there was no error, populate the display a bit better
+	        	pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
+	        	eventTitle = new Text(1350, 515, "Initial Reinforcement\nStage");
+		        eventTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+		        eventTitle.setFill(Color.LIGHTGRAY);
+		        pane.getChildren().add(eventTitle);
+		        
+		        round = new Text(1460, 450, "");
+		        round.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+		        round.setFill(Color.LIGHTGRAY);
+		        pane.getChildren().add(round);
+		        
+		        turn = new Text(1425, 470, "");
+		        turn.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+		        turn.setFill(Color.LIGHTGRAY);
+		        pane.getChildren().add(turn);
+		        
+		        nextLogLine = new Text(600, 1030, "");
+		        nextLogLine.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+		        nextLogLine.setFill(Color.LIGHTGRAY);
+		        pane.getChildren().add(nextLogLine);
+	        	
+		        Button nextActionBtn = new Button("Next Event");
+		        nextActionBtn.setLayoutX(1427);
+		        nextActionBtn.setLayoutY(560);
+		        nextActionBtn.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+		        		readNextLogEvent(LOG_FILE);
+		        	}
+		        });
+		        
+		        pane.getChildren().add(nextActionBtn);
+	        }
+		
 			scrollPane = new ScrollPane();
 			scrollPane.setContent(pane);
-			scrollPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
-	        	@Override
-	        	public void handle(KeyEvent event) {
-	        		readNextLogEvent(LOG_FILE);
-	        	}
-	        });
+			if (!errorDisplayBit){
+				scrollPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
+		        	@Override
+		        	public void handle(KeyEvent event) {
+		        		readNextLogEvent(LOG_FILE);
+		        	}
+		        });
+			}
+	        
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
 	        primaryStage.setScene(scene);
@@ -107,7 +138,6 @@ public class LogPlayer extends Application {
     	}
     	catch (FileNotFoundException e) {
     	}
-        ////////////////////////////////////////////
     }
  
     // override to change APP WIDTH
@@ -129,20 +159,40 @@ public class LogPlayer extends Application {
 		try {
 			if (nodeFile != null) {
 				this.textNodeMap = new HashMap<String, Text>();
-				Scanner reader = new Scanner(new File(nodeFile));
-				while (reader.hasNext()) {
-					int nextX = reader.nextInt();
-					int nextY = reader.nextInt();
-					String nextCountry = reader.nextLine().trim();
-					Text txt = new Text(nextX, nextY, nextCountry + "\n0");
-			        txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-			        this.textNodeMap.put(nextCountry, txt);
-			        this.pane.getChildren().add(txt);
+				File fileRepresentation = new File(nodeFile);
+						//basic check for existence of country list file
+				if (!fileRepresentation.exists()){
+					System.out.print("Warning: no known list of countries found!");
+					System.out.print("\nExpected: \"" + nodeFile + "\"\n");
+					System.out.print("Undefined behavior WILL occur!");
+					errorDisplayBit = true;
+					errorText = "File not found in working directory;\nsee console for details.";
 				}
-				reader.close();
+						//and basic check for valid file contents
+				else if (fileRepresentation.length() < 25){
+					System.out.print("Warning: malform input file detected!");
+					System.out.print("\nExpected \"" + nodeFile + "\" to be of a certain size.\n");
+					System.out.print("Please check the file and restart the LogyPlayer GUI.\n");
+					errorDisplayBit = true;
+					errorText = "Malformed input file detected;\nsee console for details.";
+				}
+				else{
+					Scanner reader = new Scanner(fileRepresentation);
+					while (reader.hasNext()) {
+						int nextX = reader.nextInt();
+						int nextY = reader.nextInt();
+						String nextCountry = reader.nextLine().trim();
+						Text txt = new Text(nextX, nextY, nextCountry + "\n0");
+				        txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+				        this.textNodeMap.put(nextCountry, txt);
+				        this.pane.getChildren().add(txt);
+					}
+					reader.close();
+				}
 			}
 		}
 		catch (Exception e) {
+			//errorDisplay.setText(e.getMessage());
 		}
 	}
     
@@ -181,7 +231,7 @@ public class LogPlayer extends Application {
     }
     
     private void readNextLogEvent(String logFile) {
-    	try {
+    	try{
     		boolean nextLineFound = nextLogLine.getText().equals("Next event: " + nextToken);
 			while (nextToken != null) {
 				if (nextToken.matches(".* reinforcing with .* armies.")) {
@@ -241,8 +291,11 @@ public class LogPlayer extends Application {
 						nextLineFound = false;
 						String playerName = parsePlayerName(nextToken, " has taken ");
 						eventTitle.setText(playerName + " has taken\n" + parseTakenCountry(nextToken));
-						setCountryOwnership(parseTakenCountry(nextToken), playerName);
+						System.out.println("HTfA::::" + nextToken);
+						//setCountryOwnership(parseTakenCountry(nextToken), playerName);
+						System.out.println("HTfB::::" + nextToken);
 						nextToken = log.nextLine();
+						System.out.println("HTfC::::" + nextToken);
 					}
 				}
 				else if (nextToken.matches(".* advanced .* into .*")) {
@@ -289,7 +342,9 @@ public class LogPlayer extends Application {
 				}
 			}
 		}
-		catch (Exception e) {
+ 		catch (Exception e) {  
+ 			System.out.println(e.getMessage());
+ 			errorDisplay.setText(e.getMessage());
 		}
     }
     
@@ -299,6 +354,8 @@ public class LogPlayer extends Application {
     
     private int getPrevArmies(String countryName) {
     	Text txt = this.textNodeMap.get(countryName);
+    	if (txt == null){
+    	System.out.println("gPA:A:::: country-text-value map null for given value : " + countryName);}
 		return Integer.parseInt(txt.getText().split("\n")[1]);
     }
     
@@ -347,20 +404,25 @@ public class LogPlayer extends Application {
     	return takenLine.split(" has taken ")[1].split(" from")[0];
     }
     
+    //for string similar to...
+    //Hard 3 advanced 3 into Northern Europe from Southern Europe.
     private String parseAdvanceSourceCountry(String advLine) {
     	String temp = advLine.split(" from ")[1];
     	return temp.substring(0, temp.length() - 1);
     }
     
+
     private String parseAdvanceDestinationCountry(String advLine) {
     	String temp = advLine.split(" into ")[1];
     	return temp.split(" from ")[0];
     }
     
+    
     private int parseAdvanceArmies(String advLine) {
     	String temp = advLine.split(" advanced ")[1];
     	return Integer.parseInt(temp.substring(0, temp.indexOf(' ')));
     }
+    
     
     private int parseFortifyArmies(String fortifyLine) {
     	return Integer.parseInt(fortifyLine.split(" is transferring ")[1].split(" from ")[0]);
