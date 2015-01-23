@@ -1,5 +1,5 @@
 //created by Seth Denney, ver y2014.mdI15.hmW59
-//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA18.hmL21
+//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA22.hmU55
 
 package LogPlayer;
 
@@ -74,7 +74,8 @@ public class LogPlayer extends Application {
 	        loadPlayers();
 	        
 	        
-	        //if there is an error, display the error
+	        //if there is an error on loading necessary resources,
+	        // render the "negated" map image as a visual cue to indicate failure
 	        if (errorDisplayBit){
 	        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
 		        errorDisplay = new Text(100, 100, errorText);
@@ -84,8 +85,8 @@ public class LogPlayer extends Application {
 		        
 	        }
 	        
-	        
-	        if(!errorDisplayBit){ //if there was no error, populate the display a bit better
+	        //if there was no error, populate the window with appropriate elements
+	        if(!errorDisplayBit){ 
 	        	pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
 	        	eventTitle = new Text(1350, 515, "Initial Reinforcement\nStage");
 		        eventTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
@@ -291,11 +292,8 @@ public class LogPlayer extends Application {
 						nextLineFound = false;
 						String playerName = parsePlayerName(nextToken, " has taken ");
 						eventTitle.setText(playerName + " has taken\n" + parseTakenCountry(nextToken));
-						System.out.println("HTfA::::" + nextToken);
-						//setCountryOwnership(parseTakenCountry(nextToken), playerName);
-						System.out.println("HTfB::::" + nextToken);
+						setCountryOwnership(parseTakenCountry(nextToken), playerName);
 						nextToken = log.nextLine();
-						System.out.println("HTfC::::" + nextToken);
 					}
 				}
 				else if (nextToken.matches(".* advanced .* into .*")) {
