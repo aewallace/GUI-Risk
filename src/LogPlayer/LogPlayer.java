@@ -1,5 +1,5 @@
 //created by Seth Denney, ver y2014.mdI15.hmW59
-//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA22.hmU55
+//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA24.hm1951-PROOF_OF_CONCEPT
 
 package LogPlayer;
 
@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Scanner;
 
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.HPos;
@@ -31,13 +33,31 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javafx.util.Duration;
+//import javafx.animation.Timeline;
+//import javafx.animation.KeyFrame;
+
+
 
 public class LogPlayer extends Application {
  
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
+    private static final int RAPID_PLAY_TIME_DELTA = 1500;
+    private static final int NORMAL_PLAY_TIME_DELTA = 6500;
+   /* private static final int RAPID_PLAY_TIME_DELTA = 0;
+    private static final int NORMAL_PLAY_TIME_DELTA = 0;*/
     private static final String LOG_FILE = "LOG.txt";
 	private static final String EVENT_DELIM = "...";
+	private static final int PLAY_FWD = 1;
+	private static final int F_FWD = -1;
+	private static final int REWIND = 2;
+	private static final int PAUSE = 0;
+	
+	private static final Duration PROBE_FREQUENCY = Duration.seconds(2);
+
+	//private Timeline timeline;
+	
     private ScrollPane scrollPane;
     private Scene scene;
     private Pane pane;
@@ -53,12 +73,24 @@ public class LogPlayer extends Application {
     
     private Scanner log;
     private String nextToken;
+    private String dlTokenHelper;
+    private ArrayList<String> tokenCollection;
+    private int positionInTokenCollection;
+    private boolean inREWIND;
+    private boolean initialPlay;
  
     @Override
     public void start(Stage primaryStage) {
     	try {
 			this.log = new Scanner(new File(LOG_FILE));
 			this.nextToken = null;
+			
+			inREWIND = false;
+			initialPlay = true;
+			dlTokenHelper = "";
+			positionInTokenCollection = 0;
+			tokenCollection = new ArrayList<String>();
+			
 	        pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
 	        /*pane.setStyle....
@@ -119,7 +151,87 @@ public class LogPlayer extends Application {
 		        });
 		        
 		        pane.getChildren().add(nextActionBtn);
+		        
+	/*	        Button playfwdBtn = new Button("Auto-play Events");
+		        playfwdBtn.setLayoutX(1359);
+		        playfwdBtn.setLayoutY(560);
+		        playfwdBtn.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+		        		performAutoPlayback(LOG_FILE, PLAY_FWD);
+		        	}
+		        });
+		        
+		        pane.getChildren().add(playfwdBtn);
+*/		        
+		        Button playfwdBtn = new Button("Auto-play Events");
+		        playfwdBtn.setLayoutX(1359);
+		        playfwdBtn.setLayoutY(560);
+		        /*playfwdBtn.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+		        		Platform.runLater(new Runnable() {
+		        	        @Override
+		        	        public void run() {
+		    	                    	performAutoPlayback(LOG_FILE, PLAY_FWD);
+		    	                    }
+		        		}
+		        	}
+		        	);
+		        });*/
+		        
+		        playfwdBtn.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+				        Runnable task = new Runnable() {
+				        	  @Override public void run() {
+				        		  try
+				        		  {
+				        			  while(true){
+						        			java.lang.Thread.sleep(1000);
+											Platform.runLater(new Runnable() {
+												  @Override public void run(){
+											    		//performAutoPlayback(LOG_FILE, PLAY_FWD);
+											    		readNextLogEvent(LOG_FILE);
+											    		//java.lang.Thread.sleep(1000);
+											    	} 
+											 });
+				        			  }
+				        		  }//end try
+				        		  catch(Exception e)
+				        		  {	
+				        		  } //end catch	
+				        	      
+				        	      }
+				        	  };
+				        	  
+				        	
+				        	Thread th = new Thread(task);
+				        	th.setDaemon(true);
+				        	th.start();
+				        	
+		        	}
+		        });
+		        
+		        
+		        pane.getChildren().add(playfwdBtn);
 	        }
+	        
+	        /*timeline = new Timeline(
+	                new KeyFrame(
+	                  Duration.ZERO,
+	                  new EventHandler<ActionEvent>() {
+	                    @Override public void handle(ActionEvent actionEvent) {
+	                    	performAutoPlayback(LOG_FILE, PLAY_FWD);
+	                    }
+	                  }
+	                ),
+	                new KeyFrame(
+	                  PROBE_FREQUENCY
+	                )
+	            );
+	            timeline.setCycleCount(Timeline.INDEFINITE);
+	            timeline.play();*/
 		
 			scrollPane = new ScrollPane();
 			scrollPane.setContent(pane);
@@ -228,6 +340,260 @@ public class LogPlayer extends Application {
 			}
 		}
 		catch (Exception e) {
+		}
+    }
+    
+    
+    private void performAutoPlayback(String logFile, int playType){
+    	int waitTime = 0; //set this to a certain number of milliseconds to alter rapid-vs-normal FWD/REWIND
+    	switch(playType){
+    		case PLAY_FWD:
+    			inREWIND = false;
+    			waitTime = NORMAL_PLAY_TIME_DELTA;
+    			break;
+    		case F_FWD:
+    			inREWIND = false;
+    			waitTime = RAPID_PLAY_TIME_DELTA;
+    			break;
+    		case REWIND:
+    			if (inREWIND){waitTime = RAPID_PLAY_TIME_DELTA;}
+    			if (!inREWIND){waitTime = NORMAL_PLAY_TIME_DELTA; inREWIND = true;}
+    			break;
+    		case PAUSE:
+    			inREWIND = false;
+    			break;
+    		default:
+    			break;
+    	}
+    	if (initialPlay){
+	    	switch(playType){
+		    	case PLAY_FWD:
+	    		case F_FWD:
+	    			System.out.println("FWD Playback in use!");
+	    			try{
+	    				while (!tokenCollection.isEmpty() && positionInTokenCollection < tokenCollection.size())
+	    				{
+	    					Thread.sleep(waitTime);
+	    					processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1));
+	    					positionInTokenCollection++;
+	    				}
+	    				if (positionInTokenCollection >= tokenCollection.size()){positionInTokenCollection = tokenCollection.size() - 1;}
+			    		while (nextToken != null)
+				    	{
+			    			tokenCollection.add(nextToken);
+				    		readNextLogEvent(logFile);
+				    		positionInTokenCollection++;
+				    		System.out.println("positionInTokenCollection" + positionInTokenCollection);
+				    		Thread.sleep(waitTime);
+				    	}
+			    		initialPlay = false;
+			    		if (positionInTokenCollection >= tokenCollection.size()){positionInTokenCollection = tokenCollection.size() - 1;}
+			    	}
+		    		catch(Exception e){
+		    			System.out.print(e);
+		    			System.out.println("positionInTokenCollection" + positionInTokenCollection);
+		    		}
+	    			break;
+	    		case REWIND:
+	    			try{
+			    		while (!tokenCollection.isEmpty() && positionInTokenCollection >= 0)
+				    		{
+			    			Thread.sleep(waitTime);
+				    		processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1));
+				    		positionInTokenCollection--;
+				    		}
+			    		if (positionInTokenCollection < 0){positionInTokenCollection = 0;}
+			    		}
+		    		catch(Exception e){
+		    			System.out.print(e);
+		    		}
+	    			break;
+	    		case PAUSE:
+	    			inREWIND = false;
+	    			break;
+	    		default:
+	    			break;
+	    	}
+    	}
+    	else{
+    		switch(playType){
+	    	case PLAY_FWD:
+    		case F_FWD:
+    			try{
+    				while (!tokenCollection.isEmpty() && positionInTokenCollection < tokenCollection.size())
+    				{
+    					Thread.sleep(waitTime);
+    					processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1));
+    					positionInTokenCollection++;
+    				}
+    				if (positionInTokenCollection >= tokenCollection.size()){positionInTokenCollection = tokenCollection.size() - 1;}
+		    	}
+	    		catch(Exception e){
+	    			System.out.print(e);
+	    		}
+    			break;
+    		case REWIND:
+    			try{
+		    		while (!tokenCollection.isEmpty() && positionInTokenCollection >= 0)
+			    		{
+		    			Thread.sleep(waitTime);
+			    		processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1));
+			    		positionInTokenCollection--;
+			    		}
+		    		if (positionInTokenCollection < 0){positionInTokenCollection = 0;}
+		    		}
+	    		catch(Exception e){
+	    			System.out.print(e);
+	    		}
+    			break;
+    		case PAUSE:
+    			inREWIND = false;
+    			break;
+    		default:
+    			break;
+    		}
+    		
+    	}
+    }
+ 
+    private void processCaptiveToken(String currentTokenIn, boolean isLastToken){
+    	processCaptiveToken(currentTokenIn, "", isLastToken);
+    }
+    
+    private void processCaptiveToken(String currentTokenIn, String nextTokenIn, boolean isLastToken){
+    	try{
+    		/*boolean nextLineFound = nextLogLine.getText().equals("Next event: " + nextToken);*/
+			/*while (nextToken != null) {*/
+				if (currentTokenIn.matches(".* reinforcing with .* armies.")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						String playerName = parsePlayerName(currentTokenIn, " reinforcing ");
+						eventTitle.setText(playerName + " reinforcing.");
+						/*nextToken = log.nextLine();*/
+						while (!currentTokenIn.equals(EVENT_DELIM)) {
+							int armies = parseReinforceAmt(currentTokenIn);
+							String countryName = parseReinforceCountry(currentTokenIn);
+							setCountryOwnership(countryName, playerName);
+							addArmiesToCountry(countryName, armies);
+							turn.setText(playerName + "'s Turn");
+							currentTokenIn = log.nextLine();
+						}
+						/*nextToken = log.nextLine();*/
+					/*}*/
+				}
+				else if (currentTokenIn.matches("Beginning Round .*!")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						round.setText(currentTokenIn.substring(10, currentTokenIn.length() - 1));
+						eventTitle.setText("New Round.");
+						currentTokenIn = log.nextLine();
+					/*}*/
+				}
+				else if (currentTokenIn.matches(".* is attacking .* from .*!")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						if (!inREWIND){ //if going forward, store our info for later parsing
+							dlTokenHelper = currentTokenIn;
+							}
+						else{ //if going in reverse, parse current info + old info
+							String playerName = parsePlayerName(currentTokenIn, " is attacking ");
+							String atkCountry = parseAtkCountry(currentTokenIn);
+							String dfdCountry = parseDfdCountry(currentTokenIn);
+							eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
+							/*nextToken = log.nextLine();*/
+							int atkLosses = parseAtkLosses(dlTokenHelper);
+							int dfdLosses = parseDfdLosses(dlTokenHelper);
+							addArmiesToCountry(atkCountry, -1 * atkLosses);
+							addArmiesToCountry(dfdCountry, -1 * dfdLosses);
+							/*nextToken = log.nextLine();*/
+						}
+				}
+				else if (currentTokenIn.matches("Attacker lost: .*; Defender lost: .*")){
+						if (inREWIND){ //if rewinding, store our info for parsing up the chain
+							dlTokenHelper = currentTokenIn;
+							}
+						else{ //if forwarding, parse old info + current info
+							String playerName = parsePlayerName(dlTokenHelper, " is attacking ");
+							String atkCountry = parseAtkCountry(dlTokenHelper);
+							String dfdCountry = parseDfdCountry(dlTokenHelper);
+							eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
+							/*nextToken = log.nextLine();*/
+							int atkLosses = parseAtkLosses(currentTokenIn);
+							int dfdLosses = parseDfdLosses(currentTokenIn);
+							addArmiesToCountry(atkCountry, -1 * atkLosses);
+							addArmiesToCountry(dfdCountry, -1 * dfdLosses);
+							/*nextToken = log.nextLine();*/
+						}
+					/*}*/
+				}
+				else if (currentTokenIn.matches(".* has taken .* from .*!")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						String playerName = parsePlayerName(currentTokenIn, " has taken ");
+						eventTitle.setText(playerName + " has taken\n" + parseTakenCountry(currentTokenIn));
+						setCountryOwnership(parseTakenCountry(currentTokenIn), playerName);
+						/*nextToken = log.nextLine();*/
+					/*}*/
+				}
+				else if (currentTokenIn.matches(".* advanced .* into .*")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						String[] line = currentTokenIn.split(" advanced ");
+						eventTitle.setText(line[0] + " advanced\n" + line[1]);
+						int armies = parseAdvanceArmies(currentTokenIn);
+						addArmiesToCountry(parseAdvanceSourceCountry(currentTokenIn), -1 * armies);
+						addArmiesToCountry(parseAdvanceDestinationCountry(currentTokenIn), armies);
+						/*nextToken = log.nextLine();*/
+					/*}*/
+				}
+				else if (currentTokenIn.matches(".* is transferring .* from .* to .*")) {
+					/*if (!nextLineFound) {
+						nextLineFound = true;
+					}
+					else {
+						nextLineFound = false;*/
+						String[] line = currentTokenIn.split(" transferring ");
+						eventTitle.setText(line[0] + " transferring\n" + line[1]);
+						int armies = parseFortifyArmies(currentTokenIn);
+						String source = parseFortifySourceCountry(currentTokenIn);
+						String dst = parseFortifyDestinationCountry(currentTokenIn);
+						addArmiesToCountry(source, -1 * armies);
+						addArmiesToCountry(dst, armies);
+						/*nextToken = log.nextLine();*/
+					/*}*/
+				}
+				else {
+					/*nextToken = log.nextLine();*/
+				}
+				/*if (nextLineFound) {*/
+					nextLogLine.setText("Next event: " + currentTokenIn);
+					/*return;
+				}*/
+				if (isLastToken && !initialPlay) {
+					nextLogLine.setText("Game over!");
+					//nextToken = null;
+					/*log.close();*/
+				}
+			/*}*/ //end while
+		} //end try
+ 		catch (Exception e) {  
+ 			System.out.println(e.getMessage());
+ 			errorDisplay.setText(e.getMessage());
 		}
     }
     
@@ -439,3 +805,4 @@ public class LogPlayer extends Application {
     	launch(LogPlayer.class, args);
     }
 }
+
