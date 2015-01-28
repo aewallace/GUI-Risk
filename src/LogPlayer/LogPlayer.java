@@ -1,5 +1,5 @@
-//created by Seth Denney, ver y2014.mdI15.hmW59
-//edited by Albert Wallace (aew0024@auburn.edu), ver y2015.mdA27.hm1217A
+//Current build Albert Wallace, Version 005, Code y2015.mdA27.hmQ08.sALP
+//Base build by Seth Denney, Sept 10 2014 
 
 package LogPlayer;
 
@@ -29,6 +29,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.Paint;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -68,15 +69,15 @@ public class LogPlayer extends Application {
     private Text errorDisplay;
     private String errorText;
     private boolean errorDisplayBit;
-    private Map<String, Text> textNodeMap;
+    private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
     
     private Scanner log;
     private String nextToken;
     private String dlTokenHelper;
-    private ArrayList<String> tokenCollection;
-    private ArrayList<Map<String, Text>> mapStateCollection;
-    private int positionInTokenCollection;
+    private ArrayList<String> logCache;
+    private ArrayList<HashMap<String, Text>> mapStateCache;
+    private int positionInCaches;
     private boolean inREWIND;
     private boolean initialPlay;
     private boolean cancelActiveActions;
@@ -92,9 +93,9 @@ public class LogPlayer extends Application {
 			inREWIND = false;
 			initialPlay = true;
 			dlTokenHelper = "";
-			positionInTokenCollection = -1;
-			tokenCollection = new ArrayList<String>();
-			mapStateCollection = new ArrayList<Map<String, Text>>();
+			positionInCaches = -1;
+			this.logCache = new ArrayList<String>();
+			this.mapStateCache = new ArrayList<HashMap<String, Text>>();
 			cancelActiveActions = false;
 			
 	        pane = new Pane();
@@ -160,6 +161,42 @@ public class LogPlayer extends Application {
 		        pane.getChildren().add(nextActionBtn);
 		        
 		        
+		      //The Play-Forward (normal speed) Button
+		        Button pauseAllBtn = new Button("Pause Event Playback");
+		        pauseAllBtn.setLayoutX(1359);
+		        pauseAllBtn.setLayoutY(400);
+		        
+		        pauseAllBtn.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+				        Runnable task = new Runnable() {
+				        	  @Override public void run() {
+				        		  try
+				        		  {
+				        			  java.lang.Thread.sleep(1000);
+				        			  //??? todo
+				        			  java.lang.Thread.sleep(1000);
+				        			  runButtonRunnable(PAUSE, cancelActiveActions);
+				        			 
+				        		  }//end try
+				        		  catch(Exception e)
+				        		  {	
+				        		  } //end catch	
+				        	      
+				        	      }
+				        	  };
+				        	  
+				        	
+				        	Thread th = new Thread(task);
+				        	th.setDaemon(true);
+				        	th.start();
+				        	
+		        	}
+		        });
+		        
+		        pane.getChildren().add(pauseAllBtn);
+		        
+		        
 		        //The Play-Forward (normal speed) Button
 		        Button playFwdBtn = new Button("Auto-play Events");
 		        playFwdBtn.setLayoutX(1359);
@@ -168,26 +205,15 @@ public class LogPlayer extends Application {
 		        playFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
 		        	public void handle(ActionEvent event) {
-		        		//cancelActiveActions = true;
 				        Runnable task = new Runnable() {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
 				        			  java.lang.Thread.sleep(1000);
-				        			  //cancelActiveActions = false;
+				        			  //??? todo
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(PLAY_FWD, cancelActiveActions);
-				        			  /*currentButton = PLAY_FWD;
-				        			  while(true && currentButton == PLAY_FWD){
-						        			java.lang.Thread.sleep(1000);
-											Platform.runLater(new Runnable() {
-												  @Override public void run(){
-											    		//performAutoPlayback(LOG_FILE, PLAY_FWD);
-											    		readNextLogEvent(LOG_FILE);
-											    		//java.lang.Thread.sleep(1000);
-											    	} 
-											 });
-				        			  }*/
+				        			 
 				        		  }//end try
 				        		  catch(Exception e)
 				        		  {	
@@ -214,13 +240,12 @@ public class LogPlayer extends Application {
 		        fastFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
 		        	public void handle(ActionEvent event) {
-		        		//cancelActiveActions = true;
 				        Runnable task = new Runnable() {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
 				        			  java.lang.Thread.sleep(1000);
-				        			  //cancelActiveActions = false;
+				        			  //??? todo
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(FAST_FWD, cancelActiveActions);
 				 
@@ -317,10 +342,10 @@ public class LogPlayer extends Application {
     			waitTime = RAPID_PLAY_TIME_DELTA;
     			break;
     		case REWIND:
-    			//if (inREWIND){waitTime = RAPID_PLAY_TIME_DELTA;}
-    			//if (!inREWIND){waitTime = NORMAL_PLAY_TIME_DELTA; inREWIND = true;}
-    			inREWIND = true;
-    			waitTime = RAPID_PLAY_TIME_DELTA;
+    			if (inREWIND){waitTime = (int) (0.7 * RAPID_PLAY_TIME_DELTA);}
+    			if (!inREWIND){waitTime = RAPID_PLAY_TIME_DELTA; inREWIND = true;}
+    			//inREWIND = true;
+    			//waitTime = RAPID_PLAY_TIME_DELTA;
     			break;
     		case PAUSE:
     			inREWIND = false;
@@ -331,16 +356,18 @@ public class LogPlayer extends Application {
 	  currentButton = playType;
 	  try{
 		  final int OLDBUTTON = playType;
-		  while(!cancelActiveActions && currentButton == OLDBUTTON){
+		  while(!cancelActiveActions && currentButton == OLDBUTTON)
+		  {
 				java.lang.Thread.sleep(waitTime);
-				Platform.runLater(new Runnable() {
+				Platform.runLater(new Runnable()
+				{
 					  @Override public void run(){
-				    		performAutoPlayback(LOG_FILE, OLDBUTTON, cancelActiveActions);
-				    		//readNextLogEvent(LOG_FILE, cancelActiveActions);
-				    		//java.lang.Thread.sleep(1000);
+				    		stepThroughAutoPlay(LOG_FILE, OLDBUTTON, cancelActiveActions);
+				    		
 				    	} 
-				 });
+				});
 		  }
+		  cancelActiveActions = false;
 	  }
 	  catch(Exception e)
 	  {
@@ -442,89 +469,57 @@ public class LogPlayer extends Application {
     }
     
     
-    private void performAutoPlayback(String logFile, int playType, boolean cancelIMCurrentAction){
-    	/*int waitTime = 0; //set this to a certain number of milliseconds to alter rapid-vs-normal FWD/REWIND
-    	switch(playType){
-    		case PLAY_FWD:
-    			inREWIND = false;
-    			waitTime = NORMAL_PLAY_TIME_DELTA;
-    			break;
-    		case FAST_FWD:
-    			inREWIND = false;
-    			waitTime = RAPID_PLAY_TIME_DELTA;
-    			break;
-    		case REWIND:
-    			if (inREWIND){waitTime = RAPID_PLAY_TIME_DELTA;}
-    			if (!inREWIND){waitTime = NORMAL_PLAY_TIME_DELTA; inREWIND = true;}
-    			break;
-    		case PAUSE:
-    			inREWIND = false;
-    			break;
-    		default:
-    			break;
-    	}*/
+    private void stepThroughAutoPlay(String logFile, int playType, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
     	try{
 		    	if (initialPlay){
 			    	switch(playType){
 				    	case PLAY_FWD:
 			    		case FAST_FWD:
-				    			System.out.println("FWD Recording + Playback in use! ..SZ:" + tokenCollection.size() + "...PSTN: " + positionInTokenCollection);
-			    				if (!tokenCollection.isEmpty() && positionInTokenCollection < tokenCollection.size() - 1)
+				    			
+			    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1)
 			    				{
-			    					positionInTokenCollection++;
-			    					processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1), cancelActiveActions);
-			    					//this.textNodeMap = mapStateCollection.get(positionInTokenCollection);
-			    					//Map<String, Text> mSCSubset = mapStateCollection.get(positionInTokenCollection);
-			    					for (Map.Entry<String, Text> entry : mapStateCollection.get(positionInTokenCollection).entrySet())
-			    					{
-				    					Text txt = this.textNodeMap.get(entry.getKey());
-				    					txt.setFill(entry.getValue().getFill());
-				    					txt.setText(entry.getValue().getText());
-			    					}
+			    					System.out.println("FWD _________ _ Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);
+			    					positionInCaches++;
+			    					processCaptiveToken(logCache.get(positionInCaches), false, cancelActiveActions);
+			    					
 			    					if (this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}
 			    				}
 			    				else if (nextToken != null)
 						    	{
+			    					System.out.println("FWD Recording + Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);
 						    		readNextLogEvent(logFile, cancelActiveActions);
-						    		tokenCollection.add(nextToken);
-						    		mapStateCollection.add(textNodeMap);
-					    			positionInTokenCollection++;
+						    		logCache.add(nextToken);
+						    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
+					    			positionInCaches++;
 					    			System.out.println(nextToken + "\n");
-						    		System.out.println("positionInTokenCollection :B= " + positionInTokenCollection + " ....VS Size: " + tokenCollection.size());
+						    		System.out.println("positionInCaches :B= " + positionInCaches + " ....VS Size: " + logCache.size());
 						    	}
 			    				else{currentButton = PAUSE;}
 				    			break;
 			    		case REWIND:
-			    				System.out.println("PerformAutoPlayback genericE: Rewind entered");
-					    		if (!tokenCollection.isEmpty() && positionInTokenCollection >= 0 && inREWIND)
+			    				System.out.println("PerformAutoPlayback genericE: Single rewind step started");
+					    		if (!logCache.isEmpty() && positionInCaches >= 0 && inREWIND)
 						    		{
 					    			System.out.println("PerformAutoPlayback genericE: Rewind middle1");
-					    			if(tokenCollection.get(positionInTokenCollection) != null){ //more error handling; todo: remove in final version
-					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInTokenCollection);
-					    				processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == 0), cancelActiveActions);
-					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInTokenCollection);
-					    				//this.textNodeMap = mapStateCollection.get(positionInTokenCollection);
-					    				for (Map.Entry<String, Text> entry : mapStateCollection.get(positionInTokenCollection).entrySet())
-				    					{
-					    					System.out.println(entry.getValue().getText());
-					    					Text txtN = this.textNodeMap.get(entry.getKey());
-					    					txtN.setFill(entry.getValue().getFill());
-					    					txtN.setText(entry.getValue().getText());
-					   
-				    					}
+					    			if(logCache.get(positionInCaches) != null){ //more error handling; todo: remove in final version
+					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);
+					    				processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == 0), cancelActiveActions);
+					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);
+					    				
 					    				if (this.textNodeMap == null || this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}
 					    			}
 					    			else{System.out.println("genericE: null entry found in token collection");}
-						    		positionInTokenCollection--;
+						    		positionInCaches--;
 						    		System.out.println("PerformAutoPlayback genericE: Rewind exiting...");
 						    		}
 					    		else{inREWIND = false; currentButton = PAUSE;}
-					    		if (positionInTokenCollection < 0){positionInTokenCollection = 0; currentButton = PAUSE;}
-					    		System.out.println("PerformAutoPlayback genericE: Rewind done.");
+					    		if (positionInCaches < 0){positionInCaches = 0; currentButton = PAUSE;}
+					    		System.out.println("PerformAutoPlayback genericE: Single rewind step done.");
 				    			break;
 			    		case PAUSE:
 			    			inREWIND = false;
+			    			cancelActiveActions = true;
 			    			break;
 			    		default:
 			    			break;
@@ -535,32 +530,33 @@ public class LogPlayer extends Application {
 		    		switch(playType){
 			    	case PLAY_FWD:
 		    		case FAST_FWD:
-		    				if (!tokenCollection.isEmpty() && positionInTokenCollection < tokenCollection.size())
+		    				if (!logCache.isEmpty() && positionInCaches < logCache.size())
 		    				{
-		    					positionInTokenCollection++;
-		    					processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == tokenCollection.size()-1), cancelActiveActions);
-		    					this.textNodeMap = mapStateCollection.get(positionInTokenCollection);
+		    					positionInCaches++;
+		    					processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == logCache.size()-1), cancelActiveActions);
+		    					this.textNodeMap = this.mapStateCache.get(positionInCaches);
 		    				}
-		    				if (positionInTokenCollection >= tokenCollection.size()){positionInTokenCollection = tokenCollection.size() - 1; currentButton = PAUSE;}
+		    				if (positionInCaches >= logCache.size()){positionInCaches = logCache.size() - 1; currentButton = PAUSE;}
 		    				break;
 		    				
 		    		case REWIND:
-				    		if (!tokenCollection.isEmpty() && positionInTokenCollection >= 0 && inREWIND)
+				    		if (!logCache.isEmpty() && positionInCaches >= 0 && inREWIND)
 				    		{
-				    			if(tokenCollection.get(positionInTokenCollection) != null){ //more error handling; todo: remove in final version
-				    				processCaptiveToken(tokenCollection.get(positionInTokenCollection), (positionInTokenCollection == 0), cancelActiveActions);
-				    				//this.textNodeMap = mapStateCollection.get(positionInTokenCollection);
+				    			if(logCache.get(positionInCaches) != null){ //more error handling; todo: remove in final version
+				    				processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == 0), cancelActiveActions);
+				    				//this.textNodeMap = mapStateCache.get(positionInCaches);
 				    				if (this.textNodeMap == null || this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}
 				    			}
 				    			else{System.out.println("PerformAutoPlayback genericE: null entry found in token collection");}
-					    		positionInTokenCollection--;
+					    		positionInCaches--;
 				    		}
 				    		else{inREWIND = false; currentButton = PAUSE; cancelActiveActions = true;}
-				    		if (positionInTokenCollection < 0){positionInTokenCollection = 0; currentButton = PAUSE;}
+				    		if (positionInCaches < 0){positionInCaches = 0; currentButton = PAUSE;}
 				    		break;
 				    		
 		    		case PAUSE:
 		    			inREWIND = false;
+		    			cancelActiveActions = true;
 		    			break;
 		    		default:
 		    			break;
@@ -574,173 +570,77 @@ public class LogPlayer extends Application {
     	}
     }
  
-    private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
+    /*private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
     	processCaptiveToken(currentTokenIn, "", isLastToken, cancelIMCurrentAction);
-    }
+    }*/
     
-    private void processCaptiveToken(String currentTokenIn, String nextTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
+    private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
-    	System.out.println("ProcessCaptiveToken genericE: Inner 0");
+    	//System.out.println("ProcessCaptiveToken genericE: Inner 0");
+    	updateMapFromCache();
     	try{
-    		/*boolean nextLineFound = nextLogLine.getText().equals("Next event: " + nextToken);*/
-			/*while (nextToken != null) {*/
+    			//todo: incorporate more logic for segments that are multi-line and do not update properly on rewind
 				if (currentTokenIn.matches(".* reinforcing with .* armies.")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 1.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
-						String playerName = parsePlayerName(currentTokenIn, " reinforcing ");
-						System.out.println("ProcessCaptiveToken genericE: Inner 1.2");
-						eventTitle.setText(playerName + " reinforcing.");
-						/*nextToken = log.nextLine();*/
-						//while (!currentTokenIn.equals(EVENT_DELIM)) {
-							//int armies = parseReinforceAmt(currentTokenIn);
-							//String countryName = parseReinforceCountry(currentTokenIn);
-							//setCountryOwnership(countryName, playerName);
-							//addArmiesToCountry(countryName, armies);
-							System.out.println("ProcessCaptiveToken genericE: Inner 1.3");
-							turn.setText(playerName + "'s Turn");
-							/*currentTokenIn = log.nextLine();*/
-						//}
-						/*nextToken = log.nextLine();*/
-					/*}*/
-						System.out.println("ProcessCaptiveToken genericE: Inner 1.4");
+					String playerName = parsePlayerName(currentTokenIn, " reinforcing ");
+					eventTitle.setText(playerName + " reinforcing.");	
+					turn.setText(playerName + "'s Turn");
+					
 				}
 				else if (currentTokenIn.matches("Beginning Round .*!")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 2.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
 						round.setText(currentTokenIn.substring(10, currentTokenIn.length() - 1));
 						eventTitle.setText("New Round.");
-						/*currentTokenIn = log.nextLine();*/
-					/*}*/
-						System.out.println("ProcessCaptiveToken genericE: Inner 2.2");
 				}
 				else if (currentTokenIn.matches(".* is attacking .* from .*!")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 3.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
-						if (!inREWIND){ //if going forward, store our info for later parsing
-							dlTokenHelper = currentTokenIn;
-							System.out.println("ProcessCaptiveToken genericE: Inner 3.2");
-							}
-						else{ //if going in reverse, parse current info + old info
-							System.out.println("ProcessCaptiveToken genericE: Inner 3.3");
-							String playerName = parsePlayerName(currentTokenIn, " is attacking ");
-							String atkCountry = parseAtkCountry(currentTokenIn);
-							String dfdCountry = parseDfdCountry(currentTokenIn);
-							System.out.println("ProcessCaptiveToken genericE: Inner 3.4");
-							eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
-							/*nextToken = log.nextLine();*/
-							//int atkLosses = parseAtkLosses(dlTokenHelper);
-							//int dfdLosses = parseDfdLosses(dlTokenHelper);
-							//addArmiesToCountry(atkCountry, -1 * atkLosses);
-							//addArmiesToCountry(dfdCountry, -1 * dfdLosses);
-							/*nextToken = log.nextLine();*/
-							System.out.println("ProcessCaptiveToken genericE: Inner 3.5");
+					if (!inREWIND){ //if going forward, store our info for later parsing
+						dlTokenHelper = currentTokenIn;
 						}
-						System.out.println("ProcessCaptiveToken genericE: Inner 3.6");
+					else{ //if going in reverse, parse current info + old info
+						//System.out.println("ProcessCaptiveToken genericE: Inner 3.3");
+						String playerName = parsePlayerName(currentTokenIn, " is attacking ");
+						String atkCountry = parseAtkCountry(currentTokenIn);
+						String dfdCountry = parseDfdCountry(currentTokenIn);
+						//System.out.println("ProcessCaptiveToken genericE: Inner 3.4");
+						eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
+
+					}
+		
 				}
 				else if (currentTokenIn.matches("Attacker lost: .*; Defender lost: .*")){
-					System.out.println("ProcessCaptiveToken genericE: Inner 4.1");
 						if (inREWIND){ //if rewinding, store our info for parsing up the chain
 							dlTokenHelper = currentTokenIn;
-							System.out.println("ProcessCaptiveToken genericE: Inner 4.2");
+							
 							}
 						else{ //if forwarding, parse old info + current info
-							System.out.println("ProcessCaptiveToken genericE: Inner 4.3");
 							String playerName = parsePlayerName(dlTokenHelper, " is attacking ");
 							String atkCountry = parseAtkCountry(dlTokenHelper);
 							String dfdCountry = parseDfdCountry(dlTokenHelper);
-							System.out.println("ProcessCaptiveToken genericE: Inner 4.4");
 							eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
-							/*nextToken = log.nextLine();*/
-							//int atkLosses = parseAtkLosses(currentTokenIn);
-							//int dfdLosses = parseDfdLosses(currentTokenIn);
-							//addArmiesToCountry(atkCountry, -1 * atkLosses);
-							//addArmiesToCountry(dfdCountry, -1 * dfdLosses);
-							/*nextToken = log.nextLine();*/
-							System.out.println("ProcessCaptiveToken genericE: Inner 4.5");
+						
 						}
 					/*}*/
-						System.out.println("ProcessCaptiveToken genericE: Inner 4.6");
+						//System.out.println("ProcessCaptiveToken genericE: Inner 4.6");
 				}
 				else if (currentTokenIn.matches(".* has taken .* from .*!")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 5.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
 						String playerName = parsePlayerName(currentTokenIn, " has taken ");
-						System.out.println("ProcessCaptiveToken genericE: Inner 5.2");
 						eventTitle.setText(playerName + " has taken\n" + parseTakenCountry(currentTokenIn));
-						System.out.println("ProcessCaptiveToken genericE: Inner 5.3");
-						//setCountryOwnership(parseTakenCountry(currentTokenIn), playerName);
-						/*nextToken = log.nextLine();*/
-					/*}*/
 				}
 				else if (currentTokenIn.matches(".* advanced .* into .*")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 6.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
 						String[] line = currentTokenIn.split(" advanced ");
-						System.out.println("ProcessCaptiveToken genericE: Inner 6.2");
 						eventTitle.setText(line[0] + " advanced\n" + line[1]);
-						//int armies = parseAdvanceArmies(currentTokenIn);
-						//addArmiesToCountry(parseAdvanceSourceCountry(currentTokenIn), -1 * armies);
-						//addArmiesToCountry(parseAdvanceDestinationCountry(currentTokenIn), armies);
-						/*nextToken = log.nextLine();*/
-					/*}*/
-						System.out.println("ProcessCaptiveToken genericE: Inner 6.3");
 				}
 				else if (currentTokenIn.matches(".* is transferring .* from .* to .*")) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 7.1");
-					/*if (!nextLineFound) {
-						nextLineFound = true;
-					}
-					else {
-						nextLineFound = false;*/
 						String[] line = currentTokenIn.split(" transferring ");
-						System.out.println("ProcessCaptiveToken genericE: Inner 7.2");
 						eventTitle.setText(line[0] + " transferring\n" + line[1]);
-						//int armies = parseFortifyArmies(currentTokenIn);
-						//String source = parseFortifySourceCountry(currentTokenIn);
-						//String dst = parseFortifyDestinationCountry(currentTokenIn);
-						//addArmiesToCountry(source, -1 * armies);
-						//addArmiesToCountry(dst, armies);
-						/*nextToken = log.nextLine();*/
-					/*}*/
-						System.out.println("ProcessCaptiveToken genericE: Inner 7.3");
 				}
-				else {
-					System.out.println("ProcessCaptiveToken genericE: Inner 8.1");
-					/*nextToken = log.nextLine();*/
-				}
-				/*if (nextLineFound) {*/
-					System.out.println("ProcessCaptiveToken genericE: Inner 9.1");
-					nextLogLine.setText("Next event: " + currentTokenIn);
-					System.out.println("ProcessCaptiveToken genericE: Inner 9.2");
-					/*return;
-				}*/
+				
+				
+				nextLogLine.setText("Next event: " + currentTokenIn);
+					
 				if (isLastToken && !initialPlay) {
-					System.out.println("ProcessCaptiveToken genericE: Inner 10.1");
+					
 					nextLogLine.setText("Game over!");
-					System.out.println("ProcessCaptiveToken genericE: Inner 10.2");
-					//nextToken = null;
-					/*log.close();*/
+					
 				}
 			/*}*/ //end while
 		} //end try
@@ -895,10 +795,42 @@ public class LogPlayer extends Application {
     	Text txt = this.textNodeMap.get(countryName);
 		int oldArmies = getPrevArmies(countryName);
 		txt.setText(countryName + "\n" + (oldArmies + armies));
+		System.out.println("Triggered Text Change! Position: " + positionInCaches);
     }
     
     private void setCountryOwnership(String countryName, String owner) {
     	this.textNodeMap.get(countryName).setFill(this.playerColorMap.get(owner));
+    	System.out.println("Triggered Color Change! Position: " + positionInCaches);
+    }
+    
+    private void updateMapFromCache()
+    {
+    	for(String keyC : this.textNodeMap.keySet())
+    	{
+    		System.out.println("updateMapFromCache genericE: Overwriting contents using position...." + positionInCaches);
+    		Text dstTxt = this.textNodeMap.get(keyC);
+    		Text srcTxt = this.mapStateCache.get(positionInCaches).get(keyC);
+    		System.out.println(System.identityHashCode(dstTxt) + "___");
+    		System.out.println(System.identityHashCode(srcTxt) + "___");
+    		System.out.println(srcTxt.getText());
+    		System.out.println(dstTxt.getText());
+    		dstTxt.setFill(srcTxt.getFill());
+    		dstTxt.setText(srcTxt.getText());
+    	}
+    }
+    
+    private HashMap<String, Text> duplicateTextNodeMap(HashMap<String, Text> incomingTextNodeMap)
+    {
+    	HashMap<String, Text> outgoingTextNodeMap = new HashMap<String, Text>();
+    	for (String keyC : incomingTextNodeMap.keySet()) {
+			double nextX = incomingTextNodeMap.get(keyC).getLayoutX();
+			double nextY = incomingTextNodeMap.get(keyC).getLayoutX();
+			Text txt = new Text(nextX, nextY, incomingTextNodeMap.get(keyC).getText());
+	        txt.setFont(incomingTextNodeMap.get(keyC).getFont());
+	        txt.setFill(incomingTextNodeMap.get(keyC).getFill());
+	        outgoingTextNodeMap.put(keyC, txt);
+		}
+    	return outgoingTextNodeMap;
     }
     
     private String parseAtkCountry(String atkLine) {

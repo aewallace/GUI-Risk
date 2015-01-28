@@ -41,5 +41,7 @@ One important note, this app is built on top of JavaFX, which comes as part of t
 Feel free to clone the repo, write and test your own Players, and send them in (Pull Requests welcome!) to be pitted against others! You can always look at the other Player implementations, but it's highly recommended that you implement your own ideas first!
 
 #Updates [by Albert Wallace]
-###ver y2015.mdA18.hmL21 
+###LogPlayer.java, Stamp y2015.mdA18.hmL21 
 added limited error handling for a missing list of valid countries when trying to view later log files, and adds an additional resource to visually indicate an error (secondary map JPG). Internal RISK runtime is left unaffected.
+###LogPlayer.java, Stamp y2015.mdA27.hmS13.sALP
+Alpha build, incorporating rewind and fast-forward capabilities. Attempts to avoid some out-of-bounds errors with auto-correction, in some cases. (Todo: fix bad code!)
