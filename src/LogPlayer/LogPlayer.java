@@ -1,5 +1,12 @@
-//Current build Albert Wallace, Version 005, Code y2015.mdA27.hmQ08.sALP
+//Current build Albert Wallace, Version 006, Stamp y2015.mdA28.hm000.sBET
 //Base build by Seth Denney, Sept 10 2014 
+
+//todo: adding to cache does not occur at proper time. One or two lines may be nipped from the end,
+// as well as the fact that a single step does not result in the cache being updated.
+//EDIT: slightly ameliorated.
+
+//todo: ensure you only have one rewind or one ff at a time
+//slightly ameliorated.
 
 package LogPlayer;
 
@@ -46,16 +53,15 @@ public class LogPlayer extends Application {
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final int RAPID_PLAY_TIME_DELTA = 1500;
     private static final int NORMAL_PLAY_TIME_DELTA = 6500;
-   /* private static final int RAPID_PLAY_TIME_DELTA = 0;
-    private static final int NORMAL_PLAY_TIME_DELTA = 0;*/
     private static final String LOG_FILE = "LOG.txt";
 	private static final String EVENT_DELIM = "...";
 	private static final int PLAY_FWD = 1;
 	private static final int FAST_FWD = -1;
 	private static final int REWIND = 2;
 	private static final int PAUSE = 0;
+	private static final int STEP_FWD = -2;
+	private static final int iRoNMAX = 21;
 	
-	private static final Duration PROBE_FREQUENCY = Duration.seconds(2);
 
 	//private Timeline timeline;
 	
@@ -67,6 +73,7 @@ public class LogPlayer extends Application {
     private Text turn;
     private Text nextLogLine;
     private Text errorDisplay;
+    private Text currentPlayStatus;
     private String errorText;
     private boolean errorDisplayBit;
     private HashMap<String, Text> textNodeMap;
@@ -82,13 +89,17 @@ public class LogPlayer extends Application {
     private boolean initialPlay;
     private boolean cancelActiveActions;
     private int currentButton;
+    private String currentSimpleStatus;
+    private int iRoN; //todo: fix bad name
  
     @Override
     public void start(Stage primaryStage) {
     	try {
 			this.log = new Scanner(new File(LOG_FILE));
 			this.nextToken = null;
-			currentButton = PAUSE;
+			this.currentButton = PAUSE;
+			this.currentSimpleStatus = "";
+			iRoN = 0;
 			
 			inREWIND = false;
 			initialPlay = true;
@@ -107,7 +118,7 @@ public class LogPlayer extends Application {
 	        * pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");*/
 	       
 	        errorDisplayBit = false;
-	        errorText = "";
+	        errorText = "Status...";
 	        
 	        loadTextNodes("TextNodes.txt");
 	        loadPlayers();
@@ -115,14 +126,13 @@ public class LogPlayer extends Application {
 	        
 	        //if there is an error on loading necessary resources,
 	        // render the "negated" map image as a visual cue to indicate failure
-	        if (errorDisplayBit){
-	        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
-		        errorDisplay = new Text(100, 100, errorText);
-		        errorDisplay.setFont(Font.font("Verdana", FontWeight.BOLD, 24));
-		        errorDisplay.setFill(Color.RED);
-		        pane.getChildren().add(errorDisplay);
-		        
-	        }
+        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
+	        errorDisplay = new Text(29, 560, errorText);
+	        errorDisplay.setFont(Font.font("Verdana", FontWeight.BOLD, 24));
+	        if(errorDisplayBit){errorDisplay.setFill(Color.RED);}
+	        else{errorDisplay.setFill(Color.WHITE);}
+	        	
+	        pane.getChildren().add(errorDisplay);
 	        
 	        //if there was no error, populate the window with appropriate elements
 	        if(!errorDisplayBit){ 
@@ -146,25 +156,43 @@ public class LogPlayer extends Application {
 		        nextLogLine.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 		        nextLogLine.setFill(Color.LIGHTGRAY);
 		        pane.getChildren().add(nextLogLine);
+		        
+		        currentPlayStatus = new Text(29, 600, "Hello! ^.^");
+		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.BOLD, 40));
+		        currentPlayStatus.setFill(Color.WHITE);
+		        pane.getChildren().add(currentPlayStatus);
 	        	
-		        Button nextActionBtn = new Button("Next Event");
-		        nextActionBtn.setLayoutX(1427);
-		        nextActionBtn.setLayoutY(560);
+		       //The original single-seek/step-through "Next Event" button 
+		        Button nextActionBtn = new Button("Single-Step to Next Event");
+		        nextActionBtn.setLayoutX(29);
+		        nextActionBtn.setLayoutY(770);
 		        nextActionBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
 		        	public void handle(ActionEvent event) {
-		        		currentButton = PAUSE;
-		        		readNextLogEvent(LOG_FILE, cancelActiveActions);
+				        Runnable task = new Runnable() {
+				        	  @Override public void run() {
+					        		  try
+					        		  {
+					        			  java.lang.Thread.sleep(1000);
+					        			  runButtonRunnable(STEP_FWD, cancelActiveActions);
+					        		  }//end try
+					        		  catch(Exception e)
+					        		  {	
+					        		  } //end catch	
+				        	      }
+				        	  };
+				        	Thread th = new Thread(task);
+				        	th.setDaemon(true);
+				        	th.start();
 		        	}
 		        });
-		        
 		        pane.getChildren().add(nextActionBtn);
 		        
 		        
 		      //The Play-Forward (normal speed) Button
 		        Button pauseAllBtn = new Button("Pause Event Playback");
-		        pauseAllBtn.setLayoutX(1359);
-		        pauseAllBtn.setLayoutY(400);
+		        pauseAllBtn.setLayoutX(29);
+		        pauseAllBtn.setLayoutY(650);
 		        
 		        pauseAllBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
@@ -173,8 +201,6 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
-				        			  //??? todo
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(PAUSE, cancelActiveActions);
 				        			 
@@ -185,8 +211,6 @@ public class LogPlayer extends Application {
 				        	      
 				        	      }
 				        	  };
-				        	  
-				        	
 				        	Thread th = new Thread(task);
 				        	th.setDaemon(true);
 				        	th.start();
@@ -199,8 +223,8 @@ public class LogPlayer extends Application {
 		        
 		        //The Play-Forward (normal speed) Button
 		        Button playFwdBtn = new Button("Auto-play Events");
-		        playFwdBtn.setLayoutX(1359);
-		        playFwdBtn.setLayoutY(560);
+		        playFwdBtn.setLayoutX(29);
+		        playFwdBtn.setLayoutY(610);
 		        
 		        playFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
@@ -209,8 +233,6 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
-				        			  //??? todo
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(PLAY_FWD, cancelActiveActions);
 				        			 
@@ -234,8 +256,8 @@ public class LogPlayer extends Application {
 		        
 		        //The fast forward (rapid-speed forward) button:
 		        Button fastFwdBtn = new Button("Fast-Forward Events");
-		        fastFwdBtn.setLayoutX(1159);
-		        fastFwdBtn.setLayoutY(500);
+		        fastFwdBtn.setLayoutX(29);
+		        fastFwdBtn.setLayoutY(690);
 		        
 		        fastFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
@@ -244,8 +266,6 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
-				        			  //??? todo
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(FAST_FWD, cancelActiveActions);
 				 
@@ -270,19 +290,16 @@ public class LogPlayer extends Application {
 		        
 		      //The rewind (dual-speed reverse) button:
 		        Button dsRewindBtn = new Button("Slow/Fast Rewind Events");
-		        dsRewindBtn.setLayoutX(1159);
-		        dsRewindBtn.setLayoutY(600);
+		        dsRewindBtn.setLayoutX(29);
+		        dsRewindBtn.setLayoutY(730);
 		        
 		        dsRewindBtn.setOnAction(new EventHandler<ActionEvent>() {
 		        	@Override
 		        	public void handle(ActionEvent event) {
-		        		//cancelActiveActions = true;
 				        Runnable task = new Runnable() {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
-				        			  //cancelActiveActions = false;
 				        			  java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(REWIND, cancelActiveActions);
 				 
@@ -313,9 +330,23 @@ public class LogPlayer extends Application {
 			scrollPane.setContent(pane);
 			if (!errorDisplayBit){
 				scrollPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
-		        	@Override
+					@Override
 		        	public void handle(KeyEvent event) {
-		        		readNextLogEvent(LOG_FILE, cancelActiveActions);
+				        Runnable task = new Runnable() {
+				        	  @Override public void run() {
+					        		  try
+					        		  {
+					        			  java.lang.Thread.sleep(1000);
+					        			  runButtonRunnable(STEP_FWD, cancelActiveActions);
+					        		  }//end try
+					        		  catch(Exception e)
+					        		  {	
+					        		  } //end catch	
+				        	      }
+				        	  };
+				        	Thread th = new Thread(task);
+				        	th.setDaemon(true);
+				        	th.start();
 		        	}
 		        });
 			}
@@ -329,45 +360,93 @@ public class LogPlayer extends Application {
     	}
     }
     
-    void runButtonRunnable(int playType, boolean cancelIMCurrentAction){
+    void runButtonRunnable(int btnTypeIn, boolean cancelIMCurrentAction){
     	int waitTime = 0; //will be set to a certain number of milliseconds to alter rapid-vs-normal FWD/REWIND
-    	switch(playType)
+    	iRoN = 0;
+    	switch(btnTypeIn)
     	{
     		case PLAY_FWD:
     			inREWIND = false;
+    			this.currentSimpleStatus = ">";
     			waitTime = NORMAL_PLAY_TIME_DELTA;
     			break;
     		case FAST_FWD:
     			inREWIND = false;
-    			waitTime = RAPID_PLAY_TIME_DELTA;
+    			if(this.currentSimpleStatus.equals(">>>")){
+	    			this.currentSimpleStatus = "> > >>>";
+	    			waitTime = (int)(0.7*RAPID_PLAY_TIME_DELTA);
+    			}
+    			else
+    			{
+    				this.currentSimpleStatus = ">>>";
+        			waitTime = RAPID_PLAY_TIME_DELTA;
+    			}
     			break;
     		case REWIND:
-    			if (inREWIND){waitTime = (int) (0.7 * RAPID_PLAY_TIME_DELTA);}
-    			if (!inREWIND){waitTime = RAPID_PLAY_TIME_DELTA; inREWIND = true;}
-    			//inREWIND = true;
-    			//waitTime = RAPID_PLAY_TIME_DELTA;
+    			if (inREWIND){waitTime = (int) (0.7 * RAPID_PLAY_TIME_DELTA); this.currentSimpleStatus = "<<< < <";}
+    			if (!inREWIND){waitTime = RAPID_PLAY_TIME_DELTA; inREWIND = true; this.currentSimpleStatus = "<<<";}
+    			break;
+    		case STEP_FWD:
+    			inREWIND = false;
+    			this.currentSimpleStatus = ">||";
     			break;
     		case PAUSE:
     			inREWIND = false;
+    			this.currentSimpleStatus = "||/☐";
     			break;
     		default:
+    			inREWIND = false;
+    			this.currentSimpleStatus = "||/☐";
     			break;
     	}
-	  currentButton = playType;
+	  this.currentButton = btnTypeIn;
 	  try{
-		  final int OLDBUTTON = playType;
-		  while(!cancelActiveActions && currentButton == OLDBUTTON)
+		  final int OLDBUTTON = btnTypeIn;
+		  final String OLDshPLAYSTATE = this.currentSimpleStatus;
+		  
+		  while(!cancelActiveActions && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus)
 		  {
-				java.lang.Thread.sleep(waitTime);
+			  if(iRoN < iRoNMAX){
+					int q = 2;
+					for(; q > 0; q--){
+						java.lang.Thread.sleep((int)(0.5*waitTime));
+						Platform.runLater(new Runnable()
+						{
+							  @Override public void run(){
+								 animateStatus(false);
+						    	} 
+						});
+					}
+				}
+			  
+				else	
+				{
+					java.lang.Thread.sleep(waitTime);
+				}  
+			  
 				Platform.runLater(new Runnable()
 				{
 					  @Override public void run(){
-				    		stepThroughAutoPlay(LOG_FILE, OLDBUTTON, cancelActiveActions);
-				    		
+				    		stepThroughBtnLogic(LOG_FILE, OLDBUTTON, cancelActiveActions);
 				    	} 
 				});
+				
+				if(OLDBUTTON == STEP_FWD)
+				{
+					cancelActiveActions = true;
+				}
+				
 		  }
 		  cancelActiveActions = false;
+		  System.out.println("Task done.");
+		  Platform.runLater(new Runnable()
+			{
+				  @Override public void run(){
+					 animateStatus(true);
+			    	} 
+			}
+		  );
+			
 	  }
 	  catch(Exception e)
 	  {
@@ -468,16 +547,30 @@ public class LogPlayer extends Application {
 		}
     }
     
+    private void animateStatus(boolean isEndOfTask)
+    {
+    	if (isEndOfTask)
+    		currentPlayStatus.setText("||/☐");
+    	else if(iRoN % 2==0)
+    		currentPlayStatus.setText(this.currentSimpleStatus);
+    	else if (iRoN + 2 >= iRoNMAX)
+    		currentPlayStatus.setText(this.currentSimpleStatus);
+    	else
+    		currentPlayStatus.setText("");
+    	iRoN++;
+    }
     
-    private void stepThroughAutoPlay(String logFile, int playType, boolean cancelIMCurrentAction){
+    
+    private void stepThroughBtnLogic(String logFile, int btnTypeIn, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
     	try{
 		    	if (initialPlay){
-			    	switch(playType){
+			    	switch(btnTypeIn){
 				    	case PLAY_FWD:
+				    	case STEP_FWD:
 			    		case FAST_FWD:
 				    			
-			    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1)
+			    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1 && nextToken != null)
 			    				{
 			    					System.out.println("FWD _________ _ Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);
 			    					positionInCaches++;
@@ -495,7 +588,8 @@ public class LogPlayer extends Application {
 					    			System.out.println(nextToken + "\n");
 						    		System.out.println("positionInCaches :B= " + positionInCaches + " ....VS Size: " + logCache.size());
 						    	}
-			    				else{currentButton = PAUSE;}
+			    				else{this.currentButton = PAUSE;}
+			    				if (nextToken == null){this.currentButton = PAUSE;}
 				    			break;
 			    		case REWIND:
 			    				System.out.println("PerformAutoPlayback genericE: Single rewind step started");
@@ -513,8 +607,8 @@ public class LogPlayer extends Application {
 						    		positionInCaches--;
 						    		System.out.println("PerformAutoPlayback genericE: Rewind exiting...");
 						    		}
-					    		else{inREWIND = false; currentButton = PAUSE;}
-					    		if (positionInCaches < 0){positionInCaches = 0; currentButton = PAUSE;}
+					    		else{inREWIND = false; this.currentButton = PAUSE;}
+					    		if (positionInCaches < 0){positionInCaches = 0; this.currentButton = PAUSE;}
 					    		System.out.println("PerformAutoPlayback genericE: Single rewind step done.");
 				    			break;
 			    		case PAUSE:
@@ -527,16 +621,16 @@ public class LogPlayer extends Application {
 		    	}
 		    	else{
 		    		if (cancelActiveActions){return;}
-		    		switch(playType){
+		    		switch(btnTypeIn){
 			    	case PLAY_FWD:
 		    		case FAST_FWD:
-		    				if (!logCache.isEmpty() && positionInCaches < logCache.size())
+		    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1)
 		    				{
 		    					positionInCaches++;
 		    					processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == logCache.size()-1), cancelActiveActions);
 		    					this.textNodeMap = this.mapStateCache.get(positionInCaches);
 		    				}
-		    				if (positionInCaches >= logCache.size()){positionInCaches = logCache.size() - 1; currentButton = PAUSE;}
+		    				if (positionInCaches >= logCache.size()){positionInCaches = logCache.size() - 1; this.currentButton = PAUSE;}
 		    				break;
 		    				
 		    		case REWIND:
@@ -550,8 +644,8 @@ public class LogPlayer extends Application {
 				    			else{System.out.println("PerformAutoPlayback genericE: null entry found in token collection");}
 					    		positionInCaches--;
 				    		}
-				    		else{inREWIND = false; currentButton = PAUSE; cancelActiveActions = true;}
-				    		if (positionInCaches < 0){positionInCaches = 0; currentButton = PAUSE;}
+				    		else{inREWIND = false; this.currentButton = PAUSE; cancelActiveActions = true;}
+				    		if (positionInCaches < 0){positionInCaches = 0; this.currentButton = PAUSE;}
 				    		break;
 				    		
 		    		case PAUSE:
@@ -564,16 +658,17 @@ public class LogPlayer extends Application {
 		    		
 		    	}
     	}
+    	catch (IndexOutOfBoundsException e)
+    	{
+    		if(positionInCaches > 0){positionInCaches--;System.out.println("Spilled over index; position auto-reset enabled; programmer, please check!");cancelActiveActions=true;}
+    		if(positionInCaches < 0){positionInCaches--;System.out.println("Seeked under index; position auto-reset to zero; programmer, please check!");cancelActiveActions=true;}
+    	}
     	catch(Exception e)
     	{
     		System.out.println("PerformAutoPlayback exception:" + e);
     	}
     }
  
-    /*private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
-    	if (cancelActiveActions){return;}
-    	processCaptiveToken(currentTokenIn, "", isLastToken, cancelIMCurrentAction);
-    }*/
     
     private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
@@ -773,8 +868,8 @@ public class LogPlayer extends Application {
     
     private int getPrevArmies(String countryName) {
     	Text txt = this.textNodeMap.get(countryName);
-    	if (txt == null){
-    	System.out.println("gPA:A:::: country-text-value map null for given value : " + countryName);}
+    	/*if (txt == null){
+    	System.out.println("gPA:A:::: country-text-value map null for given value : " + countryName);}*/
 		return Integer.parseInt(txt.getText().split("\n")[1]);
     }
     
@@ -795,25 +890,25 @@ public class LogPlayer extends Application {
     	Text txt = this.textNodeMap.get(countryName);
 		int oldArmies = getPrevArmies(countryName);
 		txt.setText(countryName + "\n" + (oldArmies + armies));
-		System.out.println("Triggered Text Change! Position: " + positionInCaches);
+		//System.out.println("Triggered Text Change! Position: " + positionInCaches);
     }
     
     private void setCountryOwnership(String countryName, String owner) {
     	this.textNodeMap.get(countryName).setFill(this.playerColorMap.get(owner));
-    	System.out.println("Triggered Color Change! Position: " + positionInCaches);
+    	//System.out.println("Triggered Color Change! Position: " + positionInCaches);
     }
     
     private void updateMapFromCache()
     {
     	for(String keyC : this.textNodeMap.keySet())
     	{
-    		System.out.println("updateMapFromCache genericE: Overwriting contents using position...." + positionInCaches);
+    		//System.out.println("updateMapFromCache genericE: Overwriting contents using position...." + positionInCaches);
     		Text dstTxt = this.textNodeMap.get(keyC);
     		Text srcTxt = this.mapStateCache.get(positionInCaches).get(keyC);
-    		System.out.println(System.identityHashCode(dstTxt) + "___");
-    		System.out.println(System.identityHashCode(srcTxt) + "___");
-    		System.out.println(srcTxt.getText());
-    		System.out.println(dstTxt.getText());
+    		//System.out.println(System.identityHashCode(dstTxt) + "___");
+    		//System.out.println(System.identityHashCode(srcTxt) + "___");
+    		//System.out.println(srcTxt.getText());
+    		//System.out.println(dstTxt.getText());
     		dstTxt.setFill(srcTxt.getFill());
     		dstTxt.setText(srcTxt.getText());
     	}
@@ -832,6 +927,7 @@ public class LogPlayer extends Application {
 		}
     	return outgoingTextNodeMap;
     }
+    
     
     private String parseAtkCountry(String atkLine) {
     	return atkLine.split("\\) from ")[1].split("\\(")[0];
