@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 006, Stamp y2015.mdA28.hm000.sBET
+//Current build Albert Wallace, Version 007, Stamp y2015.mdB02.hm2022.sALP
 //Base build by Seth Denney, Sept 10 2014 
 
 //todo: adding to cache does not occur at proper time. One or two lines may be nipped from the end,
@@ -51,8 +51,11 @@ public class LogPlayer extends Application {
  
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
-    private static final int RAPID_PLAY_TIME_DELTA = 1500;
-    private static final int NORMAL_PLAY_TIME_DELTA = 6500;
+    private static final int RAPID_PLAY_TIME_DELTA = 1170;
+    private static final int NORMAL_PLAY_TIME_DELTA = 5650;
+    private static final int BUSYROUTINE_THRESH = 0;
+    private static final int BUSYROUTINE_RETRY_COUNT = 7;
+    private static final int BUSYROUTINE_WAIT_TIME = 350;
     private static final String LOG_FILE = "LOG.txt";
 	private static final String EVENT_DELIM = "...";
 	private static final int PLAY_FWD = 1;
@@ -61,6 +64,7 @@ public class LogPlayer extends Application {
 	private static final int PAUSE = 0;
 	private static final int STEP_FWD = -2;
 	private static final int iRoNMAX = 21;
+	private static double EXPON_SPEED_UP_PCT = 1.0;
 	
 
 	//private Timeline timeline;
@@ -86,11 +90,13 @@ public class LogPlayer extends Application {
     private ArrayList<HashMap<String, Text>> mapStateCache;
     private int positionInCaches;
     private boolean inREWIND;
-    private boolean initialPlay;
+    private boolean initialPlay = true;
     private boolean cancelActiveActions;
     private int currentButton;
     private String currentSimpleStatus;
     private int iRoN; //todo: fix bad name
+    private int busyRoutines; //to perform basic resource locks
+    private int routinesRequestingPriority;
  
     @Override
     public void start(Stage primaryStage) {
@@ -100,9 +106,9 @@ public class LogPlayer extends Application {
 			this.currentButton = PAUSE;
 			this.currentSimpleStatus = "";
 			iRoN = 0;
-			
+			this.busyRoutines = 0;
+			this.routinesRequestingPriority = 0;
 			inREWIND = false;
-			initialPlay = true;
 			dlTokenHelper = "";
 			positionInCaches = -1;
 			this.logCache = new ArrayList<String>();
@@ -362,7 +368,9 @@ public class LogPlayer extends Application {
     
     void runButtonRunnable(int btnTypeIn, boolean cancelIMCurrentAction){
     	int waitTime = 0; //will be set to a certain number of milliseconds to alter rapid-vs-normal FWD/REWIND
+    	this.routinesRequestingPriority++;
     	iRoN = 0;
+    	System.out.println("EPRO-A this.initialPlay = " + this.initialPlay);
     	switch(btnTypeIn)
     	{
     		case PLAY_FWD:
@@ -373,7 +381,7 @@ public class LogPlayer extends Application {
     		case FAST_FWD:
     			inREWIND = false;
     			if(this.currentSimpleStatus.equals(">>>")){
-	    			this.currentSimpleStatus = "> > >>>";
+	    			this.currentSimpleStatus = ">>>>>";
 	    			waitTime = (int)(0.7*RAPID_PLAY_TIME_DELTA);
     			}
     			else
@@ -383,7 +391,7 @@ public class LogPlayer extends Application {
     			}
     			break;
     		case REWIND:
-    			if (inREWIND){waitTime = (int) (0.7 * RAPID_PLAY_TIME_DELTA); this.currentSimpleStatus = "<<< < <";}
+    			if (inREWIND){waitTime = (int) (0.7 * RAPID_PLAY_TIME_DELTA); this.currentSimpleStatus = "<<<<<";}
     			if (!inREWIND){waitTime = RAPID_PLAY_TIME_DELTA; inREWIND = true; this.currentSimpleStatus = "<<<";}
     			break;
     		case STEP_FWD:
@@ -400,36 +408,52 @@ public class LogPlayer extends Application {
     			break;
     	}
 	  this.currentButton = btnTypeIn;
+	  int waitCount = 1;
+	  while (this.busyRoutines > BUSYROUTINE_THRESH && waitCount < BUSYROUTINE_RETRY_COUNT)
+	  {
+		  animateWaitStatus(waitCount);
+		  try{
+			  java.lang.Thread.sleep(BUSYROUTINE_WAIT_TIME);
+		  }
+		  catch (Exception e)
+		  {}//todo: catch unexpected termination during sleep()
+		  finally{waitCount++;}
+	  }
+	  EXPON_SPEED_UP_PCT = 1.0;
 	  try{
+		  this.routinesRequestingPriority--;
+		  this.busyRoutines++;
 		  final int OLDBUTTON = btnTypeIn;
 		  final String OLDshPLAYSTATE = this.currentSimpleStatus;
-		  
-		  while(!cancelActiveActions && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus)
+		  while(this.routinesRequestingPriority == 0 && !cancelActiveActions && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && !Thread.interrupted())
 		  {
-			  if(iRoN < iRoNMAX){
-					int q = 2;
-					for(; q > 0; q--){
-						java.lang.Thread.sleep((int)(0.5*waitTime));
-						Platform.runLater(new Runnable()
-						{
-							  @Override public void run(){
-								 animateStatus(false);
-						    	} 
-						});
-					}
+				int q = 3;
+				double qRatio = (double)1/q;
+				if (0.95 * EXPON_SPEED_UP_PCT *waitTime >= 0.05 * waitTime)
+				{
+					EXPON_SPEED_UP_PCT = 0.9*EXPON_SPEED_UP_PCT;
 				}
-			  
-				else	
+				for(; q > 0 && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus; q--){
+					if(iRoN < iRoNMAX){
+							Platform.runLater(new Runnable()
+							{
+								  @Override public void run(){
+									 animateStatus(false);
+							    	} 
+							});
+					}
+					java.lang.Thread.sleep((int)(qRatio*waitTime*EXPON_SPEED_UP_PCT));
+				}
+				
+				if(this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && this.routinesRequestingPriority == 0)
 				{
-					java.lang.Thread.sleep(waitTime);
-				}  
-			  
-				Platform.runLater(new Runnable()
-				{
-					  @Override public void run(){
-				    		stepThroughBtnLogic(LOG_FILE, OLDBUTTON, cancelActiveActions);
-				    	} 
-				});
+					Platform.runLater(new Runnable()
+					{
+						  @Override public void run(){
+					    		stepThroughBtnLogic(LOG_FILE, OLDBUTTON, cancelActiveActions);
+					    	} 
+					});
+				}
 				
 				if(OLDBUTTON == STEP_FWD)
 				{
@@ -439,13 +463,19 @@ public class LogPlayer extends Application {
 		  }
 		  cancelActiveActions = false;
 		  System.out.println("Task done.");
-		  Platform.runLater(new Runnable()
+		  if(OLDshPLAYSTATE == this.currentSimpleStatus)
 			{
-				  @Override public void run(){
-					 animateStatus(true);
-			    	} 
+			  for (int m = 0; m < 8; m++)
+			  {
+				  animateStopStatus(m,false);
+				  try{
+					  java.lang.Thread.sleep(3*BUSYROUTINE_WAIT_TIME);
+				  }
+				  catch (Exception e)
+				  {}//todo: catch unexpected termination during sleep()
+			  }
+			  animateStopStatus(0,true);
 			}
-		  );
 			
 	  }
 	  catch(Exception e)
@@ -453,7 +483,11 @@ public class LogPlayer extends Application {
 		  System.out.println("runButtonRunnable: Exception: " + e);
 		  //todo: insert recovery code here
 	  }
-	  
+	  finally
+	  {
+		  this.busyRoutines--;
+		  System.out.println("EPRO-B this.initialPlay = " + this.initialPlay);
+	  }
     }
 	  
  
@@ -556,60 +590,104 @@ public class LogPlayer extends Application {
     	else if (iRoN + 2 >= iRoNMAX)
     		currentPlayStatus.setText(this.currentSimpleStatus);
     	else
-    		currentPlayStatus.setText("");
+    		currentPlayStatus.setText("————");
     	iRoN++;
     }
     
+    private void animateStopStatus(int clkIn,final boolean setFinalStatus)
+    {
+    	final int clk = clkIn % 4;
+    	Platform.runLater(new Runnable()
+		{
+			  @Override public void run(){
+				 if(setFinalStatus){currentPlayStatus.setText("Idle."); return;}
+				 switch (clk){
+					 case 0:
+						 currentPlayStatus.setText("STOP");
+						 break;
+					 case 1:
+						 currentPlayStatus.setText("——");;
+						 break;
+					 case 2:
+						 currentPlayStatus.setText("————");
+						 break;
+					 case 3:
+						 currentPlayStatus.setText("||/☐");
+						 break;
+				 }
+		    	} 
+		});
+    }
+    
+    private void animateWaitStatus(int clkIn)
+    {
+    	final int clk = clkIn % 4;
+    	Platform.runLater(new Runnable()
+		{
+			  @Override public void run(){
+				 switch (clk){
+					 case 0:
+						 currentPlayStatus.setText("Wait");
+						 break;
+					 case 1:
+						 currentPlayStatus.setText("Busy");
+						 break;
+					 case 2:
+						 currentPlayStatus.setText("Wait");
+						 break;
+					 case 3:
+						 currentPlayStatus.setText("....");
+						 break;
+				 }
+		    	} 
+		});
+    }
     
     private void stepThroughBtnLogic(String logFile, int btnTypeIn, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
     	try{
-		    	if (initialPlay){
+		    	if (this.initialPlay){ //if we haven't filled the cache, we step through, or we make use of the little that IS in the cache up to this point
 			    	switch(btnTypeIn){
 				    	case PLAY_FWD:
 				    	case STEP_FWD:
 			    		case FAST_FWD:
-				    			
+			    				//if we have cached up to this point (i.e., we played forward, rewound, and played forward again)
 			    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1 && nextToken != null)
 			    				{
-			    					System.out.println("FWD _________ _ Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);
+			    					/*System.out.println("FWD _________ _ Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);*/
 			    					positionInCaches++;
 			    					processCaptiveToken(logCache.get(positionInCaches), false, cancelActiveActions);
-			    					
-			    					if (this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}
+			    					/*if (this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}*/
 			    				}
+			    				//else if there is still more in the log, but we haven't cached up to the current point
 			    				else if (nextToken != null)
 						    	{
-			    					System.out.println("FWD Recording + Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);
+			    					/*System.out.println("FWD Recording + Playback in use! ..SZ:" + logCache.size() + "...PSTN: " + positionInCaches);*/
 						    		readNextLogEvent(logFile, cancelActiveActions);
-						    		logCache.add(nextToken);
-						    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
-					    			positionInCaches++;
-					    			System.out.println(nextToken + "\n");
-						    		System.out.println("positionInCaches :B= " + positionInCaches + " ....VS Size: " + logCache.size());
 						    	}
+			    				//else, we have reached the end of the log for the initial playthrough (and everything is cached by now)
 			    				else{this.currentButton = PAUSE;}
-			    				if (nextToken == null){this.currentButton = PAUSE;}
+			    				/*System.out.println("this.initialPlay = " + this.initialPlay);*/
 				    			break;
 			    		case REWIND:
 			    				System.out.println("PerformAutoPlayback genericE: Single rewind step started");
 					    		if (!logCache.isEmpty() && positionInCaches >= 0 && inREWIND)
 						    		{
-					    			System.out.println("PerformAutoPlayback genericE: Rewind middle1");
+					    			/*System.out.println("PerformAutoPlayback genericE: Rewind middle1");*/
 					    			if(logCache.get(positionInCaches) != null){ //more error handling; todo: remove in final version
-					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);
+					    				/*System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);*/
 					    				processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == 0), cancelActiveActions);
-					    				System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);
+					    				/*System.out.println("PerformAutoPlayback genericE: Rewind middle2 + " + positionInCaches);*/
 					    				
 					    				if (this.textNodeMap == null || this.textNodeMap.isEmpty()){System.out.println("PerformAutoPlayback genericE: textNodeMap reported as empty");}
 					    			}
 					    			else{System.out.println("genericE: null entry found in token collection");}
 						    		positionInCaches--;
-						    		System.out.println("PerformAutoPlayback genericE: Rewind exiting...");
+						    		/*System.out.println("PerformAutoPlayback genericE: Rewind exiting...");*/
 						    		}
 					    		else{inREWIND = false; this.currentButton = PAUSE;}
 					    		if (positionInCaches < 0){positionInCaches = 0; this.currentButton = PAUSE;}
-					    		System.out.println("PerformAutoPlayback genericE: Single rewind step done.");
+					    		/*System.out.println("PerformAutoPlayback genericE: Single rewind step done.");*/
 				    			break;
 			    		case PAUSE:
 			    			inREWIND = false;
@@ -619,16 +697,16 @@ public class LogPlayer extends Application {
 			    			break;
 			    	}
 		    	}
-		    	else{
+		    	else{ //else, everything has been cached, and we make use of said cache for all actions
 		    		if (cancelActiveActions){return;}
 		    		switch(btnTypeIn){
 			    	case PLAY_FWD:
+			    	case STEP_FWD:
 		    		case FAST_FWD:
 		    				if (!logCache.isEmpty() && positionInCaches < logCache.size() - 1)
 		    				{
 		    					positionInCaches++;
 		    					processCaptiveToken(logCache.get(positionInCaches), (positionInCaches == logCache.size()-1), cancelActiveActions);
-		    					this.textNodeMap = this.mapStateCache.get(positionInCaches);
 		    				}
 		    				if (positionInCaches >= logCache.size()){positionInCaches = logCache.size() - 1; this.currentButton = PAUSE;}
 		    				break;
@@ -644,18 +722,16 @@ public class LogPlayer extends Application {
 				    			else{System.out.println("PerformAutoPlayback genericE: null entry found in token collection");}
 					    		positionInCaches--;
 				    		}
-				    		else{inREWIND = false; this.currentButton = PAUSE; cancelActiveActions = true;}
+				    		else{inREWIND = false; this.currentButton = PAUSE;/* cancelActiveActions = true;*/}
 				    		if (positionInCaches < 0){positionInCaches = 0; this.currentButton = PAUSE;}
 				    		break;
-				    		
 		    		case PAUSE:
 		    			inREWIND = false;
 		    			cancelActiveActions = true;
 		    			break;
 		    		default:
 		    			break;
-		    		}
-		    		
+		    		}	
 		    	}
     	}
     	catch (IndexOutOfBoundsException e)
@@ -671,7 +747,7 @@ public class LogPlayer extends Application {
  
     
     private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
-    	if (cancelActiveActions){return;}
+    	if (cancelActiveActions || this.routinesRequestingPriority != 0){return;}
     	//System.out.println("ProcessCaptiveToken genericE: Inner 0");
     	updateMapFromCache();
     	try{
@@ -680,7 +756,6 @@ public class LogPlayer extends Application {
 					String playerName = parsePlayerName(currentTokenIn, " reinforcing ");
 					eventTitle.setText(playerName + " reinforcing.");	
 					turn.setText(playerName + "'s Turn");
-					
 				}
 				else if (currentTokenIn.matches("Beginning Round .*!")) {
 						round.setText(currentTokenIn.substring(10, currentTokenIn.length() - 1));
@@ -691,15 +766,11 @@ public class LogPlayer extends Application {
 						dlTokenHelper = currentTokenIn;
 						}
 					else{ //if going in reverse, parse current info + old info
-						//System.out.println("ProcessCaptiveToken genericE: Inner 3.3");
 						String playerName = parsePlayerName(currentTokenIn, " is attacking ");
 						String atkCountry = parseAtkCountry(currentTokenIn);
 						String dfdCountry = parseDfdCountry(currentTokenIn);
-						//System.out.println("ProcessCaptiveToken genericE: Inner 3.4");
 						eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
-
 					}
-		
 				}
 				else if (currentTokenIn.matches("Attacker lost: .*; Defender lost: .*")){
 						if (inREWIND){ //if rewinding, store our info for parsing up the chain
@@ -732,21 +803,20 @@ public class LogPlayer extends Application {
 				
 				nextLogLine.setText("Next event: " + currentTokenIn);
 					
-				if (isLastToken && !initialPlay) {
-					
-					nextLogLine.setText("Game over!");
-					
+				if (isLastToken /*&& this.initialPlay == false*/) {
+					if(inREWIND){nextLogLine.setText("[Beginning of game.]\n" + currentTokenIn);}
+					else{nextLogLine.setText("Game over!\n" + currentTokenIn);}
 				}
 			/*}*/ //end while
 		} //end try
  		catch (Exception e) {  
- 			System.out.println(e.getMessage());
+ 			System.out.println("processCaptiveToken:::" + e.getMessage());
  			//errorDisplay.setText(e.getMessage());
 		}
     }
     
     private void readNextLogEvent(String logFile, boolean cancelIMCurrentAction) {
-    	if (cancelActiveActions){return;}
+    	if (cancelActiveActions || this.routinesRequestingPriority != 0){return;}
     	try{
     		boolean nextLineFound = nextLogLine.getText().equals("Next event: " + nextToken);
 			while (nextToken != null) {
@@ -852,12 +922,27 @@ public class LogPlayer extends Application {
 					eventTitle.setText("Game over!");
 					nextToken = null;
 					log.close();
-					initialPlay = false;
+					this.initialPlay = false;
+					this.currentButton = PAUSE;
+					
+					logCache.add("[End of game log]");
+		    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
+	    			positionInCaches++;
+	    			/*
+	    			System.out.println("readNextLogEvent::: nextToken=" + nextToken + " ...null marker inserted");
+		    		System.out.println("readNextLogEvent::: positionInCaches END: " + positionInCaches + " ....VS Size: " + logCache.size());*/
+				}
+				else{
+					logCache.add(nextToken);
+		    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
+	    			positionInCaches++;/*
+	    			System.out.println("readNextLogEvent::: nextToken=" + nextToken + "\n");
+		    		System.out.println("readNextLogEvent::: positionInCaches PCS= " + positionInCaches + " ....VS Size: " + logCache.size());*/
 				}
 			}
 		}
  		catch (Exception e) {  
- 			System.out.println(e.getMessage());
+ 			System.out.println("readNextLine::: " + e.getMessage());
  			errorDisplay.setText(e.getMessage());
 		}
     }
@@ -868,8 +953,6 @@ public class LogPlayer extends Application {
     
     private int getPrevArmies(String countryName) {
     	Text txt = this.textNodeMap.get(countryName);
-    	/*if (txt == null){
-    	System.out.println("gPA:A:::: country-text-value map null for given value : " + countryName);}*/
 		return Integer.parseInt(txt.getText().split("\n")[1]);
     }
     
@@ -890,25 +973,19 @@ public class LogPlayer extends Application {
     	Text txt = this.textNodeMap.get(countryName);
 		int oldArmies = getPrevArmies(countryName);
 		txt.setText(countryName + "\n" + (oldArmies + armies));
-		//System.out.println("Triggered Text Change! Position: " + positionInCaches);
     }
     
     private void setCountryOwnership(String countryName, String owner) {
     	this.textNodeMap.get(countryName).setFill(this.playerColorMap.get(owner));
-    	//System.out.println("Triggered Color Change! Position: " + positionInCaches);
     }
     
     private void updateMapFromCache()
     {
+    	if(positionInCaches<0){System.out.println("updateMapFromCaches: No value at this pstn");return;}
     	for(String keyC : this.textNodeMap.keySet())
     	{
-    		//System.out.println("updateMapFromCache genericE: Overwriting contents using position...." + positionInCaches);
     		Text dstTxt = this.textNodeMap.get(keyC);
     		Text srcTxt = this.mapStateCache.get(positionInCaches).get(keyC);
-    		//System.out.println(System.identityHashCode(dstTxt) + "___");
-    		//System.out.println(System.identityHashCode(srcTxt) + "___");
-    		//System.out.println(srcTxt.getText());
-    		//System.out.println(dstTxt.getText());
     		dstTxt.setFill(srcTxt.getFill());
     		dstTxt.setText(srcTxt.getText());
     	}
@@ -919,7 +996,7 @@ public class LogPlayer extends Application {
     	HashMap<String, Text> outgoingTextNodeMap = new HashMap<String, Text>();
     	for (String keyC : incomingTextNodeMap.keySet()) {
 			double nextX = incomingTextNodeMap.get(keyC).getLayoutX();
-			double nextY = incomingTextNodeMap.get(keyC).getLayoutX();
+			double nextY = incomingTextNodeMap.get(keyC).getLayoutY();
 			Text txt = new Text(nextX, nextY, incomingTextNodeMap.get(keyC).getText());
 	        txt.setFont(incomingTextNodeMap.get(keyC).getFont());
 	        txt.setFill(incomingTextNodeMap.get(keyC).getFill());
