@@ -1,12 +1,10 @@
-//Current build Albert Wallace, Version 007, Stamp y2015.mdB02.hm2022.sALP
+//Current build Albert Wallace, Version 009, Stamp y2015.mdB03.hm1722.sALP
 //Base build by Seth Denney, Sept 10 2014 
 
-//todo: adding to cache does not occur at proper time. One or two lines may be nipped from the end,
-// as well as the fact that a single step does not result in the cache being updated.
-//EDIT: slightly ameliorated.
+//todo:switch use of keyset to entryset, where possible
 
-//todo: ensure you only have one rewind or one ff at a time
-//slightly ameliorated.
+//todo: make layout dynamic. Sorta. Make the coord system based in 0-100% of page, then scale based on that.
+//try to work from a "center" coord -- a self-defined origin
 
 package LogPlayer;
 
@@ -16,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.lang.InterruptedException;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -53,7 +52,7 @@ public class LogPlayer extends Application {
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final int RAPID_PLAY_TIME_DELTA = 1170;
     private static final int NORMAL_PLAY_TIME_DELTA = 5650;
-    private static final int BUSYROUTINE_THRESH = 0;
+    private static final int BUSYROUTINE_THRESH = 1;
     private static final int BUSYROUTINE_RETRY_COUNT = 7;
     private static final int BUSYROUTINE_WAIT_TIME = 350;
     private static final String LOG_FILE = "LOG.txt";
@@ -96,7 +95,8 @@ public class LogPlayer extends Application {
     private String currentSimpleStatus;
     private int iRoN; //todo: fix bad name
     private int busyRoutines; //to perform basic resource locks
-    private int routinesRequestingPriority;
+    private static int routinesRequestingPriority;
+    private HashMap<Long,Thread> threadMap;
  
     @Override
     public void start(Stage primaryStage) {
@@ -107,13 +107,16 @@ public class LogPlayer extends Application {
 			this.currentSimpleStatus = "";
 			iRoN = 0;
 			this.busyRoutines = 0;
-			this.routinesRequestingPriority = 0;
+			routinesRequestingPriority = 0;
 			inREWIND = false;
 			dlTokenHelper = "";
 			positionInCaches = -1;
 			this.logCache = new ArrayList<String>();
 			this.mapStateCache = new ArrayList<HashMap<String, Text>>();
 			cancelActiveActions = false;
+			this.threadMap = new HashMap<Long,Thread>();
+			
+			
 			
 	        pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
@@ -179,7 +182,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 					        		  try
 					        		  {
-					        			  java.lang.Thread.sleep(1000);
+					        			  //java.lang.Thread.sleep(1000);
 					        			  runButtonRunnable(STEP_FWD, cancelActiveActions);
 					        		  }//end try
 					        		  catch(Exception e)
@@ -188,6 +191,7 @@ public class LogPlayer extends Application {
 				        	      }
 				        	  };
 				        	Thread th = new Thread(task);
+				        	addThreadToMap(th);
 				        	th.setDaemon(true);
 				        	th.start();
 		        	}
@@ -207,7 +211,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
+				        			  //java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(PAUSE, cancelActiveActions);
 				        			 
 				        		  }//end try
@@ -218,6 +222,7 @@ public class LogPlayer extends Application {
 				        	      }
 				        	  };
 				        	Thread th = new Thread(task);
+				        	addThreadToMap(th);
 				        	th.setDaemon(true);
 				        	th.start();
 				        	
@@ -239,7 +244,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
+				        			  //java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(PLAY_FWD, cancelActiveActions);
 				        			 
 				        		  }//end try
@@ -252,6 +257,7 @@ public class LogPlayer extends Application {
 				        	  
 				        	
 				        	Thread th = new Thread(task);
+				        	addThreadToMap(th);
 				        	th.setDaemon(true);
 				        	th.start();
 				        	
@@ -272,7 +278,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
+				        			  //java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(FAST_FWD, cancelActiveActions);
 				 
 				        		  }//end try
@@ -286,6 +292,7 @@ public class LogPlayer extends Application {
 				        	  
 				        	
 				        	Thread fth = new Thread(task);
+				        	addThreadToMap(fth);
 				        	fth.setDaemon(true);
 				        	fth.start();
 				        	
@@ -306,7 +313,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 				        		  try
 				        		  {
-				        			  java.lang.Thread.sleep(1000);
+				        			  //java.lang.Thread.sleep(1000);
 				        			  runButtonRunnable(REWIND, cancelActiveActions);
 				 
 				        		  }//end try
@@ -320,6 +327,7 @@ public class LogPlayer extends Application {
 				        	  
 				        	
 				        	Thread fth = new Thread(task);
+				        	addThreadToMap(fth);
 				        	fth.setDaemon(true);
 				        	fth.start();
 				        	
@@ -342,7 +350,7 @@ public class LogPlayer extends Application {
 				        	  @Override public void run() {
 					        		  try
 					        		  {
-					        			  java.lang.Thread.sleep(1000);
+					        			  //java.lang.Thread.sleep(1000);
 					        			  runButtonRunnable(STEP_FWD, cancelActiveActions);
 					        		  }//end try
 					        		  catch(Exception e)
@@ -351,6 +359,7 @@ public class LogPlayer extends Application {
 				        	      }
 				        	  };
 				        	Thread th = new Thread(task);
+				        	addThreadToMap(th);
 				        	th.setDaemon(true);
 				        	th.start();
 		        	}
@@ -366,11 +375,37 @@ public class LogPlayer extends Application {
     	}
     }
     
+    
+    private void addThreadToMap(Thread threadIn)
+    {
+    	this.threadMap.put(threadIn.getId(), threadIn);
+    }
+    
+    private void removeThread(Long idIn)
+	{
+		this.threadMap.remove(idIn);
+	}
+    
+	private void interruptThreadsExceptSelf()
+	{
+		if (!threadMap.isEmpty()){
+			for(Long keyC : this.threadMap.keySet())
+			{
+				if(keyC != Thread.currentThread().getId()){
+					Thread toRemove = this.threadMap.remove(keyC);
+					toRemove.interrupt();
+				}
+			}
+			
+		}
+			
+	}
+    
     void runButtonRunnable(int btnTypeIn, boolean cancelIMCurrentAction){
     	int waitTime = 0; //will be set to a certain number of milliseconds to alter rapid-vs-normal FWD/REWIND
-    	this.routinesRequestingPriority++;
+    	routinesRequestingPriority++;
     	iRoN = 0;
-    	System.out.println("EPRO-A this.initialPlay = " + this.initialPlay);
+    	//System.out.println("EPRO-A this.initialPlay = " + this.initialPlay);
     	switch(btnTypeIn)
     	{
     		case PLAY_FWD:
@@ -399,40 +434,42 @@ public class LogPlayer extends Application {
     			this.currentSimpleStatus = ">||";
     			break;
     		case PAUSE:
-    			inREWIND = false;
-    			this.currentSimpleStatus = "||/☐";
-    			break;
     		default:
+    			if (this.currentButton == PAUSE || busyRoutines == 0){routinesRequestingPriority--; return;}
     			inREWIND = false;
     			this.currentSimpleStatus = "||/☐";
     			break;
     	}
-	  this.currentButton = btnTypeIn;
-	  int waitCount = 1;
-	  while (this.busyRoutines > BUSYROUTINE_THRESH && waitCount < BUSYROUTINE_RETRY_COUNT)
-	  {
-		  animateWaitStatus(waitCount);
-		  try{
-			  java.lang.Thread.sleep(BUSYROUTINE_WAIT_TIME);
+    	routinesRequestingPriority--;
+    	this.busyRoutines++;
+    	try{
+		  this.currentButton = btnTypeIn;
+		  int waitCount = 1;
+		  while (this.busyRoutines > BUSYROUTINE_THRESH && waitCount < BUSYROUTINE_RETRY_COUNT && !Thread.interrupted())
+		  {
+			animateWaitStatus(waitCount);
+			java.lang.Thread.sleep(BUSYROUTINE_WAIT_TIME);
+			interruptThreadsExceptSelf();
+			waitCount++;
 		  }
-		  catch (Exception e)
-		  {}//todo: catch unexpected termination during sleep()
-		  finally{waitCount++;}
-	  }
-	  EXPON_SPEED_UP_PCT = 1.0;
-	  try{
-		  this.routinesRequestingPriority--;
-		  this.busyRoutines++;
+		  if(Thread.interrupted()){throw new InterruptedException();}
+		  EXPON_SPEED_UP_PCT = 1.0;
 		  final int OLDBUTTON = btnTypeIn;
 		  final String OLDshPLAYSTATE = this.currentSimpleStatus;
-		  while(this.routinesRequestingPriority == 0 && !cancelActiveActions && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && !Thread.interrupted())
+		  
+		  while(routinesRequestingPriority == 0 && !cancelActiveActions && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && !Thread.interrupted())
 		  {
 				int q = 3;
 				double qRatio = (double)1/q;
-				if (0.95 * EXPON_SPEED_UP_PCT *waitTime >= 0.05 * waitTime)
+				if (((inREWIND && positionInCaches < 25) || (!initialPlay && positionInCaches + 25 >= logCache.size())) && 1.25 * EXPON_SPEED_UP_PCT <= 0.95)
+				{
+					EXPON_SPEED_UP_PCT = 1.25*EXPON_SPEED_UP_PCT;
+				}
+				else if (0.95 * EXPON_SPEED_UP_PCT  >= 0.05)
 				{
 					EXPON_SPEED_UP_PCT = 0.9*EXPON_SPEED_UP_PCT;
 				}
+				
 				for(; q > 0 && this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus; q--){
 					if(iRoN < iRoNMAX){
 							Platform.runLater(new Runnable()
@@ -445,7 +482,9 @@ public class LogPlayer extends Application {
 					java.lang.Thread.sleep((int)(qRatio*waitTime*EXPON_SPEED_UP_PCT));
 				}
 				
-				if(this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && this.routinesRequestingPriority == 0)
+				if(Thread.interrupted()){throw new InterruptedException();}
+				
+				if(this.currentButton == OLDBUTTON && OLDshPLAYSTATE == this.currentSimpleStatus && routinesRequestingPriority == 0)
 				{
 					Platform.runLater(new Runnable()
 					{
@@ -457,36 +496,36 @@ public class LogPlayer extends Application {
 				
 				if(OLDBUTTON == STEP_FWD)
 				{
+					setStatus(false);
 					cancelActiveActions = true;
 				}
-				
 		  }
-		  cancelActiveActions = false;
+		  if(Thread.interrupted()){throw new InterruptedException();}
 		  System.out.println("Task done.");
-		  if(OLDshPLAYSTATE == this.currentSimpleStatus)
+		  if(OLDshPLAYSTATE == this.currentSimpleStatus && this.currentButton != STEP_FWD)
 			{
-			  for (int m = 0; m < 8; m++)
+			  cancelActiveActions = false;
+			  for (int m = 0; m < 8 && !Thread.interrupted(); m++)
 			  {
-				  animateStopStatus(m,false);
-				  try{
-					  java.lang.Thread.sleep(3*BUSYROUTINE_WAIT_TIME);
-				  }
-				  catch (Exception e)
-				  {}//todo: catch unexpected termination during sleep()
+				  animateStopStatus	(m,false);
+				  if(Thread.interrupted())	{throw new InterruptedException();}
+				  java.lang.Thread.sleep(BUSYROUTINE_WAIT_TIME);
 			  }
 			  animateStopStatus(0,true);
-			}
-			
+			}			
 	  }
 	  catch(Exception e)
 	  {
-		  System.out.println("runButtonRunnable: Exception: " + e);
-		  //todo: insert recovery code here
+		  //System.out.println("runButtonRunnable: Exception: " + e);
+		  if(this.currentButton == STEP_FWD){setStatus(false);}
+		  else								{animateStopStatus(0,false);}
 	  }
 	  finally
 	  {
 		  this.busyRoutines--;
-		  System.out.println("EPRO-B this.initialPlay = " + this.initialPlay);
+		  cancelActiveActions = false;
+		  removeThread(Thread.currentThread().getId());
+		  //System.out.println("EPRO-B this.initialPlay = " + this.initialPlay);
 	  }
     }
 	  
@@ -581,6 +620,14 @@ public class LogPlayer extends Application {
 		}
     }
     
+    private void setStatus(boolean isEndOfTask)
+    {
+    	if (isEndOfTask)
+    		currentPlayStatus.setText("||/☐");
+    	else 
+    		currentPlayStatus.setText(this.currentSimpleStatus);
+    }
+    
     private void animateStatus(boolean isEndOfTask)
     {
     	if (isEndOfTask)
@@ -596,7 +643,7 @@ public class LogPlayer extends Application {
     
     private void animateStopStatus(int clkIn,final boolean setFinalStatus)
     {
-    	final int clk = clkIn % 4;
+    	final int clk = clkIn % 3;
     	Platform.runLater(new Runnable()
 		{
 			  @Override public void run(){
@@ -606,13 +653,13 @@ public class LogPlayer extends Application {
 						 currentPlayStatus.setText("STOP");
 						 break;
 					 case 1:
-						 currentPlayStatus.setText("——");;
+						 currentPlayStatus.setText("STOP");;
 						 break;
 					 case 2:
 						 currentPlayStatus.setText("————");
 						 break;
 					 case 3:
-						 currentPlayStatus.setText("||/☐");
+						 currentPlayStatus.setText("————");
 						 break;
 				 }
 		    	} 
@@ -646,6 +693,7 @@ public class LogPlayer extends Application {
     private void stepThroughBtnLogic(String logFile, int btnTypeIn, boolean cancelIMCurrentAction){
     	if (cancelActiveActions){return;}
     	try{
+    			if(Thread.interrupted()){throw new InterruptedException();}
 		    	if (this.initialPlay){ //if we haven't filled the cache, we step through, or we make use of the little that IS in the cache up to this point
 			    	switch(btnTypeIn){
 				    	case PLAY_FWD:
@@ -747,11 +795,9 @@ public class LogPlayer extends Application {
  
     
     private void processCaptiveToken(String currentTokenIn, boolean isLastToken, boolean cancelIMCurrentAction){
-    	if (cancelActiveActions || this.routinesRequestingPriority != 0){return;}
-    	//System.out.println("ProcessCaptiveToken genericE: Inner 0");
+    	if(cancelActiveActions || routinesRequestingPriority != 0 || Thread.interrupted())	{return;}
     	updateMapFromCache();
     	try{
-    			//todo: incorporate more logic for segments that are multi-line and do not update properly on rewind
 				if (currentTokenIn.matches(".* reinforcing with .* armies.")) {
 					String playerName = parsePlayerName(currentTokenIn, " reinforcing ");
 					eventTitle.setText(playerName + " reinforcing.");	
@@ -784,8 +830,6 @@ public class LogPlayer extends Application {
 							eventTitle.setText(playerName + " attacked\n" + dfdCountry + " from " + atkCountry);
 						
 						}
-					/*}*/
-						//System.out.println("ProcessCaptiveToken genericE: Inner 4.6");
 				}
 				else if (currentTokenIn.matches(".* has taken .* from .*!")) {
 						String playerName = parsePlayerName(currentTokenIn, " has taken ");
@@ -800,7 +844,6 @@ public class LogPlayer extends Application {
 						eventTitle.setText(line[0] + " transferring\n" + line[1]);
 				}
 				
-				
 				nextLogLine.setText("Next event: " + currentTokenIn);
 					
 				if (isLastToken /*&& this.initialPlay == false*/) {
@@ -811,12 +854,11 @@ public class LogPlayer extends Application {
 		} //end try
  		catch (Exception e) {  
  			System.out.println("processCaptiveToken:::" + e.getMessage());
- 			//errorDisplay.setText(e.getMessage());
 		}
     }
     
     private void readNextLogEvent(String logFile, boolean cancelIMCurrentAction) {
-    	if (cancelActiveActions || this.routinesRequestingPriority != 0){return;}
+    	if (cancelActiveActions || routinesRequestingPriority != 0 || Thread.interrupted()){return;}
     	try{
     		boolean nextLineFound = nextLogLine.getText().equals("Next event: " + nextToken);
 			while (nextToken != null) {
@@ -928,16 +970,11 @@ public class LogPlayer extends Application {
 					logCache.add("[End of game log]");
 		    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
 	    			positionInCaches++;
-	    			/*
-	    			System.out.println("readNextLogEvent::: nextToken=" + nextToken + " ...null marker inserted");
-		    		System.out.println("readNextLogEvent::: positionInCaches END: " + positionInCaches + " ....VS Size: " + logCache.size());*/
 				}
 				else{
 					logCache.add(nextToken);
 		    		this.mapStateCache.add(duplicateTextNodeMap(this.textNodeMap));
-	    			positionInCaches++;/*
-	    			System.out.println("readNextLogEvent::: nextToken=" + nextToken + "\n");
-		    		System.out.println("readNextLogEvent::: positionInCaches PCS= " + positionInCaches + " ....VS Size: " + logCache.size());*/
+	    			positionInCaches++;
 				}
 			}
 		}
