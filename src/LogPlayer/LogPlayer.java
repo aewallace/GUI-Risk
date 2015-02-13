@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 009, Stamp y2015.mdB03.hm1722.sALP
+//Current build Albert Wallace, Version 009, Stamp y2015.mdB11.hm1920.sMNT
 //Base build by Seth Denney, Sept 10 2014 
 
 //todo:switch use of keyset to entryset, where possible
@@ -41,9 +41,6 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-//import javafx.animation.Timeline;
-//import javafx.animation.KeyFrame;
-
 
 
 public class LogPlayer extends Application {
@@ -65,8 +62,6 @@ public class LogPlayer extends Application {
 	private static final int iRoNMAX = 21;
 	private static double EXPON_SPEED_UP_PCT = 1.0;
 	
-
-	//private Timeline timeline;
 	
     private ScrollPane scrollPane;
     private Scene scene;
@@ -365,7 +360,15 @@ public class LogPlayer extends Application {
 		        	}
 		        });
 			}
-	        
+			//Pane extraPane = new Pane();
+			//extraPane.setPrefSize(someWidth, someHeight);
+			//extraPane.getChildren.add(Button singleButtonAtATime);
+			//or extraPane.getChildren.addAll(Collection<Button> buttonCollection);
+	        //Scene extraScene = new Scene(extraPane, someOtherWidth, someOtherHeight);
+			//Stage secondaryDialog = new Stage();
+			//secondaryDialog.setOwner(originalPane.getScene().getWindow());
+			//secondaryDialog.setTitle("Choose 3 cards, or pass");
+			//...eventually secondaryDialog.close() should be a confirmation
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
 	        primaryStage.setScene(scene);

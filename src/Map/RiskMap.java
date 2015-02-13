@@ -39,7 +39,13 @@ public class RiskMap {
 	}
 	
 	public void setCountryOwner(Country country, String owner) {
+		try{
 		this.owners.put(country, owner);
+		}
+		catch(Exception e)
+		{
+			System.out.println("RMAPe " + e);
+		}
 	}
 	
 	public int getCountryArmies(Country country) {
