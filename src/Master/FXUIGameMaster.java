@@ -1,5 +1,7 @@
-//Current build Albert Wallace, Version 001, Stamp y2015.mdB12.hm2300.sMNT
+//Current build Albert Wallace, Version 001, Stamp y2015.mdB12.hm2301.sMNT
 //Base build by Seth Denney, Sept 10 2014 
+
+// TODO make custom exception to allow user to exit the game without valid response
 
 package Master;
 
@@ -51,7 +53,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
 import javafx.util.Duration;
-import LogPlayer.LogPlayer;
+//import LogPlayer.LogPlayer;
 import Map.Continent;
 import Map.Country;
 import Map.RiskMap;
@@ -129,35 +131,35 @@ public class FXUIGameMaster extends Application {
 	
 
 	public void pseudoFXUIGameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
-		System.out.println("E G U 4 1 8 S");
+		//System.out.println("E G U 4 1 8 S");
 		this.round = 0;
 		this.turnCount = 0;
 		if (rand == null) {
 			rand = new Random(RiskConstants.SEED);
 		}
-		System.out.println("E G U 4 6 5 S");
+		//System.out.println("E G U 4 6 5 S");
 		if (logSwitch == LOGGING_ON) {
 			this.log = new FileWriter(LOGFILE);
 			this.stats = new FileWriter(STATSFILE);
 		}
 		
-		System.out.println("E T U 4 6 5 Q");
+		//System.out.println("E T U 4 6 5 Q");
 		writeLogLn("Loading map from " + mapFile + "...");
 		if (starterMap == null) {
 			starterMap = new RiskMap();
 		}
 		
-		System.out.println("E M G 4 6 9 M");
+		//System.out.println("E M G 4 6 9 M");
 		this.map = starterMap.getCopy();
 		loadDeck();
 		if (!loadPlayers(playerFile)) {
 			System.out.println("Invalid number of players. 2-6 Players allowed.");
 		}
 		
-		System.out.println("E M N 4 8 5 M");
+		//System.out.println("E M N 4 8 5 M");
 		allocateMap();
 		
-		System.out.println("E M U 4 6 5 M");
+		//System.out.println("E M U 4 6 5 M");
 	}
 	
 	public String begin() {
@@ -834,15 +836,15 @@ public class FXUIGameMaster extends Application {
 	
 	public void pseudoMain(){
 	try {
-		System.out.println("E M U 7 6 5 8");
+		//System.out.println("E M U 7 6 5 8");
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
 			int numGames = 1;
 			RiskConstants.SEED = 1;
 			for (int i = 0; i < numGames; i++) {
 				RiskConstants.resetTurnIn();
-				System.out.println("E M U 7 6 5 6");
+				//System.out.println("E M U 7 6 5 6");
 				pseudoFXUIGameMaster("Countries.txt", null, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
-				System.out.println("E M U 7 6 5 4");
+				//System.out.println("E M U 7 6 5 4");
 				System.out.print((i + 1) + " - ");
 				String victor = begin();
 				if (!winLog.containsKey(victor)) {
@@ -954,7 +956,7 @@ public class FXUIGameMaster extends Application {
 		        nextLogLine.setFill(Color.LIGHTGRAY);
 		        pane.getChildren().add(nextLogLine);
 		        
-		        currentPlayStatus = new Text(29, 600, "Hello! ^.^");
+		        currentPlayStatus = new Text(29, 600, "Making New Things/MaiNTenance mode;\nno functions available");
 		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.BOLD, 40));
 		        currentPlayStatus.setFill(Color.WHITE);
 		        pane.getChildren().add(currentPlayStatus);
@@ -982,7 +984,7 @@ public class FXUIGameMaster extends Application {
 		        
 		        
 		      //The Play-Forward (normal speed) Button
-		        Button pauseAllBtn = new Button("Pause Event Playback");
+		        /*Button pauseAllBtn = new Button("Pause Event Playback");
 		        pauseAllBtn.setLayoutX(29);
 		        pauseAllBtn.setLayoutY(650);
 		        
@@ -1010,11 +1012,11 @@ public class FXUIGameMaster extends Application {
 		        	}
 		        });
 		        
-		        pane.getChildren().add(pauseAllBtn);
+		        pane.getChildren().add(pauseAllBtn);*/
 		        
 		        
 		        //The Play-Forward (normal speed) Button
-		        Button playFwdBtn = new Button("Auto-play Events");
+		        /*Button playFwdBtn = new Button("Auto-play Events");
 		        playFwdBtn.setLayoutX(29);
 		        playFwdBtn.setLayoutY(610);
 		        
@@ -1044,10 +1046,10 @@ public class FXUIGameMaster extends Application {
 		        	}
 		        });
 		        
-		        pane.getChildren().add(playFwdBtn);
+		        pane.getChildren().add(playFwdBtn);*/
 		        
 		        //The fast forward (rapid-speed forward) button:
-		        Button fastFwdBtn = new Button("Fast-Forward Events");
+		        /*Button fastFwdBtn = new Button("Fast-Forward Events");
 		        fastFwdBtn.setLayoutX(29);
 		        fastFwdBtn.setLayoutY(690);
 		        
@@ -1077,10 +1079,10 @@ public class FXUIGameMaster extends Application {
 				        	
 		        	}
 		        });
-		        pane.getChildren().add(fastFwdBtn);
+		        pane.getChildren().add(fastFwdBtn);*/
 		        //end FFWD button
 		        
-		      //The rewind (dual-speed reverse) button:
+		      //Button to initiate the game
 		        Button dsRewindBtn = new Button("Start Game");
 		        dsRewindBtn.setLayoutX(29);
 		        dsRewindBtn.setLayoutY(730);
@@ -1093,7 +1095,7 @@ public class FXUIGameMaster extends Application {
 				        		  try
 				        		  {
 				        			  //java.lang.Thread.sleep(1000);
-				        			  System.out.println("E M U 8 6 3 2");
+				        			  //System.out.println("E M U 8 6 3 2");
 				        			  pseudoMain();
 				        		  }//end try
 				        		  catch(Exception e)

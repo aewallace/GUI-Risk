@@ -1,7 +1,7 @@
-//Current build Albert Wallace, Version 001, Stamp y2015.mdB12.hm2302.sMNT
+/*//Current build Albert Wallace, Version 002, Stamp y2015.mdB13.hm1616.sMNT
 //Base build from original "player" interface, 
 //incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
-//so thanks stackoverflow!
+//so thanks stackoverflow!*/
 
 package Player;
 import java.util.ArrayList;
@@ -17,6 +17,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
@@ -41,7 +42,7 @@ import Util.RiskUtils;
  */
 public class FXUIPlayer implements Player {
 	private String name;
-	private String currentFocus = "";
+	private String currentFocus = null;
 	private int reinforcementsApplied = 0;
 	private static boolean instanceAlreadyCreated = false;
 	
@@ -82,18 +83,18 @@ public class FXUIPlayer implements Player {
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		HashMap<String, Integer> countryReinfCache = new HashMap<String, Integer>();
+		HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
 		String result = "";
 		
 				try{
 			      final Stage dialog = new Stage();
-			      dialog.setTitle("Enter Missing Text");
+			      dialog.setTitle("Initial Troop Allocation!");
 			      dialog.initOwner(owner);
 			      dialog.initStyle(StageStyle.UTILITY);
 			      dialog.initModality(Modality.WINDOW_MODAL);
 			      dialog.setX(owner.getX()/* + owner.getWidth()*/);
 			      dialog.setY(owner.getY());
-			      final TextField textField = new TextField();
-			      HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
+			      /*final TextField textField = new TextField();
 			      final Button submitButton = new Button("Submit");
 			      submitButton.setDefaultButton(true);
 			      submitButton.setOnAction(new EventHandler<ActionEvent>() {
@@ -101,45 +102,56 @@ public class FXUIPlayer implements Player {
 			          dialog.close();
 			        }
 			      });
-			      textField.setMinHeight(TextField.USE_PREF_SIZE);
+			      textField.setMinHeight(TextField.USE_PREF_SIZE);*/
 			      
 			      final VBox layout = new VBox(10);
-			      layout.setAlignment(Pos.CENTER_RIGHT);
+			      layout.setAlignment(Pos.CENTER);
 			      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
-			      layout.getChildren().setAll(
+			      /*layout.getChildren().setAll(
 			        textField, 
 			        submitButton
-			      );
+			      );*/
 			      
+			      //status text: total reinforcements available, reinf used, reinf available.
+			      Text statusText = new Text();
+			      statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
+			      
+			      
+			      //buttons for countries you own, and text to display *additional* units to deplor to each country
 			      for (Country ctIn : myCountries)
 					{
+			    	  	final HBox singleCountryDisp = new HBox(4);
+			    	  	singleCountryDisp.setAlignment(Pos.CENTER);
 						map.getCountryArmies(ctIn);
 						countryReinfCache.put(ctIn.getName(), 1);
 						reinforcementsApplied++;
 						countryTextCache.put(ctIn.getName(), new Text(ctIn.getName() + " + 1"));
-						layout.getChildren().add(countryTextCache.get(ctIn.getName()));
+						singleCountryDisp.getChildren().add(countryTextCache.get(ctIn.getName()));
 						final Button ctBtn = new Button(ctIn.getName());
 						ctBtn.setOnAction(new EventHandler<ActionEvent>(){
 							@Override public void handle(ActionEvent t){
 								final String ctBtnCty = ctIn.getName();
+								System.out.println("G X M 8 " + ctBtnCty);
 								currentFocus = ctBtnCty;
+								System.out.println("G T M 8 " + currentFocus);
 							}
 						});
-						layout.getChildren().add(ctBtn);
-						
+						singleCountryDisp.getChildren().add(ctBtn);
+						layout.getChildren().add(singleCountryDisp);						
 					}
 			      
-			      updateReinforcementCount(false,countryTextCache,countryReinfCache);
+			      updateReinforcementCount(false,countryTextCache,countryReinfCache, statusText, reinforcements);
 			      
 			      //button to increment reinforcement count for selected country
 			      Button plus = new Button ("+");
 			      plus.setOnAction(new EventHandler<ActionEvent>(){
 			    	  @Override public void handle(ActionEvent t){
-			    		  if (reinforcementsApplied + 1 <= reinforcements){
+			    		  if (reinforcementsApplied + 1 <= reinforcements && currentFocus != null){
 			    			  reinforcementsApplied++;
+			    			  System.out.println(currentFocus);
 			    			  countryReinfCache.put(currentFocus, countryReinfCache.get(currentFocus)+1);
 			    		  }
-			    		  updateReinforcementCount(false,countryTextCache,countryReinfCache);
+			    		  updateReinforcementCount(false,countryTextCache,countryReinfCache, statusText, reinforcements);
 			    	  }
 			      }
 			    		  );
@@ -147,14 +159,16 @@ public class FXUIPlayer implements Player {
 			      Button minus = new Button ("-");
 			      minus.setOnAction(new EventHandler<ActionEvent>(){
 			    	  @Override public void handle(ActionEvent t){
-			    		  if (reinforcementsApplied - 1 >= 0 && countryReinfCache.get(currentFocus) - 1 >= 1){
+			    		  if (reinforcementsApplied - 1 >= 0 && currentFocus != null && countryReinfCache.get(currentFocus) - 1 >= 1){
 			    			  reinforcementsApplied--;
 			    			  countryReinfCache.put(currentFocus, countryReinfCache.get(currentFocus)-1);
 			    		  }
-			    		  updateReinforcementCount(false,countryTextCache,countryReinfCache);
+			    		  updateReinforcementCount(false,countryTextCache,countryReinfCache, statusText, reinforcements);
 			    	  }
 			      }
 			    		  );
+			      
+			      //Display total, used, and available reinforcements
 			      
 			      //button to attempt to accept final reinforcement allocation
 			      Button acceptIt = new Button ("Accept/OK");
@@ -168,35 +182,42 @@ public class FXUIPlayer implements Player {
 			    			  dialog.close();
 			    		  }
 			    		  else{
-			    			  updateReinforcementCount(true,countryTextCache,countryReinfCache);
+			    			  updateReinforcementCount(true,countryTextCache,countryReinfCache, statusText, reinforcements);
 			    		  }
 			    	  }
 			      }
 			    		  );
 			      
-			      //add all buttons to linear layout
-			      layout.getChildren().addAll(plus, minus, acceptIt);
+			      //add status and buttons to layout
+			      final HBox adjustmentButtons = new HBox(4);
+		    	  adjustmentButtons.setAlignment(Pos.CENTER);
+			      adjustmentButtons.getChildren().addAll(plus, minus, acceptIt);
+			      layout.getChildren().addAll(statusText, adjustmentButtons);
 			      
 			      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 			      dialog.setScene(new Scene(layout));
+			      //dialog.show();
 			      dialog.showAndWait();
 			
-			      result = textField.getText();
 			      
 			      }
 					catch(Exception e){System.out.println(e);}
+				finally{reinforcementsApplied = 0; currentFocus=null;}
 				//return result;
 		return rsp;
 	}
 	
-	public void updateReinforcementCount(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource){
+	private void updateReinforcementCount(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource, Text statusText, int reinforcements){
 		for(String countryToUpdate : textElements.keySet()){
 			textElements.get(countryToUpdate).setText(countryToUpdate + " ::: " + dataSource.get(countryToUpdate));
-			if (!isError){
+			statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
+			if (isError){
 				textElements.get(countryToUpdate).setFill(Color.RED);
+				statusText.setFill(Color.RED);
 			}
 			else{
 				textElements.get(countryToUpdate).setFill(Color.BLACK);
+				statusText.setFill(Color.BLACK);
 			}
 		}
 	}
