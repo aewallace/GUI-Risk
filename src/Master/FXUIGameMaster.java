@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 001, Stamp y2015.mdB12.hm2301.sMNT
+//Current build Albert Wallace, Version 002, Stamp y2015.mdB15.hm0010.sMNT
 //Base build by Seth Denney, Sept 10 2014 
 
 // TODO make custom exception to allow user to exit the game without valid response
@@ -179,8 +179,14 @@ public class FXUIGameMaster extends Application {
 				writeStatsLn();
 				this.turnCount++;
 				try {
+					//System.out.println("G TE M U 4 6 5 M");
+					//System.out.println(currentPlayer.getName());
 					reinforce(currentPlayer, true);
+					//System.out.println("G GE M U 4 6 5 M");
+					//System.out.println(currentPlayer.getName());
 					attack(currentPlayer);
+					//System.out.println("G ME M U 4 6 5 M");
+					//System.out.println(currentPlayer.getName());
 					fortify(currentPlayer);
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
 				}
@@ -254,6 +260,7 @@ public class FXUIGameMaster extends Application {
 		boolean valid = false;
 		reinforcements += getCardTurnIn(currentPlayer, getPlayerCardCounts());
 		Map<String, Integer> oppCards = getPlayerCardCounts();
+		// TODO turn off oppCards IN THIS METHOD; it's unused after you get extra reinforcements manually beforehand
 		if (withCountryBonus) {
 			reinforcements += RiskUtils.calculateReinforcements(this.map, currentPlayer.getName());
 		}
@@ -440,9 +447,17 @@ public class FXUIGameMaster extends Application {
 	
 	protected CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired) {
 		try {
-			CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
-			validatePlayerName(player);
-			return rsp;
+			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+				CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
+				validatePlayerName(player);
+				return rsp;
+			}
+			else{ //if not a CPU player, aka if a human player
+				FXUIPlayer pIn =(FXUIPlayer)player;
+				CardTurnInResponse rsp = pIn.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired, pane.getScene().getWindow());
+				validatePlayerName(player);
+				return rsp;
+			}
 		}
 		catch (Exception e) {
 			//e.printStackTrace();
@@ -451,11 +466,22 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	protected ReinforcementResponse tryReinforce(Player player, Map<String, Integer> oppCards, int reinforcements) {
-		ReinforcementResponse rsp;
 		try {
+			/*
 			rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
-			return rsp;
+			return rsp;*/
+			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+				ReinforcementResponse rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
+				validatePlayerName(player);
+				return rsp;
+			}
+			else{ //if not a CPU player, aka if a human player
+				FXUIPlayer pIn =(FXUIPlayer)player;
+				ReinforcementResponse rsp = pIn.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements, pane.getScene().getWindow());
+				validatePlayerName(player);
+				return rsp;
+			}
 		}
 		catch (Exception e) {
 			//e.printStackTrace();
@@ -727,16 +753,16 @@ public class FXUIGameMaster extends Application {
 		if (this.players.size() > 0) {
 			writeLogLn("Allocating countries...");
 			for (Card card : this.deck) {
-				System.out.println("E S M - 0 8 P");
-				System.out.println(card.getType());
-				System.out.println(card.getCountry() + " + " + allocationIdx + "+" + this.players.size() + "--" + allocationIdx % this.players.size());
-				if(this.playerMap == null){ System.out.println("E S M - 0 8 P M 1");}
-				if(this.players == null){ System.out.println("E S M - 0 8 P M 3");}
-				if(this.playerMap.get(this.players.get(allocationIdx % this.players.size())) == null){ System.out.println("E S M - 0 8 P X -");}
+				//System.out.println("E S M - 0 8 P");
+				//System.out.println(card.getType());
+				//System.out.println(card.getCountry() + " + " + allocationIdx + "+" + this.players.size() + "--" + allocationIdx % this.players.size());
+				//if(this.playerMap == null){ System.out.println("E S M - 0 8 P M 1");}
+				//if(this.players == null){ System.out.println("E S M - 0 8 P M 3");}
+				//if(this.playerMap.get(this.players.get(allocationIdx % this.players.size())) == null){ System.out.println("E S M - 0 8 P X -");}
 				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
 					try{
 					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
-					System.out.println("E G X N 0 0" + this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+					//System.out.println("E G X N 0 0" + this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					allocationIdx++;
 					}
 					catch(Exception e)
@@ -751,6 +777,7 @@ public class FXUIGameMaster extends Application {
 	protected void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
 		if (this.playerMap.containsKey(loser.getName())) {
 			writeLogLn(loser.getName() + " Eliminated! " + reason);
+			System.out.println(loser.getName() + " Eliminated! " + reason);
 			for (Country country : Country.values()) {
 				if (map.getCountryOwner(country).equals(loser.getName())) {
 					if (eliminator != null) {
