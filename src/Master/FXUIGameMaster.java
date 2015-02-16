@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 002, Stamp y2015.mdB16.hm0038.sMNT
+//Current build Albert Wallace, Version 003, Stamp y2015.mdB16.hm0233.sMNT
 //Base build by Seth Denney, Sept 10 2014 
 
 // TODO make custom exception to allow user to exit the game without valid response
@@ -36,7 +36,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
@@ -112,26 +111,11 @@ public class FXUIGameMaster extends Application {
     private boolean errorDisplayBit;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
+    private int numGames = 1;
     
-    private Scanner logScanner;
-    private String nextToken;
-    private String dlTokenHelper;
-    private ArrayList<String> logCache;
-    private ArrayList<HashMap<String, Text>> mapStateCache;
-    private int positionInCaches;
-    private boolean inREWIND;
-    private boolean initialPlay = true;
-    private boolean cancelActiveActions;
-    private int currentButton;
-    private String currentSimpleStatus;
-    private int iRoN; //todo: fix bad name
-    private int busyRoutines; //to perform basic resource locks
-    private static int routinesRequestingPriority;
-    private HashMap<Long,Thread> threadMap;
 	
 
 	public void pseudoFXUIGameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
-		//System.out.println("E G U 4 1 8 S");
 		this.round = 0;
 		this.turnCount = 0;
 		if (rand == null) {
@@ -156,10 +140,8 @@ public class FXUIGameMaster extends Application {
 			System.out.println("Invalid number of players. 2-6 Players allowed.");
 		}
 		
-		//System.out.println("E M N 4 8 5 M");
 		allocateMap();
 		
-		//System.out.println("E M U 4 6 5 M");
 	}
 	
 	public String begin() {
@@ -181,6 +163,7 @@ public class FXUIGameMaster extends Application {
 				try {
 					//System.out.println("G TE M U 4 6 5 M");
 					//System.out.println(currentPlayer.getName());
+					updateDisplay();
 					reinforce(currentPlayer, true);
 					//System.out.println("G GE M U 4 6 5 M");
 					//System.out.println(currentPlayer.getName());
@@ -877,12 +860,11 @@ public class FXUIGameMaster extends Application {
 	try {
 		//System.out.println("E M U 7 6 5 8");
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 1;
 			RiskConstants.SEED = 1;
-			for (int i = 0; i < numGames; i++) {
+			for (int i = 0; i < this.numGames; i++) {
 				RiskConstants.resetTurnIn();
 				//System.out.println("E M U 7 6 5 6");
-				pseudoFXUIGameMaster("Countries.txt", null, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				pseudoFXUIGameMaster("Countries.txt", null, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
 				//System.out.println("E M U 7 6 5 4");
 				System.out.print((i + 1) + " - ");
 				String victor = begin();
@@ -892,10 +874,10 @@ public class FXUIGameMaster extends Application {
 				winLog.put(victor, winLog.get(victor) + 1);
 			}
 			for (Map.Entry<String, Integer> entry : winLog.entrySet()) {
-				System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / numGames + "%");
+				System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / this.numGames + "%");
 			}
 		}
-		catch (IOException e) {
+		catch (Exception e) {
 			System.out.println(e);
 		}
 	}
@@ -940,6 +922,18 @@ public class FXUIGameMaster extends Application {
 			//errorDisplay.setText(e.getMessage());
 		}
 	}
+	
+	public void updateDisplay()
+	{
+		for (Player player : playerMap.values())
+		{
+			for (Country country : RiskUtils.getPlayerCountries(this.map, player.getName()))
+			{
+				this.textNodeMap.get(country.getName()).setFill(this.playerColorMap.get(this.map.getCountryOwner(country)));
+				this.textNodeMap.get(country.getName()).setText(country.getName() + "\n" + this.map.getCountryArmies(country));
+			}
+		}
+	}
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
@@ -958,6 +952,8 @@ public class FXUIGameMaster extends Application {
 	        errorDisplayBit = false;
 	        errorText = "Status...";
 	        
+	        pseudoFXUIGameMaster("Countries.txt", null, LOGGING_ON);
+	        //loadPlayers(null);
 	        loadTextNodesForUI("TextNodes.txt");
 	        representPlayersOnUI();
 	        
@@ -995,7 +991,7 @@ public class FXUIGameMaster extends Application {
 		        nextLogLine.setFill(Color.LIGHTGRAY);
 		        pane.getChildren().add(nextLogLine);
 		        
-		        currentPlayStatus = new Text(29, 600, "Making New Things/MaiNTenance mode;\nno functions available");
+		        currentPlayStatus = new Text(29, 600, "Limited UI available;\nbugs abound;\nProceed w/ caution!");
 		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.BOLD, 40));
 		        currentPlayStatus.setFill(Color.WHITE);
 		        pane.getChildren().add(currentPlayStatus);
@@ -1006,147 +1002,37 @@ public class FXUIGameMaster extends Application {
 		        Button nextActionBtn = new Button("Trigger sample event window");
 		        nextActionBtn.setLayoutX(29);
 		        nextActionBtn.setLayoutY(770);
-		        nextActionBtn.setOnAction(new EventHandler<ActionEvent>() {
-		        	@Override
-		        	public void handle(ActionEvent event) {
-		        		Platform.runLater(new Runnable() {
-		                    @Override public void run() {
-					        			  FXUIPlayer testFXUIPlayer = new FXUIPlayer();
-					        			  testFXUIPlayer.testRequiredInputPrompt(pane.getScene().getWindow());
-					        			  //java.lang.Thread.sleep(1000);
-					        			  //runButtonRunnable(STEP_FWD, cancelActiveActions;
-		                    	}
-		        		} );
-		        	}
-		        });
+		        nextActionBtn.setOnAction(event -> Platform.runLater(new Runnable() {
+				    @Override public void run() {
+				    			  FXUIPlayer testFXUIPlayer = new FXUIPlayer();
+				    			  testFXUIPlayer.testRequiredInputPrompt(pane.getScene().getWindow());
+				    			  //java.lang.Thread.sleep(1000);
+				    			  //runButtonRunnable(STEP_FWD, cancelActiveActions;
+				    	}
+				} ));
 		        pane.getChildren().add(nextActionBtn);
 		        
 		        
-		      //The Play-Forward (normal speed) Button
-		        /*Button pauseAllBtn = new Button("Pause Event Playback");
-		        pauseAllBtn.setLayoutX(29);
-		        pauseAllBtn.setLayoutY(650);
-		        
-		        pauseAllBtn.setOnAction(new EventHandler<ActionEvent>() {
-		        	@Override
-		        	public void handle(ActionEvent event) {
-				        Runnable task = new Runnable() {
-				        	  @Override public void run() {
-				        		  try
-				        		  {
-				        			  //java.lang.Thread.sleep(1000);
-				        			  //runButtonRunnable(PAUSE, cancelActiveActions);
-				        			 
-				        		  }//end try
-				        		  catch(Exception e)
-				        		  {	
-				        		  } //end catch	
-				        	      
-				        	      }
-				        	  };
-				        	Thread th = new Thread(task);
-				        	th.setDaemon(true);
-				        	th.start();
-				        	
-		        	}
-		        });
-		        
-		        pane.getChildren().add(pauseAllBtn);*/
-		        
-		        
-		        //The Play-Forward (normal speed) Button
-		        /*Button playFwdBtn = new Button("Auto-play Events");
-		        playFwdBtn.setLayoutX(29);
-		        playFwdBtn.setLayoutY(610);
-		        
-		        playFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
-		        	@Override
-		        	public void handle(ActionEvent event) {
-				        Runnable task = new Runnable() {
-				        	  @Override public void run() {
-				        		  try
-				        		  {
-				        			  //java.lang.Thread.sleep(1000);
-				        			  //runButtonRunnable(PLAY_FWD, cancelActiveActions);
-				        			 
-				        		  }//end try
-				        		  catch(Exception e)
-				        		  {	
-				        		  } //end catch	
-				        	      
-				        	      }
-				        	  };
-				        	  
-				        	
-				        	Thread th = new Thread(task);
-				        	th.setDaemon(true);
-				        	th.start();
-				        	
-		        	}
-		        });
-		        
-		        pane.getChildren().add(playFwdBtn);*/
-		        
-		        //The fast forward (rapid-speed forward) button:
-		        /*Button fastFwdBtn = new Button("Fast-Forward Events");
-		        fastFwdBtn.setLayoutX(29);
-		        fastFwdBtn.setLayoutY(690);
-		        
-		        fastFwdBtn.setOnAction(new EventHandler<ActionEvent>() {
-		        	@Override
-		        	public void handle(ActionEvent event) {
-				        Runnable task = new Runnable() {
-				        	  @Override public void run() {
-				        		  try
-				        		  {
-				        			  //java.lang.Thread.sleep(1000);
-				        			  //runButtonRunnable(FAST_FWD, cancelActiveActions);
-				 
-				        		  }//end try
-				        		  catch(Exception e)
-				        		  {	
-				        			  //todo: in case any uncaught exceptions occur, catch 'em here.
-				        		  } //end catch	
-				        	      
-				        	      }
-				        	  };
-				        	  
-				        	
-				        	Thread fth = new Thread(task);
-				        	fth.setDaemon(true);
-				        	fth.start();
-				        	
-		        	}
-		        });
-		        pane.getChildren().add(fastFwdBtn);*/
-		        //end FFWD button
 		        
 		      //Button to initiate the game
 		        Button dsRewindBtn = new Button("Start Game");
 		        dsRewindBtn.setLayoutX(29);
 		        dsRewindBtn.setLayoutY(730);
 		        
-		        dsRewindBtn.setOnAction(new EventHandler<ActionEvent>() {
-		        	@Override
-		        	public void handle(ActionEvent event) {
-		        		Platform.runLater(new Runnable() {
-		                    @Override public void run() {
-				        		  try
-				        		  {
-				        			  //java.lang.Thread.sleep(1000);
-				        			  //System.out.println("E M U 8 6 3 2");
-				        			  pseudoMain();
-				        		  }//end try
-				        		  catch(Exception e)
-				        		  {	
-				        			  //todo: in case any uncaught exceptions occur, catch 'em here.
-				        		  } //end catch	
-		                    } //end run
-		                } ); //end and close new Runnable
-		        	}  //end handle 	
-		        } ); //end and close new EventHandler
+		        dsRewindBtn.setOnAction(event -> Platform.runLater(new Runnable() {
+				    @Override public void run() {
+						  try
+						  {
+							  currentPlayStatus.setText("Game started...");
+							  pseudoMain();
+						  }//end try
+						  catch(Exception e)
+						  {	
+							  //todo: in case any uncaught exceptions occur, catch 'em here.
+						  } //end catch	
+				    } //end run
+				} ) ); //end and close new EventHandler
 		        pane.getChildren().add(dsRewindBtn);
-		        //end RWND button
 		        
 		        
 	        } //END: layout of buttons displayed upon successful launch ends here.
@@ -1155,25 +1041,18 @@ public class FXUIGameMaster extends Application {
 			scrollPane = new ScrollPane();
 			scrollPane.setContent(pane);
 			if (!errorDisplayBit){
-				scrollPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
-					@Override
-		        	public void handle(KeyEvent event) {
-				        Runnable task = new Runnable() {
-				        	  @Override public void run() {
-					        		  try
-					        		  {
-					        			  pseudoMain();
-					        		  }//end try
-					        		  catch(Exception e)
-					        		  {	
-					        		  } //end catch	
-				        	      }
-				        	  };
-				        	Thread th = new Thread(task);
-				        	th.setDaemon(true);
-				        	th.start();
-		        	}
-		        });
+				scrollPane.setOnKeyPressed(event -> Platform.runLater( new Runnable() {
+					  @Override public void run() {
+				    		  try
+				    		  {
+				    			  currentPlayStatus.setText("Game started...");
+				    			  pseudoMain();
+				    		  }//end try
+				    		  catch(Exception e)
+				    		  {	
+				    		  } //end catch	
+					      }
+					  }));
 			}
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
