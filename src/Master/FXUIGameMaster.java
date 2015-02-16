@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 002, Stamp y2015.mdB15.hm0010.sMNT
+//Current build Albert Wallace, Version 002, Stamp y2015.mdB16.hm0038.sMNT
 //Base build by Seth Denney, Sept 10 2014 
 
 // TODO make custom exception to allow user to exit the game without valid response
@@ -294,6 +294,9 @@ public class FXUIGameMaster extends Application {
 					writeLogLn(currentPlayer.getName() + " is attacking "
 							+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
+					System.out.println(currentPlayer.getName() + " is attacking "
+							+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
+							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 					attempts = 0;
 					Player defender = getOwnerObject(atkRsp.getDfdCountry());
 					DefendResponse dfdRsp = null;
@@ -491,9 +494,18 @@ public class FXUIGameMaster extends Application {
 	
 	protected AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) {
 		try {
-			AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
-			validatePlayerName(player);
-			return rsp;
+			
+			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+				AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
+				validatePlayerName(player);
+				return rsp;
+			}
+			else{ //if not a CPU player, aka if a human player
+				FXUIPlayer pIn =(FXUIPlayer)player;
+				AttackResponse rsp = pIn.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, pane.getScene().getWindow());
+				validatePlayerName(player);
+				return rsp;
+			}
 		}
 		catch (Exception e) {
 			//e.printStackTrace();
@@ -1150,7 +1162,6 @@ public class FXUIGameMaster extends Application {
 				        	  @Override public void run() {
 					        		  try
 					        		  {
-					        			  //java.lang.Thread.sleep(1000);
 					        			  pseudoMain();
 					        		  }//end try
 					        		  catch(Exception e)
@@ -1164,16 +1175,6 @@ public class FXUIGameMaster extends Application {
 		        	}
 		        });
 			}
-			// TODO make popout pane
-			//Pane extraPane = new Pane();
-			//extraPane.setPrefSize(someWidth, someHeight);
-			//extraPane.getChildren.add(Button singleButtonAtATime);
-			//or extraPane.getChildren.addAll(Collection<Button> buttonCollection);
-	        //Scene extraScene = new Scene(extraPane, someOtherWidth, someOtherHeight);
-			//Stage secondaryDialog = new Stage();
-			//secondaryDialog.setOwner(originalPane.getScene().getWindow());
-			//secondaryDialog.setTitle("Choose 3 cards, or pass");
-			//...eventually secondaryDialog.close() should be a confirmation
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
 	        primaryStage.setScene(scene);
