@@ -1,4 +1,4 @@
-/*//Current build Albert Wallace, Version 004, Stamp y2015.mdB16.hm1751.sMNT
+/*//Current build Albert Wallace, Version 004, Stamp y2015.mdB16.hm1930.sMNT
 //Base build from original "player" interface, 
 //incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
 //so thanks stackoverflow!*/
@@ -51,6 +51,7 @@ public class FXUIPlayer implements Player {
 	private int reinforcementsApplied = 0;
 	private static boolean instanceAlreadyCreated = false;
 	private boolean passTurn = false;
+	private boolean turningInNoCards = true;
 	private String attackTarget = "-----", attackSource = "------";
 	
 	public FXUIPlayer() {
@@ -185,7 +186,7 @@ public class FXUIPlayer implements Player {
 			
 			      
 			      }
-					catch(Exception e){System.out.println(e);}
+					catch(Exception e){System.out.println("initial alloc ::: " + e);}
 				finally{reinforcementsApplied = 0; /* TODO remove currentFocus=null;*/}
 				//return result;
 				if (ReinforcementResponse.isValidResponse(rsp, map, this.name, reinforcements)){
@@ -229,6 +230,7 @@ public class FXUIPlayer implements Player {
 		CardTurnInResponse rsp = new CardTurnInResponse();
 		HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
 		HashMap<Integer, Text> cardStatusMapping = new HashMap<Integer, Text>();
+		turningInNoCards = true;
 		try{
 			
 		      final Stage dialog = new Stage();
@@ -276,6 +278,7 @@ public class FXUIPlayer implements Player {
 				    Button card = new Button ("******\n\n" + cdIn.toString() + "\n\n******");
 				    card.setOnAction(new EventHandler<ActionEvent>(){
 				    	  @Override public void handle(ActionEvent t){
+				    		  turningInNoCards =  false;
 				    		final Integer cardAffected = (Integer)indexInCards;
 				    		final Card myCard = cdIn;
 				    		if (cardsToTurnIn.containsKey(cardAffected)){
@@ -319,6 +322,7 @@ public class FXUIPlayer implements Player {
 		    		  else if(!turnInRequired)
 		    		  {
 		    			  dialog.close();
+		    			  turningInNoCards = true;
 		    		  }
 		    		  else{
 		    			  statusText.setText("invalid selection.\n(cards not a valid set)");
@@ -334,7 +338,8 @@ public class FXUIPlayer implements Player {
 		      dialog.setScene(new Scene(layout));
 		      dialog.showAndWait();
 		}
-		catch(Exception e){System.out.println(e);}
+		catch(Exception e){System.out.println("turn in ::: " + e);}
+		if(turningInNoCards){return null;}
 		return rsp;
 	}
 	
@@ -499,7 +504,7 @@ public class FXUIPlayer implements Player {
 			
 			      
 			      }
-					catch(Exception e){System.out.println(e);}
+					catch(Exception e){System.out.println("reinforce:::" + e);}
 				finally{reinforcementsApplied = 0; /* TODO remove currentFocus=null;*/}
 				//return result;
 		return rsp;
@@ -647,6 +652,7 @@ public class FXUIPlayer implements Player {
 		    					statusText.setText("Not a valid response; try another combo.");
 		    				}
 		    				else{
+		    					passTurn = false;
 		    					dialog.close();
 		    				}
 		    			}
@@ -685,7 +691,7 @@ public class FXUIPlayer implements Player {
 		
 		      
 		      }
-				catch(Exception e){System.out.println(e);}
+				catch(Exception e){System.out.println("attack:::" + e);}
 			finally{attackSource = "-----"; attackTarget = "-----";}
 	
 		
@@ -713,7 +719,7 @@ public class FXUIPlayer implements Player {
 	
 	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min, Window owner){
 		int sourceArmies = map.getCountryArmies(fromCountry);
-		final AdvanceResponse rsp = new AdvanceResponse(0);
+		AdvanceResponse rsp = new AdvanceResponse(0);
 		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
 		//...well, sort of.
 		
@@ -742,6 +748,11 @@ public class FXUIPlayer implements Player {
 					destCount.setText(toCountry.getName() + "\n:::::\n" + rsp.getNumArmies());
 					doubleCheck = false;
 		    	  }
+		    	  public void resetAcceptance()
+		    	  {
+		    		  acceptanceStatus.setText("-------");
+		    		  doubleCheck = false;
+		    	  }
 		    	  public boolean verifyAcceptance()
 		    	  {
 		    		  if (sourceArmies - rsp.getNumArmies() != 0 && rsp.getNumArmies() != 0)
@@ -768,24 +779,24 @@ public class FXUIPlayer implements Player {
 		      final Button plusle = new Button("Plus");
 		      //plusle.setDefaultButton(true);
 		      plusle.setOnAction(t -> {
-				int curArmies = rsp.getNumArmies();
-			  if (curArmies < sourceArmies)
-			  {
-				  rsp.setNumArmies(curArmies + 1);
-				  updater.refreshStatus();
-			  }
-			});
+		    	  updater.resetAcceptance();
+				  if (rsp.getNumArmies() < sourceArmies)
+				  {
+					  rsp.setNumArmies(rsp.getNumArmies() + 1);
+					  updater.refreshStatus();
+				  }
+				});
 		      
 		      final Button minun = new Button("Minus");
 		      //minun.setDefaultButton(true);
 		      minun.setOnAction(t -> {
-				int curArmies = rsp.getNumArmies();
-			      if (curArmies > 0)
+		    	  updater.resetAcceptance();
+			      if (rsp.getNumArmies() > 0)
 			      {
-			    	  rsp.setNumArmies(curArmies - 1);
+			    	  rsp.setNumArmies(rsp.getNumArmies() - 1);
 			    	  updater.refreshStatus();
 			      }
-			});
+		      });
 		      
 		      final Button acceptance = new Button("Submit/OK");
 		      //acceptance.setDefaultButton(true);
@@ -818,7 +829,7 @@ public class FXUIPlayer implements Player {
 
 		      
 		      }
-				catch(Exception e){System.out.println(e);}
+				catch(Exception e){System.out.println("advance ::: " + e);}
 		
 		return rsp;
 	}
@@ -931,29 +942,30 @@ public class FXUIPlayer implements Player {
 		      bothCountryGroups.setAlignment(Pos.CENTER);
 		      
 		      
-		      final Button plusle = new Button("Plus");
+		      final Button plusle = new Button("Troops++");
 		      //plusle.setDefaultButton(true);
 		      plusle.setOnAction(t -> {
 				int curArmies = rsp.getNumArmies();
 					  if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()))
 					  {
 						  rsp.setNumArmies(rsp.getNumArmies() + 1);
-				    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + "??? troops from\n" + rsp.getFromCountry().getName() + ".");
+				    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
 					  }
 		      });
 		      
-		      final Button minun = new Button("Minus");
+		      final Button minun = new Button("Troops--");
 		      //minun.setDefaultButton(true);
 		      minun.setOnAction(t -> {
 				int curArmies = rsp.getNumArmies();
 			      if (rsp.getToCountry() != null && curArmies > 0)
 			      {
 			    	  rsp.setNumArmies(rsp.getNumArmies() - 1);
-			    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + "??? troops from\n" + rsp.getFromCountry().getName() + ".");
+			    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
 			      }
 		      });
 		      
 		      HBox plusMinusBtns = new HBox(4);
+		      plusMinusBtns.setAlignment(Pos.CENTER);
 		      plusMinusBtns.getChildren().addAll(minun,plusle);
 		      
 		      final String playaName = this.getName();
@@ -979,9 +991,11 @@ public class FXUIPlayer implements Player {
 			  });
 		      
 		      //add status and buttons to layout
-		      Text buttonBuffer = new Text("***********");
-		      buttonBuffer.setTextAlignment(TextAlignment.CENTER);
-		      layout.getChildren().addAll(statusText, bothCountryGroups, plusMinusBtns, buttonBuffer, acceptIt, skipIt);
+		      Text buttonBufferTop = new Text("***********");
+		      buttonBufferTop.setTextAlignment(TextAlignment.CENTER);
+		      Text buttonBufferBottom = new Text("***********");
+		      buttonBufferBottom.setTextAlignment(TextAlignment.CENTER);
+		      layout.getChildren().addAll(statusText, bothCountryGroups, buttonBufferTop, plusMinusBtns, buttonBufferBottom, acceptIt, skipIt);
 		      layout.setAlignment(Pos.CENTER);
 		      
 		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
@@ -992,7 +1006,7 @@ public class FXUIPlayer implements Player {
 		
 		      
 		      }
-			catch(Exception e){System.out.println(e);}
+			catch(Exception e){System.out.println("fortify ::: " + e);}
 	
 		
 		if(passTurn){

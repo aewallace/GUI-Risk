@@ -167,10 +167,13 @@ public class FXUIGameMaster extends Application {
 					reinforce(currentPlayer, true);
 					//System.out.println("G GE M U 4 6 5 M");
 					//System.out.println(currentPlayer.getName());
+					updateDisplay();
 					attack(currentPlayer);
 					//System.out.println("G ME M U 4 6 5 M");
 					//System.out.println(currentPlayer.getName());
+					updateDisplay();
 					fortify(currentPlayer);
+					updateDisplay();
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
 				}
 				catch (PlayerEliminatedException e) {
@@ -269,6 +272,7 @@ public class FXUIGameMaster extends Application {
 		boolean resetTurn;
 		boolean hasGottenCard = false;
 		while (attempts < RiskConstants.MAX_ATTEMPTS) {
+			updateDisplay();
 			attempts++;
 			resetTurn = false;
 			AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
@@ -281,6 +285,7 @@ public class FXUIGameMaster extends Application {
 							+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 							+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 					attempts = 0;
+					updateDisplay();
 					Player defender = getOwnerObject(atkRsp.getDfdCountry());
 					DefendResponse dfdRsp = null;
 					try {
@@ -613,6 +618,7 @@ public class FXUIGameMaster extends Application {
 				valid = !turnInRequired;
 			}
 			attempts++;
+			System.out.println(attempts);
 		}
 		if (!valid && turnInRequired) {
 			eliminate(currentPlayer, null, "You were required to turn in cards this turn, and you failed to do so.");
