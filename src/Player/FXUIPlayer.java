@@ -1,4 +1,4 @@
-/*//Current build Albert Wallace, Version 004, Stamp y2015.mdB16.hm1930.sMNT
+/*//Current build Albert Wallace, Version 005, Stamp y2015.mdB17.hm1436.sMNT
 //Base build from original "player" interface, 
 //incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
 //so thanks stackoverflow!*/
@@ -29,6 +29,8 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
+
+import customException.OSExitException;
 import Map.Country;
 import Map.RiskMap;
 import Response.AdvanceResponse;
@@ -53,6 +55,28 @@ public class FXUIPlayer implements Player {
 	private boolean passTurn = false;
 	private boolean turningInNoCards = true;
 	private String attackTarget = "-----", attackSource = "------";
+	
+	//to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
+	class doWeExit{
+		private boolean systemExitUsed = true;
+		
+		//get whether the program should attempt to exit back to the OS, or if the app should continue running after "dialog.close()" is called
+		public boolean getExitStatus(){
+			final boolean cExit = systemExitUsed;
+			systemExitUsed = true;
+			return cExit;
+		}
+		
+		//tell the program to not attempt to exit; the user is interacting with the program as per normal use, so a dialog closing is OK
+		public boolean setAsNonSystemClose()
+		{
+			systemExitUsed = false;
+			return systemExitUsed;
+		}
+	}
+	private final doWeExit exitDecider = new doWeExit();
+	
+	//_______________________________________________have some class! ...methods. Class methods.
 	
 	public FXUIPlayer() {
 		if (instanceAlreadyCreated)
@@ -86,13 +110,12 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
-	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements, Window owner)
+	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements, Window owner) throws OSExitException
 	{
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
-		
 				try{
 			      final Stage dialog = new Stage();
 			      dialog.setTitle("Initial Troop Allocation!");
@@ -169,6 +192,7 @@ public class FXUIPlayer implements Player {
 			    			  for (Country country : myCountries){
 			    				  rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
 			    			  }
+			    			  exitDecider.setAsNonSystemClose();
 			    			  dialog.close();
 			    		  }
 			    		  else{
@@ -181,16 +205,22 @@ public class FXUIPlayer implements Player {
 			      
 			      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 			      dialog.setScene(new Scene(layout));
-			      //dialog.show();
 			      dialog.showAndWait();
-			
-			      
-			      }
-					catch(Exception e){System.out.println("initial alloc ::: " + e);}
-				finally{reinforcementsApplied = 0; /* TODO remove currentFocus=null;*/}
-				//return result;
-				if (ReinforcementResponse.isValidResponse(rsp, map, this.name, reinforcements)){
-						System.out.println("returning rsp");}
+			      if (exitDecider.getExitStatus())
+			      {
+			    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
+			      } 
+	    }
+		catch(OSExitException e){
+			throw e;
+		}
+		catch(Exception e){
+			System.out.println("initial alloc ::: " + e);
+		}
+		finally{
+			reinforcementsApplied = 0;
+		}
+		//return result;
 		return rsp;
 	}
 	
@@ -225,7 +255,7 @@ public class FXUIPlayer implements Player {
 	/*
 	 * @param owner: Window from which the associated UI dialog will spawn; given a JavaFX Pane object 'sourcePane', equals sourcePane.getScene().getWindow()
 	 */
-	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired, Window owner)
+	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired, Window owner) throws OSExitException
 	{
 		CardTurnInResponse rsp = new CardTurnInResponse();
 		HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
@@ -238,8 +268,7 @@ public class FXUIPlayer implements Player {
 		      final String deselected = "not selected";
 		      dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
 		      dialog.initOwner(owner);
-		      //dialog.initStyle(StageStyle.UTILITY);
-		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      
 		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
@@ -321,6 +350,7 @@ public class FXUIPlayer implements Player {
 		    		  }
 		    		  else if(!turnInRequired)
 		    		  {
+		    			  exitDecider.setAsNonSystemClose();
 		    			  dialog.close();
 		    			  turningInNoCards = true;
 		    		  }
@@ -337,10 +367,23 @@ public class FXUIPlayer implements Player {
 		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 		      dialog.setScene(new Scene(layout));
 		      dialog.showAndWait();
+		      if (exitDecider.getExitStatus())
+		      {
+		    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
+		      }
 		}
-		catch(Exception e){System.out.println("turn in ::: " + e);}
-		if(turningInNoCards){return null;}
-		return rsp;
+		catch(OSExitException e){
+			throw e;
+		}
+		catch(Exception e){
+			System.out.println("turn in ::: " + e);
+		}
+		if(turningInNoCards){
+			return null;
+		}
+		else{
+			return rsp;
+		}
 	}
 	
 	//was to be used in above code should CardTurnInResponse class method fail
@@ -393,7 +436,7 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
-	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements, Window owner){
+	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements, Window owner) throws OSExitException{
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -471,42 +514,47 @@ public class FXUIPlayer implements Player {
 						layout.getChildren().add(singleCountryDisp);						
 					}
 			      
-			      updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+			      updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements); //TODO: move this up..or down. or comment
 			    
 			      
 			      //button to attempt to accept final reinforcement allocation
 			      Button acceptIt = new Button ("Accept/OK");
-			      acceptIt.setOnAction(new EventHandler<ActionEvent>(){
-			    	  @Override public void handle(ActionEvent t){
-			    		  if (reinforcementsApplied == reinforcements)
-			    		  {
-			    			  for (Country country : myCountries){
-			    				  rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
-			    			  }
-			    			  dialog.close();
-			    		  }
-			    		  else{
-			    			  updateReinforcementCountRIF(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
-			    		  }
-			    	  }
-			      }
-			    		  );
+			      acceptIt.setOnAction(t -> {
+					  if (reinforcementsApplied == reinforcements)
+					  {
+						  for (Country country : myCountries){
+							  rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
+						  }
+						  exitDecider.setAsNonSystemClose();
+						  dialog.close();
+					  }
+					  else{
+						  updateReinforcementCountRIF(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+					  }
+				  });
 			      
 			      //add status and buttons to layout
-			      //final HBox adjustmentButtons = new HBox(4);
-		    	  //adjustmentButtons.setAlignment(Pos.CENTER);
 			      layout.getChildren().addAll(statusText, acceptIt);
 			      
 			      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 			      dialog.setScene(new Scene(layout));
-			      //dialog.show();
 			      dialog.showAndWait();
 			
-			      
+			      if (exitDecider.getExitStatus())
+			      {
+			    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
 			      }
-					catch(Exception e){System.out.println("reinforce:::" + e);}
-				finally{reinforcementsApplied = 0; /* TODO remove currentFocus=null;*/}
-				//return result;
+		}
+		catch(OSExitException e){
+			throw e;
+		}
+		catch(Exception e){
+			System.out.println("reinforce:::" + e);
+		}
+		finally{
+			reinforcementsApplied = 0;
+		}
+		//return result;
 		return rsp;
 	}
 	
@@ -537,7 +585,8 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
-	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Window owner){
+	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Window owner) throws OSExitException
+	{
 		AttackResponse rsp = new AttackResponse();
 		HashMap<String, Country> myCountries = new HashMap<String, Country>();
 		HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
@@ -570,8 +619,7 @@ public class FXUIPlayer implements Player {
 		      final Stage dialog = new Stage();
 		      dialog.setTitle("Attack? [optional]");
 		      dialog.initOwner(owner);
-		      //dialog.initStyle(StageStyle.UTILITY);
-		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      
 		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
@@ -653,6 +701,7 @@ public class FXUIPlayer implements Player {
 		    				}
 		    				else{
 		    					passTurn = false;
+		    					exitDecider.setAsNonSystemClose();
 		    					dialog.close();
 		    				}
 		    			}
@@ -673,6 +722,7 @@ public class FXUIPlayer implements Player {
 		      skipIt.setOnAction(new EventHandler<ActionEvent>(){
 		    	  @Override public void handle(ActionEvent t){
 		    		  passTurn = true;
+		    		  exitDecider.setAsNonSystemClose();
 		    		  dialog.close();
 		    	  }
 		      });
@@ -688,13 +738,22 @@ public class FXUIPlayer implements Player {
 		      dialog.setScene(new Scene(spane));
 		      //dialog.show();
 		      dialog.showAndWait();
-		
-		      
+		      if (exitDecider.getExitStatus())
+		      {
+		    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
 		      }
-				catch(Exception e){System.out.println("attack:::" + e);}
-			finally{attackSource = "-----"; attackTarget = "-----";}
-	
-		
+		      
+		}
+		catch(OSExitException e){
+				throw e;
+		}
+		catch(Exception e){
+			System.out.println("attack:::" + e);
+		}
+		finally{
+			attackSource = "-----";
+			attackTarget = "-----";
+		}
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -717,7 +776,7 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
-	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min, Window owner){
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min, Window owner) throws OSExitException{
 		int sourceArmies = map.getCountryArmies(fromCountry);
 		AdvanceResponse rsp = new AdvanceResponse(0);
 		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
@@ -728,8 +787,7 @@ public class FXUIPlayer implements Player {
 		      final Stage dialog = new Stage();
 		      dialog.setTitle("Advance armies into conquests");
 		      dialog.initOwner(owner);
-		      //dialog.initStyle(StageStyle.UTILITY);
-		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      
 		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
@@ -776,8 +834,8 @@ public class FXUIPlayer implements Player {
 		      UpdateStatus updater = new UpdateStatus();
 		      updater.refreshStatus();
 		      
-		      final Button plusle = new Button("Plus");
-		      //plusle.setDefaultButton(true);
+		      
+		      final Button plusle = new Button("Add/+");
 		      plusle.setOnAction(t -> {
 		    	  updater.resetAcceptance();
 				  if (rsp.getNumArmies() < sourceArmies)
@@ -787,8 +845,7 @@ public class FXUIPlayer implements Player {
 				  }
 				});
 		      
-		      final Button minun = new Button("Minus");
-		      //minun.setDefaultButton(true);
+		      final Button minun = new Button("Recall/-");
 		      minun.setOnAction(t -> {
 		    	  updater.resetAcceptance();
 			      if (rsp.getNumArmies() > 0)
@@ -800,16 +857,15 @@ public class FXUIPlayer implements Player {
 		      
 		      final Button acceptance = new Button("Submit/OK");
 		      //acceptance.setDefaultButton(true);
-		      acceptance.setOnAction(new EventHandler<ActionEvent>() {
-		        @Override public void handle(ActionEvent t) {
-		        	//we can't verify it with the official function, 
-		        	//but we can check if we've actually put our soldiers somewhere
-		        	//and if we so decide, it's possible to just skip proper allocation (wherein either src or dst has 0 troops
-		          if(updater.verifyAcceptance())
-		          {
-		        	dialog.close();
-		          }
-		        }
+		      acceptance.setOnAction(t -> {
+					//we can't verify it with the official function, 
+					//but we can check if we've actually put our soldiers somewhere
+					//and if we so decide, it's possible to just skip proper allocation (wherein either src or dst has 0 troops
+					if(updater.verifyAcceptance())
+					{
+						exitDecider.setAsNonSystemClose();
+						dialog.close();
+					}
 		      });
 		      
 		      final HBox allocationButtons = new HBox(4);
@@ -827,10 +883,17 @@ public class FXUIPlayer implements Player {
 		      dialog.setScene(new Scene(layout));
 		      dialog.showAndWait();
 
-		      
+		      if (exitDecider.getExitStatus())
+		      {
+		    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
 		      }
-				catch(Exception e){System.out.println("advance ::: " + e);}
-		
+		}
+		catch(OSExitException e){
+			throw e;
+		}	
+		catch(Exception e){
+			System.out.println("advance ::: " + e);
+		}
 		return rsp;
 	}
 	
@@ -847,7 +910,8 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
-	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Window owner){
+	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Window owner) throws OSExitException
+	{
 		FortifyResponse rsp = new FortifyResponse();
 		HashMap<String, Country> myCountries = new HashMap<String, Country>();
 		HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
@@ -879,8 +943,7 @@ public class FXUIPlayer implements Player {
 		      final Stage dialog = new Stage();
 		      dialog.setTitle("Fortify? [optional]");
 		      dialog.initOwner(owner);
-		      //dialog.initStyle(StageStyle.UTILITY);
-		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      
 		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
@@ -974,6 +1037,7 @@ public class FXUIPlayer implements Player {
 		      acceptIt.setOnAction(t -> {
 				  if (FortifyResponse.isValidResponse(rsp, map, playaName))
 				  {
+					  exitDecider.setAsNonSystemClose();
 					  passTurn = false;
 					  dialog.close();
 				  }
@@ -987,6 +1051,7 @@ public class FXUIPlayer implements Player {
 		      Button skipIt = new Button ("[skip/pass]");
 		      skipIt.setOnAction(t -> {
 				  passTurn = true;
+				  exitDecider.setAsNonSystemClose();
 				  dialog.close();
 			  });
 		      
@@ -1003,10 +1068,17 @@ public class FXUIPlayer implements Player {
 		      dialog.setScene(new Scene(spane));
 		      //dialog.show();
 		      dialog.showAndWait();
-		
-		      
-		      }
-			catch(Exception e){System.out.println("fortify ::: " + e);}
+		      if (exitDecider.getExitStatus())
+		      {
+		    	 throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
+		      }  
+		}
+		catch(OSExitException e){
+			throw e;
+		}
+		catch(Exception e){
+			System.out.println("fortify ::: " + e);
+		}
 	
 		
 		if(passTurn){
@@ -1083,7 +1155,7 @@ public class FXUIPlayer implements Player {
 	      result = textField.getText();
 	      
 	      }
-			catch(Exception e){System.out.println(e);}
+		catch(Exception e){System.out.println(e);}
 		return result;
 	      
 	    }
