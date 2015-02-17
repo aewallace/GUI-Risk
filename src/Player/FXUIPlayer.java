@@ -1,4 +1,4 @@
-/*//Current build Albert Wallace, Version 003, Stamp y2015.mdB16.hm0056.sMNT
+/*//Current build Albert Wallace, Version 004, Stamp y2015.mdB16.hm1751.sMNT
 //Base build from original "player" interface, 
 //incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
 //so thanks stackoverflow!*/
@@ -96,9 +96,9 @@ public class FXUIPlayer implements Player {
 			      final Stage dialog = new Stage();
 			      dialog.setTitle("Initial Troop Allocation!");
 			      dialog.initOwner(owner);
-			      dialog.initStyle(StageStyle.UTILITY);
-			      dialog.initModality(Modality.WINDOW_MODAL);
-			      dialog.setX(owner.getX()/* + owner.getWidth()*/);
+			      //dialog.initStyle(StageStyle.UTILITY);
+			      //dialog.initModality(Modality.WINDOW_MODAL);
+			      dialog.setX(owner.getX());
 			      dialog.setY(owner.getY());
 			      
 			      final VBox layout = new VBox(10);
@@ -236,9 +236,9 @@ public class FXUIPlayer implements Player {
 		      final String deselected = "not selected";
 		      dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
 		      dialog.initOwner(owner);
-		      dialog.initStyle(StageStyle.UTILITY);
-		      dialog.initModality(Modality.WINDOW_MODAL);
-		      dialog.setX(owner.getX()/* + owner.getWidth()*/);
+		      //dialog.initStyle(StageStyle.UTILITY);
+		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
 		      final VBox layout = new VBox(10);
@@ -402,9 +402,9 @@ public class FXUIPlayer implements Player {
 			      final Stage dialog = new Stage();
 			      dialog.setTitle("Reinforcement with new troops!");
 			      dialog.initOwner(owner);
-			      dialog.initStyle(StageStyle.UTILITY);
-			      dialog.initModality(Modality.WINDOW_MODAL);
-			      dialog.setX(owner.getX()/* + owner.getWidth()*/);
+			      //dialog.initStyle(StageStyle.UTILITY);
+			      //dialog.initModality(Modality.WINDOW_MODAL);
+			      dialog.setX(owner.getX());
 			      dialog.setY(owner.getY());
 			      
 			      final VBox layout = new VBox(10);
@@ -546,9 +546,13 @@ public class FXUIPlayer implements Player {
 			//countryNeighbors.put(country.getName(), (ArrayList<Country>) country.getNeighbors());
 			ArrayList<String> stng = new ArrayList<String>();
 			HashMap<String, Country> cyAn = new HashMap<String, Country>();
+			//add neighbor to list of attackable countries, if the owner isn't me.
 			for (Country tgtCt : country.getNeighbors()){
-				stng.add(tgtCt.getName());
-				cyAn.put(tgtCt.getName(), tgtCt);
+				if(map.getCountryOwner(tgtCt) != this.name)
+				{
+					stng.add(tgtCt.getName());
+					cyAn.put(tgtCt.getName(), tgtCt);
+				}
 			}
 			stng.sort(null);
 			countryNeighborsAsStrings.put(country.getName(), stng);
@@ -561,9 +565,9 @@ public class FXUIPlayer implements Player {
 		      final Stage dialog = new Stage();
 		      dialog.setTitle("Attack? [optional]");
 		      dialog.initOwner(owner);
-		      dialog.initStyle(StageStyle.UTILITY);
-		      dialog.initModality(Modality.WINDOW_MODAL);
-		      dialog.setX(owner.getX()/* + owner.getWidth()*/);
+		      //dialog.initStyle(StageStyle.UTILITY);
+		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      dialog.setX(owner.getX());
 		      dialog.setY(owner.getY());
 		      
 		      final VBox layout = new VBox(10);
@@ -580,11 +584,13 @@ public class FXUIPlayer implements Player {
 		      //status text: total reinforcements available, reinf used, reinf available.
 		      Text statusText = new Text();
 		      statusText.setText("Current selection: [No Selection]");
+		      statusText.setTextAlignment(TextAlignment.CENTER);
 		      
 		      final VBox sourceCountriesVBox = new VBox(10);
 		      VBox targetCountriesVBox = new VBox(10);
 		      sourceCountriesVBox.setAlignment(Pos.CENTER);
 		      targetCountriesVBox.setAlignment(Pos.CENTER);
+		      sourceCountriesVBox.getChildren().add(new Text("Source:"));
 		      
 		      
 		      //buttons for countries you own, and text to display *additional* units to deplor to each country
@@ -597,8 +603,9 @@ public class FXUIPlayer implements Player {
 				    		  final String srcID = ctSource;
 			    			  attackSource = srcID;
 			    			  attackTarget = "-----"; /* TODO represent as variable*/
-			    			  statusText.setText("Current selection: Attacking " + attackTarget + " from " + attackSource + ".");
+			    			  statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
 				    		  targetCountriesVBox.getChildren().clear();
+				    		  targetCountriesVBox.getChildren().add(new Text("Target:"));
 				    		  for (String ctTarget : countryNeighborsAsStrings.get(srcID))
 				    		  {
 				    			  final Button ctTgtBtn = new Button(ctTarget);
@@ -606,7 +613,7 @@ public class FXUIPlayer implements Player {
 								    	  @Override public void handle(ActionEvent t){
 							    			  final String tgtID = ctTarget;
 							    			  attackTarget = tgtID;
-							    			  statusText.setText("Current selection: Attacking " + attackTarget + " from " + attackSource + ".");
+							    			  statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
 								    	  }//end of actionevent definition
 								  });
 								  targetCountriesVBox.getChildren().add(ctTgtBtn);
@@ -704,6 +711,119 @@ public class FXUIPlayer implements Player {
 		return null;
 	}
 	
+	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int min, Window owner){
+		int sourceArmies = map.getCountryArmies(fromCountry);
+		final AdvanceResponse rsp = new AdvanceResponse(0);
+		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
+		//...well, sort of.
+		
+		
+		try{
+		      final Stage dialog = new Stage();
+		      dialog.setTitle("Advance armies into conquests");
+		      dialog.initOwner(owner);
+		      //dialog.initStyle(StageStyle.UTILITY);
+		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      dialog.setX(owner.getX());
+		      dialog.setY(owner.getY());
+		      
+		      Text sourceCount = new Text();
+		      Text destCount = new Text();
+		      sourceCount.setTextAlignment(TextAlignment.CENTER);
+		      destCount.setTextAlignment(TextAlignment.CENTER);
+		      Text acceptanceStatus = new Text("-------");
+		      acceptanceStatus.setTextAlignment(TextAlignment.CENTER);
+		      final class UpdateStatus{
+		    	  boolean doubleCheck = false;
+		    	  UpdateStatus(){
+		    	  }
+		    	  public void refreshStatus(){
+					sourceCount.setText(fromCountry.getName() + "\n:::::\n" + (sourceArmies - rsp.getNumArmies()));
+					destCount.setText(toCountry.getName() + "\n:::::\n" + rsp.getNumArmies());
+					doubleCheck = false;
+		    	  }
+		    	  public boolean verifyAcceptance()
+		    	  {
+		    		  if (sourceArmies - rsp.getNumArmies() != 0 && rsp.getNumArmies() != 0)
+		    		  {
+		    			  return true;
+		    		  }
+		    		  else if (!doubleCheck){
+		    			  acceptanceStatus.setText("Click again to confirm that you want 0 troops\nto remain in " + (rsp.getNumArmies() == 0 ? toCountry.getName():fromCountry.getName()) + "?");
+		    			  doubleCheck = true;
+		    			  return false;
+		    		  }
+		    		  else{
+		    			  
+		    			  return true;
+		    		  }
+		    	  }
+		      }
+		      HBox countryCounts = new HBox(4);
+		      countryCounts.setAlignment(Pos.CENTER);
+		      countryCounts.getChildren().addAll(sourceCount, destCount);
+		      UpdateStatus updater = new UpdateStatus();
+		      updater.refreshStatus();
+		      
+		      final Button plusle = new Button("Plus");
+		      //plusle.setDefaultButton(true);
+		      plusle.setOnAction(t -> {
+				int curArmies = rsp.getNumArmies();
+			  if (curArmies < sourceArmies)
+			  {
+				  rsp.setNumArmies(curArmies + 1);
+				  updater.refreshStatus();
+			  }
+			});
+		      
+		      final Button minun = new Button("Minus");
+		      //minun.setDefaultButton(true);
+		      minun.setOnAction(t -> {
+				int curArmies = rsp.getNumArmies();
+			      if (curArmies > 0)
+			      {
+			    	  rsp.setNumArmies(curArmies - 1);
+			    	  updater.refreshStatus();
+			      }
+			});
+		      
+		      final Button acceptance = new Button("Submit/OK");
+		      //acceptance.setDefaultButton(true);
+		      acceptance.setOnAction(new EventHandler<ActionEvent>() {
+		        @Override public void handle(ActionEvent t) {
+		        	//we can't verify it with the official function, 
+		        	//but we can check if we've actually put our soldiers somewhere
+		        	//and if we so decide, it's possible to just skip proper allocation (wherein either src or dst has 0 troops
+		          if(updater.verifyAcceptance())
+		          {
+		        	dialog.close();
+		          }
+		        }
+		      });
+		      
+		      final HBox allocationButtons = new HBox(4);
+		      allocationButtons.setAlignment(Pos.CENTER);
+		      allocationButtons.getChildren().addAll(minun,plusle);
+		      
+		      
+		      final VBox layout = new VBox(10);
+		      layout.setAlignment(Pos.CENTER);
+		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.getChildren().setAll(
+		        countryCounts, allocationButtons,acceptanceStatus, acceptance
+		      );
+
+		      dialog.setScene(new Scene(layout));
+		      dialog.showAndWait();
+
+		      
+		      }
+				catch(Exception e){System.out.println(e);}
+		
+		return rsp;
+	}
+	
+	
 	/**
 	 * Propose a fortification transfer.
 	 * RESPONSE OPTIONAL
@@ -714,6 +834,172 @@ public class FXUIPlayer implements Player {
 	 */
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
 		return null;
+	}
+	
+	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Window owner){
+		FortifyResponse rsp = new FortifyResponse();
+		HashMap<String, Country> myCountries = new HashMap<String, Country>();
+		HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
+		HashMap<String, ArrayList<String>> countryNeighborsAsStrings = new HashMap<String, ArrayList<String>>();
+		ArrayList<String> myCountriesAsStrings = new ArrayList<String>();
+		//get the countries in an easily sorted string array representation, and store them in a map for easy reference
+		for (Country country : RiskUtils.getPlayerCountries(map, this.name))
+		{
+			myCountries.put(country.getName(), country);
+			myCountriesAsStrings.add(country.getName());
+			ArrayList<String> stng = new ArrayList<String>();
+			HashMap<String, Country> cyAn = new HashMap<String, Country>();
+			//add neighbor to list of attackable countries, if the owner isn't me.
+			for (Country tgtCt : country.getNeighbors()){
+				if(map.getCountryOwner(tgtCt) == this.name)
+				{
+					stng.add(tgtCt.getName());
+					cyAn.put(tgtCt.getName(), tgtCt);
+				}
+			}
+			stng.sort(null);
+			countryNeighborsAsStrings.put(country.getName(), stng);
+			countryNeighbors.put(country.getName(), cyAn);
+		}
+		myCountriesAsStrings.sort(null);
+		
+		try{
+			  ScrollPane spane = new ScrollPane();
+		      final Stage dialog = new Stage();
+		      dialog.setTitle("Fortify? [optional]");
+		      dialog.initOwner(owner);
+		      //dialog.initStyle(StageStyle.UTILITY);
+		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      dialog.setX(owner.getX());
+		      dialog.setY(owner.getY());
+		      
+		      final VBox layout = new VBox(10);
+		      layout.setAlignment(Pos.CENTER);
+		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      
+		      
+		      //Generic instructions for reinforcement
+		      Text guideText = new Text();
+		      guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
+		      guideText.setTextAlignment(TextAlignment.CENTER);
+		      layout.getChildren().add(guideText);
+		      
+		      //status text: total reinforcements available, reinf used, reinf available.
+		      Text statusText = new Text();
+		      statusText.setText("Current selection: [No Selection]");
+		      statusText.setTextAlignment(TextAlignment.CENTER);
+		      
+		      final VBox sourceCountriesVBox = new VBox(10);
+		      VBox targetCountriesVBox = new VBox(10);
+		      sourceCountriesVBox.setAlignment(Pos.CENTER);
+		      targetCountriesVBox.setAlignment(Pos.CENTER);
+		      sourceCountriesVBox.getChildren().add(new Text("Source:"));
+		      
+		      
+		      //buttons for the source and destination countries
+		      for (String ctSource : myCountriesAsStrings)
+				{
+					final Button ctSrcBtn = new Button(ctSource);
+					//button to increment reinforcement count for selected country
+				    ctSrcBtn.setOnAction(t -> {
+						  final String srcID = ctSource;
+						  rsp.setFromCountry(myCountries.get(srcID));
+						  rsp.setNumArmies(0);
+						  rsp.setToCountry(null);
+						  statusText.setText("Current selection:\nFortifying\n????\nusing ??? troops from\n" + rsp.getFromCountry().getName() + ".");
+						  targetCountriesVBox.getChildren().clear();
+						  targetCountriesVBox.getChildren().add(new Text("Target:"));
+						  for (String ctTarget : countryNeighborsAsStrings.get(srcID))
+						  {
+							  final Button ctTgtBtn = new Button(ctTarget);
+							  ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
+							    	  @Override public void handle(ActionEvent t){
+						    			  final String tgtID = ctTarget;
+						    			  rsp.setToCountry(myCountries.get(tgtID));
+						    			  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing ??? troops from\n" + rsp.getFromCountry().getName() + ".");
+							    	  }//end of actionevent definition
+							  });
+							  targetCountriesVBox.getChildren().add(ctTgtBtn);
+						  }//end of outer button for loop
+					  });
+				    //button to decrement reinforcement count for selected country
+				    sourceCountriesVBox.getChildren().add(ctSrcBtn);
+				}
+		      
+		      final HBox bothCountryGroups = new HBox(10);
+		      bothCountryGroups.getChildren().addAll(sourceCountriesVBox, targetCountriesVBox);
+		      bothCountryGroups.setAlignment(Pos.CENTER);
+		      
+		      
+		      final Button plusle = new Button("Plus");
+		      //plusle.setDefaultButton(true);
+		      plusle.setOnAction(t -> {
+				int curArmies = rsp.getNumArmies();
+					  if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()))
+					  {
+						  rsp.setNumArmies(rsp.getNumArmies() + 1);
+				    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + "??? troops from\n" + rsp.getFromCountry().getName() + ".");
+					  }
+		      });
+		      
+		      final Button minun = new Button("Minus");
+		      //minun.setDefaultButton(true);
+		      minun.setOnAction(t -> {
+				int curArmies = rsp.getNumArmies();
+			      if (rsp.getToCountry() != null && curArmies > 0)
+			      {
+			    	  rsp.setNumArmies(rsp.getNumArmies() - 1);
+			    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + "??? troops from\n" + rsp.getFromCountry().getName() + ".");
+			      }
+		      });
+		      
+		      HBox plusMinusBtns = new HBox(4);
+		      plusMinusBtns.getChildren().addAll(minun,plusle);
+		      
+		      final String playaName = this.getName();
+		      //button to attempt to accept final reinforcement allocation
+		      Button acceptIt = new Button ("Accept/OK");
+		      acceptIt.setOnAction(t -> {
+				  if (FortifyResponse.isValidResponse(rsp, map, playaName))
+				  {
+					  passTurn = false;
+					  dialog.close();
+				  }
+				  else
+				  {
+					  statusText.setText("Not a valid response; \nmake sure you select a target and source!.");
+				  }
+				  
+			  });
+		      
+		      Button skipIt = new Button ("[skip/pass]");
+		      skipIt.setOnAction(t -> {
+				  passTurn = true;
+				  dialog.close();
+			  });
+		      
+		      //add status and buttons to layout
+		      Text buttonBuffer = new Text("***********");
+		      buttonBuffer.setTextAlignment(TextAlignment.CENTER);
+		      layout.getChildren().addAll(statusText, bothCountryGroups, plusMinusBtns, buttonBuffer, acceptIt, skipIt);
+		      layout.setAlignment(Pos.CENTER);
+		      
+		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+		      spane.setContent(layout);
+		      dialog.setScene(new Scene(spane));
+		      //dialog.show();
+		      dialog.showAndWait();
+		
+		      
+		      }
+			catch(Exception e){System.out.println(e);}
+	
+		
+		if(passTurn){
+			passTurn = !passTurn;
+			return null;
+		}
+		return rsp;
 	}
 	
 	/**
@@ -750,9 +1036,9 @@ public class FXUIPlayer implements Player {
 	      dialog.initOwner(owner);
 	      
 	      System.out.println("Hi Hi HIII X2");
-	      dialog.initStyle(StageStyle.UTILITY);
-	      dialog.initModality(Modality.WINDOW_MODAL);
-	      dialog.setX(owner.getX()/* + owner.getWidth()*/);
+	      //dialog.initStyle(StageStyle.UTILITY);
+	      //dialog.initModality(Modality.WINDOW_MODAL);
+	      dialog.setX(owner.getX());
 	      dialog.setY(owner.getY());
 	      
 	      System.out.println("Hi Hi HIII X3");

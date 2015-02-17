@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 003, Stamp y2015.mdB16.hm0233.sMNT
+//Current build Albert Wallace, Version 003, Stamp y2015.mdB16.hm1749.sMNT
 //Base build by Seth Denney, Sept 10 2014 
 
 // TODO make custom exception to allow user to exit the game without valid response
@@ -510,9 +510,19 @@ public class FXUIGameMaster extends Application {
 	
 	protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) {
 		try {
-			AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
-			validatePlayerName(player);
-			return rsp;
+			if(player.getName() != FXUI_PLAYER_NAME) //CPU player
+			{
+				AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+				validatePlayerName(player);
+				return rsp;
+			}
+			else //human player
+			{
+				FXUIPlayer fxPlayer = (FXUIPlayer)player;
+				AdvanceResponse rsp = fxPlayer.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice(), pane.getScene().getWindow());
+				validatePlayerName(player);
+				return rsp;
+			}
 		}
 		catch (Exception e) {
 			//e.printStackTrace();
@@ -522,9 +532,19 @@ public class FXUIGameMaster extends Application {
 	
 	protected FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) {
 		try {
-			FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
-			validatePlayerName(player);
-			return rsp;
+			if(player.getName() != FXUI_PLAYER_NAME) //CPU player
+			{
+				FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
+				validatePlayerName(player);
+				return rsp;
+			}
+			else //human player
+			{
+				FXUIPlayer fxPlayer = (FXUIPlayer)player;
+				FortifyResponse rsp = fxPlayer.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, pane.getScene().getWindow());
+				validatePlayerName(player);
+				return rsp;
+			}
 		}
 		catch (Exception e) {
 			//e.printStackTrace();
@@ -1023,7 +1043,7 @@ public class FXUIGameMaster extends Application {
 				    @Override public void run() {
 						  try
 						  {
-							  currentPlayStatus.setText("Game started...");
+							  currentPlayStatus.setText("Game\nstarted.");
 							  pseudoMain();
 						  }//end try
 						  catch(Exception e)
