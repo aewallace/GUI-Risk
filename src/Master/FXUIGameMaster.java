@@ -1,5 +1,5 @@
 /*FXUI GameMaster Class
-*Albert Wallace, 2015. Version 007, Stamp y2015.mdB17.hm2313.sMNT
+*Albert Wallace, 2015. Version 007, Stamp y2015.mdB18.hm1526.sMNT
 *for Seth Denney's RISK, JavaFX UI-capable version
 *
 *Base build from original GameMaster class implementation, by Seth Denney, Sept 10 2014 
@@ -14,7 +14,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
@@ -35,6 +34,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -46,7 +46,6 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
-import javafx.stage.WindowEvent;
 import Map.Country;
 import Map.RiskMap;
 import Player.FXUIPlayer;
@@ -68,6 +67,7 @@ import Util.PlayerEliminatedException;
 import Util.RiskConstants;
 import Util.RiskUtils;
 import Util.RollOutcome;
+import Util.TextNodes;
 
 /**
  * Represents the primary game controller for a game of Risk.
@@ -108,9 +108,6 @@ public class FXUIGameMaster extends Application {
 	private ScrollPane scrollPane;
     private Scene scene;
     private Pane pane;
-    private Text roundText;
-    private Text turn;
-    private Text nextLogLine;
     private Text errorDisplay;
     private Text currentPlayStatus;
     private String errorText;
@@ -1118,19 +1115,17 @@ public class FXUIGameMaster extends Application {
 				File fileRepresentation = new File(nodeFile);
 						//basic check for existence of country list file
 				if (!fileRepresentation.exists()){
-					System.out.print("Warning: no known list of countries found!");
-					System.out.print("\nExpected: \"" + nodeFile + "\"\n");
-					System.out.print("Undefined behavior WILL occur!");
-					errorDisplayBit = true;
-					errorText = "File not found in working directory;\nsee console for details.";
-				}
-						//and basic check for valid file contents
-				else if (fileRepresentation.length() < 25){
-					System.out.print("Warning: malform input file detected!");
-					System.out.print("\nExpected \"" + nodeFile + "\" to be of a certain size.\n");
-					System.out.print("Please check the file and restart the LogyPlayer GUI.\n");
-					errorDisplayBit = true;
-					errorText = "Malformed input file detected;\nsee console for details.";
+					Scanner reader = new Scanner(TextNodes.nodes);
+					while (reader.hasNext()) {
+						int nextX = reader.nextInt();
+						int nextY = reader.nextInt();
+						String nextCountry = reader.nextLine().trim();
+						Text txt = new Text(nextX, nextY, nextCountry + "\n0");
+				        txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+				        this.textNodeMap.put(nextCountry, txt);
+				        this.pane.getChildren().add(txt);
+					}
+					reader.close();
 				}
 				else{
 					Scanner reader = new Scanner(fileRepresentation);
@@ -1174,173 +1169,125 @@ public class FXUIGameMaster extends Application {
 	 */
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		// TODO fix copy/pasted stub for FXUIGM use
-		//pseudoMain();
-		
 		try{
 			About nAbout = new About();
 			
 			pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
-	        /*pane.setStyle....
-	        * we set the image in the pane based on whether there was an error or not.
-	        *  for reference, please see later in the start() method
-	        * it will be similar to...
-	        * pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");*/
+	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
+	        /*We set the image in the pane based on whether there was an error or not.
+	        * If there was an error, it'll be changed later.*/
 	       
+	        //Facilitate checking for errors...
 	        errorDisplayBit = false;
 	        errorText = "Status...";
-	        
+	        //...which will happen here:
+	        //populate the countries and players, and find out if there was an error doing either activity
 	        pseudoFXUIGameMaster("Countries.txt", null, LOGGING_ON);
-	        //loadPlayers(null);
 	        loadTextNodesForUI("TextNodes.txt");
 	        representPlayersOnUI();
-	        
-	        
-	        //if there is an error on loading necessary resources,
-	        // render the "negated" map image as a visual cue to indicate failure
-	    	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
-	        errorDisplay = new Text(29, 545, errorText);
+	        //now display elements -- status and buttons -- according to whether there was an error!
+	        errorDisplay = new Text(errorText);
 	        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 	        if(errorDisplayBit){errorDisplay.setFill(Color.RED);}
 	        else{errorDisplay.setFill(Color.WHITE);}
-	        	
-	        pane.getChildren().add(errorDisplay);
 	        
-	        //if there was no error, populate the window with appropriate elements
-	        if(!errorDisplayBit){ 
-	        	pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
-	        	
-	        	/*eventTitle = new Text(1350, 515, "Some text\nhere");
-		        eventTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-		        eventTitle.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(eventTitle);*/
-		        
-		        /*roundText = new Text(1460, 450, "");
-		        roundText.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-		        roundText.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(roundText);
-		        
-		        turn = new Text(1425, 470, "");
-		        turn.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-		        turn.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(turn);
-		        
-		        nextLogLine = new Text(600, 1030, "");
-		        nextLogLine.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
-		        nextLogLine.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(nextLogLine);*/
-		        
-		        currentPlayStatus = new Text(29, 580, "H E L L O");
-		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.LIGHT, 24));
-		        currentPlayStatus.setFill(Color.WHITE);
-		        pane.getChildren().add(currentPlayStatus);
-		        
-		        
-		        //your standard About button
-		        Button tellMe = new Button("About");
-		        tellMe.setLayoutX(29);
-		        tellMe.setLayoutY(760);
-		        tellMe.setOnAction(event -> Platform.runLater(new Runnable() {
-				    @Override public void run() {
-				    	nAbout.launch(pane.getScene().getWindow(), false);
-				    	}
-				} ));
-		        pane.getChildren().add(tellMe);
-		        
-		        Button tellMe2 = new Button("more.");
-		        tellMe2.setLayoutX(99);
-		        tellMe2.setLayoutY(760);
-		        tellMe2.setOnAction(event -> Platform.runLater(new Runnable() {
-				    @Override public void run() {
-				    	nAbout.more(pane.getScene().getWindow());
-				    	}
-				} ));
-		        pane.getChildren().add(tellMe2);
-	        	
-		       //Exit the application entirely
-		        Button nextActionBtn = new Button("Lights out!\n(Exit to desktop)");
-		        nextActionBtn.setLayoutX(29);
-		        nextActionBtn.setLayoutY(710);
-		        nextActionBtn.setOnAction(event -> Platform.runLater(new Runnable() {
-				    @Override public void run() {
-				    			primaryStage.close();
-				    			mainWindowExit = true;
-				    	}
-				} ));
-		        pane.getChildren().add(nextActionBtn);
-		        
-		        
-		      //End the current game, but don't close the program.
-		        Button exitApp = new Button("Bow out.\n(End current game)");
-		        exitApp.setLayoutX(29);
-		        exitApp.setLayoutY(655);
-		        exitApp.setOnAction(event -> Platform.runLater(new Runnable() {
-				    @Override public void run() {
-					    	if(crossbar.playerDialogIsActive())
-							{
-								crossbar.getCurrentPlayerDialog().close();
-								crossbar.setCurrentPlayerDialog(null);
-							}
-				    	}
-				} ));
-		        pane.getChildren().add(exitApp);
-		        
-		        
-		        
-		      //Button to initiate the game
-		        Button dsRewindBtn = new Button("Let's go!!\n(Start new game)");
-		        dsRewindBtn.setLayoutX(29);
-		        dsRewindBtn.setLayoutY(600);
-		        dsRewindBtn.setOnAction(event -> Platform.runLater(new Runnable() {
-				    @Override public void run() {
-						  try
-						  {
-							  currentPlayStatus.setText("in play.");
-							  pseudoMain();
-						  }//end try
-						  catch(Exception e)
-						  {	
-							  //todo: in case any uncaught exceptions occur, catch 'em here.
-						  } //end catch	
-				    } //end run
-				} ) ); //end and close new EventHandler
-		        pane.getChildren().add(dsRewindBtn);
-		        
-		        
-	        } 
-	        //layout of buttons displayed upon successful launch ends here.
+	        //The vertical box to contain the major buttons and status.
+	        VBox primaryStatusButtonPanel = new VBox(10);
+	        primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
+	        primaryStatusButtonPanel.setLayoutX(29);
+	        primaryStatusButtonPanel.setLayoutY(525);
+	        primaryStatusButtonPanel.getChildren().add(errorDisplay);
 	        
-	       
-			scrollPane = new ScrollPane();
+        	
+	        currentPlayStatus = new Text("H E L L O");
+	        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
+	        currentPlayStatus.setFill(Color.WHITE);
+	        
+	        
+	        //End the current game, but don't close the program.
+	        Button endGame = new Button("Bow out.\n(End current game)");
+	        endGame.setOnAction(event -> Platform.runLater(() -> {
+		    	if(crossbar.playerDialogIsActive())
+				{
+					crossbar.getCurrentPlayerDialog().close();
+					crossbar.setCurrentPlayerDialog(null);
+				}
+			} ));
+	        
+	        //Button to initiate the game
+	        Button startBtn = new Button("Let's go!!\n(Start new game)");
+	        startBtn.setOnAction(event -> Platform.runLater(() -> {
+			  try
+			  {
+				  currentPlayStatus.setText("in play.");
+				  pseudoMain();
+			  }//end try
+			  catch(Exception e)
+			  {	
+				  // TODO: in case any uncaught exceptions occur, catch 'em here.
+			  }	
+			}));
+	        
+	        //your standard About buttons...
+	        HBox talkToMe = new HBox(15);
+	        Button tellMe = new Button("About");
+	        tellMe.setOnAction(event -> Platform.runLater(() -> nAbout.launch(pane.getScene().getWindow(), false) ));
+	        
+	        //...I said "About buttons". Plural. Yep.	
+	        Button tellMe2 = new Button("more.");
+	        tellMe2.setOnAction(event -> Platform.runLater(() -> nAbout.more(pane.getScene().getWindow()) ));
+	        talkToMe.getChildren().addAll(tellMe, tellMe2);
+	        
+	        //Exit the application entirely
+	        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
+	        exitApp.setOnAction(event -> Platform.runLater(() -> {
+				primaryStage.close();
+				mainWindowExit = true;
+			} ));
+	        
+	        
+	        scrollPane = new ScrollPane();
+	        //tweaks to perform if there was an error...
+	        if(errorDisplayBit){   
+	        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
+	        	currentPlayStatus.setText("------");
+	        	startBtn.setDisable(true);
+	        	endGame.setDisable(true);
+	        }
+	        else{
+				scrollPane.setOnKeyPressed(event -> Platform.runLater( () -> {
+				  try
+				  {
+					  currentPlayStatus.setText("Game started...");
+					  pseudoMain();
+				  }//end try
+				  catch(Exception e)
+				  {	
+				  } //end catch	
+			    }));
+	        }
+	        
+	        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,endGame,exitApp,talkToMe);
+	        //****layout of text & buttons displayed upon launch ends here.***
+	        
+	        pane.getChildren().add(primaryStatusButtonPanel);
 			scrollPane.setContent(pane);
-			if (!errorDisplayBit){
-				scrollPane.setOnKeyPressed(event -> Platform.runLater( new Runnable() {
-					  @Override public void run() {
-				    		  try
-				    		  {
-				    			  currentPlayStatus.setText("Game started...");
-				    			  pseudoMain();
-				    		  }//end try
-				    		  catch(Exception e)
-				    		  {	
-				    		  } //end catch	
-					      }
-					  }));
-			}
+			
+			//one more tweak to perform if there was -no- error
+			if (!errorDisplayBit)
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-			
 	        primaryStage.setScene(scene);
 	        primaryStage.show();
 	        
+	        //go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
 	        nAbout.launch(pane.getScene().getWindow(), true);
 	        
-	        scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){ //some messed up stuff here
-		    	  @Override public void handle(WindowEvent t){
-		    		  mainWindowExit = true;
-		    	  }
-		      });
+	        //Help control what happens when the user tries to exit by telling the app...what...to do.
+	        //In this case, we're telling it "Yes, we're trying to exit from the main window, so display the appropriate dialog.
+	        //That's what this single boolean does.
+	        scene.getWindow().setOnCloseRequest(t -> mainWindowExit = true);
 		}
 		catch (Exception e) {
 			// TODO analyze whether this try-catch is required.
@@ -1432,7 +1379,7 @@ public class FXUIGameMaster extends Application {
 	      });
 	      //textField.setMinHeight(TextField.USE_PREF_SIZE);
 
-	      final VBox layout = new VBox(10);
+	      final VBox layout = new VBox();
 	      layout.setAlignment(Pos.CENTER);
 	      layout.setStyle("-fx-padding: 50;");
 	      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
