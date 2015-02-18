@@ -41,9 +41,13 @@ One important note, this app is built on top of JavaFX, which comes as part of t
 Feel free to clone the repo, write and test your own Players, and send them in (Pull Requests welcome!) to be pitted against others! You can always look at the other Player implementations, but it's highly recommended that you implement your own ideas first!
 
 #Updates [by Albert Wallace]
-###LogPlayer.java, Stamp y2015.mdA18.hmL21 
-added limited error handling for a missing list of valid countries when trying to view later log files, and adds an additional resource to visually indicate an error (secondary map JPG). Internal RISK runtime is left unaffected.
-###LogPlayer.java, Stamp y2015.mdA27.hmS13.sALP
-Alpha build, incorporating rewind and fast-forward capabilities. Attempts to avoid some out-of-bounds errors with auto-correction, in some cases. (Todo: fix bad code!)
-###LogPlayer.java, Stamp y2015.mdA28.hm000.sBET
-Fixes some bugs relative to cache & button control timing, updates layout.
+###Available now: sample UI version of Risk
+You may now download a JAR file (Java 8 likely required) that allows you to play the UI implementation of Risk we've provided.
+###Risk UI code started!
+...The basis of the above JAR file is newly developed code. In addition to the LogPlayer UI by Seth (revised by myself in this branch), there is now code in place for a UI-capable GameMaster and a UI-capable player.
+Together, FXUIGameMaster and FXUIPlayer (with associated helper classes) now offer the luxury of playing through a game of Risk to get an idea of how things go. Basic ability are included, with enhancements to come.
+###LogPlayer UI "updated"
+...before starting the main Risk game UI, I took a look at Seth's original LogPlayer. I iterated upon it, not changing much of the feel (yet) but added some functionality. It is from this that I was able to start FXUIGameMaster, though only some remnants of initial setup from LogPlayer will catch your eye there. So please reviewing previously played games, whether just CPU from GameMaster or including YOU with FXUIGameMaster!
+
+#Thank you!
+###Just a general thank you from me to Seth for all the work he did in the original version, and the enthusiasm he has shown as I have added my two cents on the project. I appreciate it, man.
