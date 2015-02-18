@@ -1,7 +1,11 @@
-/*//Current build Albert Wallace, Version 005, Stamp y2015.mdB17.hm1436.sMNT
-//Base build from original "player" interface, 
-//incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
-//so thanks stackoverflow!*/
+/*FXUI Player Class
+*Albert Wallace, 2015. Version 006, Stamp y2015.mdB17.hm2206.sMNT
+*for Seth Denney's RISK, JavaFX UI-capable version
+*
+*Base build from original "player" interface, 
+*incorporating elements of nothing but http://stackoverflow.com/questions/16823644/java-fx-waiting-for-user-input
+*so thanks stackoverflow!
+**/
 
 package Player;
 import java.util.ArrayList;
@@ -10,7 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import sun.applet.Main;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
@@ -25,12 +28,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.stage.Window;
-
-import customException.OSExitException;
 import Map.Country;
 import Map.RiskMap;
 import Response.AdvanceResponse;
@@ -40,11 +39,19 @@ import Response.DefendResponse;
 import Response.FortifyResponse;
 import Response.ReinforcementResponse;
 import Util.Card;
+import Util.FXUI_Crossbar;
+import Util.OSExitException;
 import Util.RiskConstants;
 import Util.RiskUtils;
 
 /**
- * Encapsulates the functionality required of any automated Risk player.
+ * Encapsulates the UI elements a human may use
+ * 	to respond to the GameMaster as a valid Player.
+ * 
+ * Requires FXUI GameMaster. Not compatible with original GameMaster;
+ * 	implemented UI elements require triggering from active JavaFX application.
+ * 
+ * UI elements are JavaFX, done with Java JDK 8.
  *
  */
 public class FXUIPlayer implements Player {
@@ -55,6 +62,7 @@ public class FXUIPlayer implements Player {
 	private boolean passTurn = false;
 	private boolean turningInNoCards = true;
 	private String attackTarget = "-----", attackSource = "------";
+	private static FXUI_Crossbar crossbar;
 	
 	//to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
 	class doWeExit{
@@ -76,7 +84,9 @@ public class FXUIPlayer implements Player {
 	}
 	private final doWeExit exitDecider = new doWeExit();
 	
-	//_______________________________________________have some class! ...methods. Class methods.
+	/*
+	 * Have some class! ...methods. Class methods.
+	 */
 	
 	public FXUIPlayer() {
 		if (instanceAlreadyCreated)
@@ -98,6 +108,10 @@ public class FXUIPlayer implements Player {
 		}
 	}
 	
+	public void setAsCrossbar(FXUI_Crossbar crossbar)
+	{
+		FXUIPlayer.setCrossbar(crossbar);
+	}
 	
 	/**
 	 * Specify an allocation of the player's initial reinforcements.
@@ -112,6 +126,7 @@ public class FXUIPlayer implements Player {
 	
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements, Window owner) throws OSExitException
 	{
+		crossbar.setPlayerName(getName());
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -127,7 +142,7 @@ public class FXUIPlayer implements Player {
 			      
 			      final VBox layout = new VBox(10);
 			      layout.setAlignment(Pos.CENTER);
-			      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+			      layout.setStyle("-fx-padding: 20;");
 			      /*layout.getChildren().setAll(
 			        textField, 
 			        submitButton
@@ -205,6 +220,7 @@ public class FXUIPlayer implements Player {
 			      
 			      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 			      dialog.setScene(new Scene(layout));
+			      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 			      dialog.showAndWait();
 			      if (exitDecider.getExitStatus())
 			      {
@@ -219,6 +235,7 @@ public class FXUIPlayer implements Player {
 		}
 		finally{
 			reinforcementsApplied = 0;
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		}
 		//return result;
 		return rsp;
@@ -274,7 +291,7 @@ public class FXUIPlayer implements Player {
 		      
 		      final VBox layout = new VBox(10);
 		      layout.setAlignment(Pos.CENTER);
-		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.setStyle("-fx-padding: 20;");
 		      /*layout.getChildren().setAll(
 		        textField, 
 		        submitButton
@@ -309,7 +326,6 @@ public class FXUIPlayer implements Player {
 				    	  @Override public void handle(ActionEvent t){
 				    		  turningInNoCards =  false;
 				    		final Integer cardAffected = (Integer)indexInCards;
-				    		final Card myCard = cdIn;
 				    		if (cardsToTurnIn.containsKey(cardAffected)){
 				    			cardsToTurnIn.remove(cardAffected); 
 				    			cardStatusMapping.get(cardAffected).setText(deselected);
@@ -366,6 +382,7 @@ public class FXUIPlayer implements Player {
 		      
 		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 		      dialog.setScene(new Scene(layout));
+		      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 		      dialog.showAndWait();
 		      if (exitDecider.getExitStatus())
 		      {
@@ -378,6 +395,9 @@ public class FXUIPlayer implements Player {
 		catch(Exception e){
 			System.out.println("turn in ::: " + e);
 		}
+		finally{
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+		}
 		if(turningInNoCards){
 			return null;
 		}
@@ -386,42 +406,6 @@ public class FXUIPlayer implements Player {
 		}
 	}
 	
-	//was to be used in above code should CardTurnInResponse class method fail
-	private void depricatedIsValidCardResponse(){
-		/*if (cardsToTurnIn.size() == RiskConstants.NUM_CARD_TURN_IN)
-		  {
-			  boolean isWild = false;
-			  short card_type_0 = 0, card_type_1 = 0, card_type_2 = 0;
-			  Collection<Card> cardCollectionOut = new ArrayList<Card>();
-			  for (Card cdOut : cardsToTurnIn.values()){
-				cardCollectionOut.add(cdOut);
-				if (cdOut.getType() == RiskConstants.WILD_CARD)
-					isWild = true;
-				else if (cdOut.getType() ==  RiskConstants.REG_CARD_TYPES[0])
-					card_type_0++;
-				else if (cdOut.getType() == RiskConstants.REG_CARD_TYPES[1])
-					card_type_1++;
-				else if (cdOut.getType() == RiskConstants.REG_CARD_TYPES[2])
-					card_type_2++;
-			  }//end of for card loop
-			  if (isWild || card_type_0 == RiskConstants.NUM_CARD_TURN_IN || card_type_1 == RiskConstants.NUM_CARD_TURN_IN || card_type_2 == RiskConstants.NUM_CARD_TURN_IN){
-				  //make a response; we're golden
-			  }
-			  else if (card_type_0 + card_type_1 == 2 || card_type_1 + card_type_2 == 2 || card_type_0 + card_type_2 == 2)
-			  {
-				  //make a response; we're golden
-			  }
-			  else
-			  {
-				  //not a match
-			  }
-			  dialog.close();
-		  }
-		  else{
-			  statusText.setText("invalid selection.");
-			  //updateReinforcementCountGIA(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
-		  }*/
-	}
 	
 	/**
 	 * Specify an allocation of the player's reinforcements.
@@ -457,7 +441,7 @@ public class FXUIPlayer implements Player {
 			      
 			      final VBox layout = new VBox(10);
 			      layout.setAlignment(Pos.CENTER);
-			      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+			      layout.setStyle("-fx-padding: 20;");
 			      /*layout.getChildren().setAll(
 			        textField, 
 			        submitButton
@@ -483,7 +467,6 @@ public class FXUIPlayer implements Player {
 						countryUsedReinforcementCount.put(ctIn.getName(), 0);
 						countryTextCache.put(ctIn.getName(), new Text(ctIn.getName() + " + 0"));
 						singleCountryDisp.getChildren().add(countryTextCache.get(ctIn.getName()));
-						final Button ctBtn = new Button(ctIn.getName());
 						//button to increment reinforcement count for selected country
 					    Button plus = new Button ("+");
 					    plus.setOnAction(new EventHandler<ActionEvent>(){
@@ -538,6 +521,7 @@ public class FXUIPlayer implements Player {
 			      
 			      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 			      dialog.setScene(new Scene(layout));
+			      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 			      dialog.showAndWait();
 			
 			      if (exitDecider.getExitStatus())
@@ -553,6 +537,7 @@ public class FXUIPlayer implements Player {
 		}
 		finally{
 			reinforcementsApplied = 0;
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		}
 		//return result;
 		return rsp;
@@ -625,7 +610,7 @@ public class FXUIPlayer implements Player {
 		      
 		      final VBox layout = new VBox(10);
 		      layout.setAlignment(Pos.CENTER);
-		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.setStyle("-fx-padding: 20;");
 		      
 		      
 		      //Generic instructions for reinforcement
@@ -736,7 +721,7 @@ public class FXUIPlayer implements Player {
 		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 		      spane.setContent(layout);
 		      dialog.setScene(new Scene(spane));
-		      //dialog.show();
+		      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 		      dialog.showAndWait();
 		      if (exitDecider.getExitStatus())
 		      {
@@ -753,6 +738,7 @@ public class FXUIPlayer implements Player {
 		finally{
 			attackSource = "-----";
 			attackTarget = "-----";
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		}
 		if(passTurn){
 			passTurn = !passTurn;
@@ -875,12 +861,13 @@ public class FXUIPlayer implements Player {
 		      
 		      final VBox layout = new VBox(10);
 		      layout.setAlignment(Pos.CENTER);
-		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.setStyle("-fx-padding: 20;");
 		      layout.getChildren().setAll(
 		        countryCounts, allocationButtons,acceptanceStatus, acceptance
 		      );
 
 		      dialog.setScene(new Scene(layout));
+		      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 		      dialog.showAndWait();
 
 		      if (exitDecider.getExitStatus())
@@ -893,6 +880,9 @@ public class FXUIPlayer implements Player {
 		}	
 		catch(Exception e){
 			System.out.println("advance ::: " + e);
+		}
+		finally{
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		}
 		return rsp;
 	}
@@ -949,7 +939,7 @@ public class FXUIPlayer implements Player {
 		      
 		      final VBox layout = new VBox(10);
 		      layout.setAlignment(Pos.CENTER);
-		      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.setStyle("-fx-padding: 20;");
 		      
 		      
 		      //Generic instructions for reinforcement
@@ -1066,7 +1056,7 @@ public class FXUIPlayer implements Player {
 		      //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 		      spane.setContent(layout);
 		      dialog.setScene(new Scene(spane));
-		      //dialog.show();
+		      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 		      dialog.showAndWait();
 		      if (exitDecider.getExitStatus())
 		      {
@@ -1079,8 +1069,9 @@ public class FXUIPlayer implements Player {
 		catch(Exception e){
 			System.out.println("fortify ::: " + e);
 		}
-	
-		
+		finally{
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+		}
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -1110,6 +1101,8 @@ public class FXUIPlayer implements Player {
 		// TODO this stolen from seth's cpu. must find a way to jiggle & juggle these bits later.
 	}
 	
+	
+	//consider this a template of how to create a dialog window with this class and the necessary FXUIGM
 	public String testRequiredInputPrompt(Window owner) {
 			System.out.println("Hi Hi HIII");
 			String result = "";
@@ -1143,19 +1136,20 @@ public class FXUIPlayer implements Player {
 
 	      final VBox layout = new VBox(10);
 	      layout.setAlignment(Pos.CENTER_RIGHT);
-	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+	      layout.setStyle("-fx-padding: 20;");
 	      layout.getChildren().setAll(
 	        textField, 
 	        submitButton
 	      );
 
 	      dialog.setScene(new Scene(layout));
+	      FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	      dialog.showAndWait();
-
 	      result = textField.getText();
 	      
 	      }
 		catch(Exception e){System.out.println(e);}
+		finally{FXUIPlayer.crossbar.setCurrentPlayerDialog(null);}
 		return result;
 	      
 	    }
@@ -1166,5 +1160,21 @@ public class FXUIPlayer implements Player {
 	 */
 	public String getName(){
 		return this.name;
+	}
+
+	/**
+	 * Getter for the FXUI GameMaster-Player Crossbar
+	 * @return crossbar, the desired crossbar, static across all instances.
+	 */
+	public static FXUI_Crossbar getCrossbar() {
+		return crossbar;
+	}
+
+	/**
+	 * Setter for the FXUI GameMaster-Player Crossbar
+	 * @param crossbar, the crossbar to use, static across all instances.
+	 */
+	public static void setCrossbar(FXUI_Crossbar crossbar) {
+		FXUIPlayer.crossbar = crossbar;
 	}
 }

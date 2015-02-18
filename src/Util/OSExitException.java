@@ -1,11 +1,16 @@
+//FXUI Gamemaster-Player Custom Exception: "OS Exit"
 //Current build Albert Wallace, Version 001, Stamp y2015.mdB17.hm1436.sFIN
+//for Seth Denney's RISK, JavaFX UI-capable version
 
-package customException;
+package Util;
 
+
+//represents the exception to be thrown if the player
+// attempts to exit the program, to allow proper steps to be taken
 public class OSExitException extends Exception {
 
 	/**
-	 * Though I doubt I will serialize this, it doesn't hurt... --Albert
+	 * Random serial...
 	 */
 	private static final long serialVersionUID = 5050585206155180982L;
 

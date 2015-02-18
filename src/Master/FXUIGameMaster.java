@@ -1,49 +1,43 @@
-//Current build Albert Wallace, Version 005, Stamp y2015.mdB17.hm1530.sMNT
-//Base build by Seth Denney, Sept 10 2014 
+/*FXUI GameMaster Class
+*Albert Wallace, 2015. Version 007, Stamp y2015.mdB17.hm2313.sMNT
+*for Seth Denney's RISK, JavaFX UI-capable version
+*
+*Base build from original GameMaster class implementation, by Seth Denney, Sept 10 2014 
+*/
 
-// TODO make custom exception to allow user to exit the game without valid response
 
 package Master;
 
+import java.awt.Desktop;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Map.Entry;
 import java.util.Scanner;
-import java.util.Set;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.HPos;
 import javafx.geometry.Pos;
-import javafx.geometry.VPos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.ScrollPane.ScrollBarPolicy;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.RowConstraints;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -53,12 +47,8 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
-import javafx.util.Duration;
-import customException.OSExitException;
-import Map.Continent;
 import Map.Country;
 import Map.RiskMap;
-import Player.EasyDefaultPlayer;
 import Player.FXUIPlayer;
 import Player.HardDefaultPlayer;
 import Player.NormalDefaultPlayer;
@@ -72,11 +62,25 @@ import Response.FortifyResponse;
 import Response.ReinforcementResponse;
 import Util.Card;
 import Util.DiceRoller;
+import Util.FXUI_Crossbar;
+import Util.OSExitException;
 import Util.PlayerEliminatedException;
 import Util.RiskConstants;
 import Util.RiskUtils;
 import Util.RollOutcome;
 
+/**
+ * Represents the primary game controller for a game of Risk.
+ * 	Asks for necessary responses and makes necessary decisions,
+ * 	acting as a trigger for any Player objects added.
+ * 
+ * Compatible with original CPU opponents (Player), as well as
+ * 	a human player through FXUI Player (FXUIPlayer) type.
+ * 
+ * 
+ * UI elements are JavaFX, done with Java JDK 8.
+ *
+ */
 public class FXUIGameMaster extends Application {
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
@@ -86,6 +90,7 @@ public class FXUIGameMaster extends Application {
 	protected static final boolean LOGGING_OFF = false;
 	protected static final boolean LOGGING_ON = true;
 	protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
+	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
 	protected RiskMap map;
 	protected Deque<Card> deck;
 	protected List<String> players;
@@ -103,7 +108,6 @@ public class FXUIGameMaster extends Application {
 	private ScrollPane scrollPane;
     private Scene scene;
     private Pane pane;
-    private Text eventTitle;
     private Text roundText;
     private Text turn;
     private Text nextLogLine;
@@ -117,6 +121,7 @@ public class FXUIGameMaster extends Application {
     private boolean proceedWithExit = false;
     private boolean mainWindowExit = false;
     
+    
     /*
      * If the app detects a call from the system to exit the program, and it's from a dialog window, handle the call by...asking if we really want to exit
      */
@@ -127,22 +132,28 @@ public class FXUIGameMaster extends Application {
 		try{
 	      final Stage dialog = new Stage();
 	      
-	      dialog.setTitle("BYE");
+	      dialog.setTitle("bye bye?");
 	      dialog.initOwner(owner);
 	      dialog.setX(owner.getX());
 	      dialog.setY(owner.getY());
 	      
-	      final Text queryText = new Text("Did you want to end the game?");
+	      final Text queryText = new Text("Did you want to end the game?\n(Your progress will NOT be saved!)");
 	      queryText.setTextAlignment(TextAlignment.CENTER);
 	      
 	      if(mainWindowExit)
 	      {
-	    	  queryText.setText("Application fully exiting;\nyou ready?");
+	    	  queryText.setText("Application fully exiting;\nShall we go?");
 	      }
 	      final Button yeah = new Button("Yes");
 	      yeah.setOnAction(new EventHandler<ActionEvent>() {
 	        @Override public void handle(ActionEvent t) {
+	        	crossbar.signalPlayerEndingGame();
 	        	proceedWithExit = true;
+	        	if(!mainWindowExit)
+	  	      {
+	  	    	  currentPlayStatus.setText("I D L E");
+	  	      }
+	  	      
 	          dialog.close();
 	        }
 	      });
@@ -303,13 +314,23 @@ public class FXUIGameMaster extends Application {
 					}
 				}
 				catch(OSExitException e){
+					if(crossbar.playerDialogIsActive())
+					{
+						crossbar.getCurrentPlayerDialog().close();
+						crossbar.setCurrentPlayerDialog(null);
+					}
 					attempts = doYouWantToMakeAnExit(attempts);
 				}
 			}
 			
-			if (!valid) {
+			if (!valid || (crossbar.isPlayerBowingOut() && player.getName() == crossbar.getPlayerName())) {
 				try {
+					if(!valid){
 					eliminate(player, null, "You failed to provide a valid initial army allocation.");
+					}
+					else{
+						eliminate(player, null, "Player decided the game isn't for them right now. No worries.");
+					}
 				}
 				catch (PlayerEliminatedException e) {
 					playerIndex = 0;
@@ -350,11 +371,19 @@ public class FXUIGameMaster extends Application {
 			}
 			catch(OSExitException e)
 			{
+				if(crossbar.playerDialogIsActive())
+				{
+					crossbar.getCurrentPlayerDialog().close();
+					crossbar.setCurrentPlayerDialog(null);
+				}
 				attempts = doYouWantToMakeAnExit(attempts);
 			}
 		}
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
+		}
+		else if(crossbar.isPlayerBowingOut()) {
+			eliminate(currentPlayer, null, "Player decided to leave. Come back any time, friend!");
 		}
 		writeLogLn(EVENT_DELIM);
 	}
@@ -420,6 +449,10 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(defender, null, "You failed to provide a valid defense response.");
 		}
+		else if(crossbar.isPlayerBowingOut() && defender.getName() == crossbar.getPlayerName())
+		{
+			eliminate(defender, null, "This defender wants a break. Go ahead, friend. You deserve it.");
+		}
 		return rsp;
 	}
 	
@@ -477,6 +510,10 @@ public class FXUIGameMaster extends Application {
 		}
 		if (!valid) {
 			eliminate(attacker, null, "You failed to provide a valid advance response.");
+		}
+		else if (crossbar.isPlayerBowingOut() && crossbar.getPlayerName() == attacker.getName())
+		{
+			eliminate(attacker, null, "The advancer decided to take a break. 'S OK. Get some cookies. Or hot cocoa.");
 		}
 	}
 	
@@ -544,6 +581,11 @@ public class FXUIGameMaster extends Application {
 			
 		}
 		catch(OSExitException e){
+			if(crossbar.playerDialogIsActive())
+			{
+				crossbar.getCurrentPlayerDialog().close();
+				crossbar.setCurrentPlayerDialog(null);
+			}
 			throw e;
 		}
 		catch (Exception e) {
@@ -567,6 +609,11 @@ public class FXUIGameMaster extends Application {
 			}
 		}
 		catch(OSExitException e){
+			if(crossbar.playerDialogIsActive())
+			{
+				crossbar.getCurrentPlayerDialog().close();
+				crossbar.setCurrentPlayerDialog(null);
+			}
 			throw e;
 		}
 		catch (Exception e) {
@@ -758,12 +805,20 @@ public class FXUIGameMaster extends Application {
 				System.out.println(attempts);
 			}
 			catch(OSExitException e){
+				if(crossbar.playerDialogIsActive())
+				{
+					crossbar.getCurrentPlayerDialog().close();
+					crossbar.setCurrentPlayerDialog(null);
+				}
 				attempts = doYouWantToMakeAnExit(attempts);
 				System.out.println("gCTI ::: " + e);
 			}
 		}
 		if (!valid && turnInRequired) {
 			eliminate(currentPlayer, null, "You were required to turn in cards this turn, and you failed to do so.");
+		}
+		else if(crossbar.isPlayerBowingOut() && currentPlayer.getName() == crossbar.getPlayerName()){
+			eliminate(currentPlayer, null, "The player is opting out of the game altogether. Have a good day, buddy.");
 		}
 		return cardBonus;
 	}
@@ -848,6 +903,7 @@ public class FXUIGameMaster extends Application {
 		this.allPlayers.add("Seth 1");
 		
 		this.playerMap.put("FXUIPlayer", new FXUIPlayer("FXUIPlayer"));
+		FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
 		this.allPlayers.add("FXUIPlayer");
 //		
 //		this.playerMap.put("Seth 3", new Seth("Seth 3"));
@@ -1009,8 +1065,8 @@ public class FXUIGameMaster extends Application {
 			for (String playerName : this.allPlayers)
 			{
 				this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
-				Text txt = new Text(200 * (i) + 50, 20, playerName);
-				txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+				Text txt = new Text(200 * (i) + 50, 20, "∎"+playerName.toLowerCase());
+				txt.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 				txt.setFill(colors.get((i) % colors.size()));
 				this.pane.getChildren().add(txt);
 			}
@@ -1108,17 +1164,22 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	public void throwingEndGameException() throws OSExitException
-	{
-		throw new OSExitException("Main window button pressed; end game?");
-	}
-
+	
+	/**
+	 * Get your life in the form of a game!
+	 * This method is the point at which the JavaFX items are populated on the main map screen.
+	 * 
+	 * Extra dialogs are further prompted elsewhere, depending on their needs/uses.
+	 * (In this file is the method to present an exit confirmation dialog, as is the class representing the About dialog.)
+	 */
 	@Override
 	public void start(Stage primaryStage) throws Exception {
 		// TODO fix copy/pasted stub for FXUIGM use
 		//pseudoMain();
 		
 		try{
+			About nAbout = new About();
+			
 			pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
 	        /*pane.setStyle....
@@ -1139,8 +1200,8 @@ public class FXUIGameMaster extends Application {
 	        //if there is an error on loading necessary resources,
 	        // render the "negated" map image as a visual cue to indicate failure
 	    	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
-	        errorDisplay = new Text(29, 560, errorText);
-	        errorDisplay.setFont(Font.font("Verdana", FontWeight.BOLD, 24));
+	        errorDisplay = new Text(29, 545, errorText);
+	        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 	        if(errorDisplayBit){errorDisplay.setFill(Color.RED);}
 	        else{errorDisplay.setFill(Color.WHITE);}
 	        	
@@ -1149,12 +1210,13 @@ public class FXUIGameMaster extends Application {
 	        //if there was no error, populate the window with appropriate elements
 	        if(!errorDisplayBit){ 
 	        	pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
-	        	eventTitle = new Text(1350, 515, "Some text\nhere");
+	        	
+	        	/*eventTitle = new Text(1350, 515, "Some text\nhere");
 		        eventTitle.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 		        eventTitle.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(eventTitle);
+		        pane.getChildren().add(eventTitle);*/
 		        
-		        roundText = new Text(1460, 450, "");
+		        /*roundText = new Text(1460, 450, "");
 		        roundText.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 		        roundText.setFill(Color.LIGHTGRAY);
 		        pane.getChildren().add(roundText);
@@ -1167,19 +1229,39 @@ public class FXUIGameMaster extends Application {
 		        nextLogLine = new Text(600, 1030, "");
 		        nextLogLine.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 		        nextLogLine.setFill(Color.LIGHTGRAY);
-		        pane.getChildren().add(nextLogLine);
+		        pane.getChildren().add(nextLogLine);*/
 		        
-		        currentPlayStatus = new Text(29, 600, "Limited UI available;\nbugs abound;\nProceed w/ caution!");
-		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.BOLD, 40));
+		        currentPlayStatus = new Text(29, 580, "H E L L O");
+		        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.LIGHT, 24));
 		        currentPlayStatus.setFill(Color.WHITE);
 		        pane.getChildren().add(currentPlayStatus);
 		        
 		        
+		        //your standard About button
+		        Button tellMe = new Button("About");
+		        tellMe.setLayoutX(29);
+		        tellMe.setLayoutY(760);
+		        tellMe.setOnAction(event -> Platform.runLater(new Runnable() {
+				    @Override public void run() {
+				    	nAbout.launch(pane.getScene().getWindow(), false);
+				    	}
+				} ));
+		        pane.getChildren().add(tellMe);
+		        
+		        Button tellMe2 = new Button("more.");
+		        tellMe2.setLayoutX(99);
+		        tellMe2.setLayoutY(760);
+		        tellMe2.setOnAction(event -> Platform.runLater(new Runnable() {
+				    @Override public void run() {
+				    	nAbout.more(pane.getScene().getWindow());
+				    	}
+				} ));
+		        pane.getChildren().add(tellMe2);
 	        	
-		       //The original single-seek/step-through "Next Event" button 
-		        Button nextActionBtn = new Button("\"Safe\" close");
+		       //Exit the application entirely
+		        Button nextActionBtn = new Button("Lights out!\n(Exit to desktop)");
 		        nextActionBtn.setLayoutX(29);
-		        nextActionBtn.setLayoutY(770);
+		        nextActionBtn.setLayoutY(710);
 		        nextActionBtn.setOnAction(event -> Platform.runLater(new Runnable() {
 				    @Override public void run() {
 				    			primaryStage.close();
@@ -1189,28 +1271,32 @@ public class FXUIGameMaster extends Application {
 		        pane.getChildren().add(nextActionBtn);
 		        
 		        
-		      //The original single-seek/step-through "Next Event" button 
-		        Button exitApp = new Button("Force close");
+		      //End the current game, but don't close the program.
+		        Button exitApp = new Button("Bow out.\n(End current game)");
 		        exitApp.setLayoutX(29);
-		        exitApp.setLayoutY(870);
+		        exitApp.setLayoutY(655);
 		        exitApp.setOnAction(event -> Platform.runLater(new Runnable() {
 				    @Override public void run() {
-				    			  System.exit(0);
+					    	if(crossbar.playerDialogIsActive())
+							{
+								crossbar.getCurrentPlayerDialog().close();
+								crossbar.setCurrentPlayerDialog(null);
+							}
 				    	}
 				} ));
 		        pane.getChildren().add(exitApp);
 		        
 		        
-		      //Button to initiate the game
-		        Button dsRewindBtn = new Button("Start Game");
-		        dsRewindBtn.setLayoutX(29);
-		        dsRewindBtn.setLayoutY(730);
 		        
+		      //Button to initiate the game
+		        Button dsRewindBtn = new Button("Let's go!!\n(Start new game)");
+		        dsRewindBtn.setLayoutX(29);
+		        dsRewindBtn.setLayoutY(600);
 		        dsRewindBtn.setOnAction(event -> Platform.runLater(new Runnable() {
 				    @Override public void run() {
 						  try
 						  {
-							  currentPlayStatus.setText("Game\nstarted.");
+							  currentPlayStatus.setText("in play.");
 							  pseudoMain();
 						  }//end try
 						  catch(Exception e)
@@ -1222,7 +1308,8 @@ public class FXUIGameMaster extends Application {
 		        pane.getChildren().add(dsRewindBtn);
 		        
 		        
-	        } //END: layout of buttons displayed upon successful launch ends here.
+	        } 
+	        //layout of buttons displayed upon successful launch ends here.
 	        
 	       
 			scrollPane = new ScrollPane();
@@ -1243,10 +1330,11 @@ public class FXUIGameMaster extends Application {
 			}
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-		
 			
 	        primaryStage.setScene(scene);
 	        primaryStage.show();
+	        
+	        nAbout.launch(pane.getScene().getWindow(), true);
 	        
 	        scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){ //some messed up stuff here
 		    	  @Override public void handle(WindowEvent t){
@@ -1261,7 +1349,6 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	class MissingTextPrompt {
-	    private final String result;
 
 	    MissingTextPrompt(Window owner) {
 	      final Stage dialog = new Stage();
@@ -1294,13 +1381,154 @@ public class FXUIGameMaster extends Application {
 
 	      dialog.setScene(new Scene(layout));
 	      dialog.showAndWait();
-
-	      result = textField.getText();
 	    }
 
-	    private String getResult() {
-	      return result;
+	}
+	    
+    class About {
+
+	    About(){
 	    }
+	    
+	    public void launch(Window owner, boolean autoExit) {
+	      final Stage dialog = new Stage();
+
+	      dialog.setTitle("Hi, friend. :D");
+	      dialog.initOwner(owner);
+	      //dialog.initStyle(StageStyle.UTILITY);
+	      //dialog.initModality(Modality.WINDOW_MODAL);
+	      dialog.setX(owner.getX());
+	      dialog.setY(owner.getY() + 300);
+
+	      final Text info1= new Text();
+	      info1.setText(":::\n\nRISK!\nor\nconquest of the modern Mercator");
+	      info1.setTextAlignment(TextAlignment.CENTER);
+	      info1.setFont(Font.font("Arial", FontWeight.THIN, 16));
+	      
+	      final Hyperlink hlink = new Hyperlink(":::");
+	      hlink.setOnAction(new EventHandler<ActionEvent>() {
+	    	  @Override public void handle(ActionEvent t){
+	    		  try {
+	    	            Desktop.getDesktop().browse(new URI("http://xkcd.com/977/"));
+	    	        } catch (IOException e1) {
+	    	            e1.printStackTrace();
+	    	        } catch (URISyntaxException e1) {
+	    	            e1.printStackTrace();
+	    	        }
+	    	  }
+	      });
+	      
+	      final Text info2= new Text();
+	      info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n:D\n\n:::::::");
+	      info2.setTextAlignment(TextAlignment.CENTER);
+	      info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
+	      
+	      final Button submitButton = new Button("OK");
+	      submitButton.setDefaultButton(true);
+	      submitButton.setOnAction(new EventHandler<ActionEvent>() {
+	        @Override public void handle(ActionEvent t) {
+	          dialog.close();
+	        }
+	      });
+	      //textField.setMinHeight(TextField.USE_PREF_SIZE);
+
+	      final VBox layout = new VBox(10);
+	      layout.setAlignment(Pos.CENTER);
+	      layout.setStyle("-fx-padding: 50;");
+	      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+	      layout.getChildren().setAll(
+	        info1, hlink, info2,
+	        submitButton
+	      );
+
+	      dialog.setScene(new Scene(layout));
+	      dialog.show();
+	      if(autoExit)
+	      {
+	    	  Runnable task = () -> {
+        		  try
+        		  {
+        			  Thread.sleep(5000);
+        			  Platform.runLater(new Runnable()
+						{
+        				  @Override public void run(){
+							dialog.close();
+						} 
+						});
+        		  }//end try
+        		  catch(Exception e)
+        		  {	
+        		  } //end catch	
+    	     };
+	    	Thread th = new Thread(task);
+	    	th.setDaemon(true);
+	    	th.start();
+	      }
+	    }
+	    public void more(Window owner) {
+		      final Stage dialog = new Stage();
+
+		      dialog.setTitle("more.");
+		      dialog.initOwner(owner);
+		      //dialog.initStyle(StageStyle.UTILITY);
+		      //dialog.initModality(Modality.WINDOW_MODAL);
+		      dialog.setX(owner.getX());
+		      dialog.setY(owner.getY() + 300);
+
+		      
+		      final Hyperlink hlinkD = new Hyperlink("denney");
+		      hlinkD.setOnAction(new EventHandler<ActionEvent>() {
+		    	  @Override public void handle(ActionEvent t){
+		    		  try {
+		    	            Desktop.getDesktop().browse(new URI("http://github.com/sethau"));
+		    	        } catch (IOException e1) {
+		    	            e1.printStackTrace();
+		    	        } catch (URISyntaxException e1) {
+		    	            e1.printStackTrace();
+		    	        }
+		    	  }
+		      });
+		      
+		      final Hyperlink hlinkW = new Hyperlink("wallace");
+		      hlinkW.setOnAction(new EventHandler<ActionEvent>() {
+		    	  @Override public void handle(ActionEvent t){
+		    		  try {
+		    	            Desktop.getDesktop().browse(new URI("http://github.com/aewallace"));
+		    	        } catch (IOException e1) {
+		    	            e1.printStackTrace();
+		    	        } catch (URISyntaxException e1) {
+		    	            e1.printStackTrace();
+		    	        }
+		    	  }
+		      });
+		      
+		      final Text bridge2= new Text();
+		      bridge2.setText("\n\n:::::::\n2015\n:::::::\n\n");
+		      bridge2.setTextAlignment(TextAlignment.CENTER);
+		      bridge2.setFont(Font.font("Arial", FontWeight.THIN, 12));
+		      
+		      final Button submitButton = new Button("OK");
+		      submitButton.setDefaultButton(true);
+		      submitButton.setOnAction(new EventHandler<ActionEvent>() {
+		        @Override public void handle(ActionEvent t) {
+		          dialog.close();
+		        }
+		      });
+		      //textField.setMinHeight(TextField.USE_PREF_SIZE);
+
+		      final VBox layout = new VBox(10);
+		      layout.setAlignment(Pos.CENTER);
+		      layout.setStyle("-fx-padding: 50;");
+		      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+		      layout.getChildren().setAll(
+		        hlinkD, bridge2, hlinkW,
+		        submitButton
+		      );
+
+		      dialog.setScene(new Scene(layout));
+		      dialog.showAndWait();
+		    }
+
 	  }
 	
 }
