@@ -1,5 +1,5 @@
 /*FXUI GameMaster Class
-*Albert Wallace, 2015. Version 007, Stamp y2015.mdB18.hm1526.sMNT
+*Albert Wallace, 2015. Version info now found in class definition.
 *for Seth Denney's RISK, JavaFX UI-capable version
 *
 *Base build from original GameMaster class implementation, by Seth Denney, Sept 10 2014 
@@ -12,6 +12,7 @@ import java.awt.Desktop;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -26,23 +27,32 @@ import java.util.Scanner;
 
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
+import javafx.scene.transform.Scale;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
@@ -82,6 +92,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
+	public static final String versionInfo = "FXUI-RISK\nVersion REL00-GH08\nStamp Y2015.M02.D21.HM0000\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	protected static final String LOGFILE = "LOG.txt";
@@ -91,6 +102,7 @@ public class FXUIGameMaster extends Application {
 	protected static final boolean LOGGING_ON = true;
 	protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
+	private static Stage myStage;
 	protected RiskMap map;
 	protected Deque<Card> deck;
 	protected List<String> players;
@@ -117,6 +129,8 @@ public class FXUIGameMaster extends Application {
     private int numGames = 1;
     private boolean proceedWithExit = false;
     private boolean mainWindowExit = false;
+    
+    // TODO analyze viability of serialization vs using the already-existing log
     
     
     /*
@@ -1171,16 +1185,29 @@ public class FXUIGameMaster extends Application {
 	public void start(Stage primaryStage) throws Exception {
 		try{
 			About nAbout = new About();
+			myStage = primaryStage;
+			
+			
+			double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
+			double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
+			System.out.println("Width first set: " + widthOfPriScreen + " :: Height first set: " + heightOfPriScreen);
 			
 			pane = new Pane();
-	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
-	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
+	        pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+	        pane.setStyle("-fx-background-color: blue");
 	        /*We set the image in the pane based on whether there was an error or not.
 	        * If there was an error, it'll be changed later.*/
 	       
 	        //Facilitate checking for errors...
 	        errorDisplayBit = false;
 	        errorText = "Status...";
+	        
+	        //pre-load the error background, just in case...
+	        Image imageE = new Image("RiskBoardAE.jpg",true);
+            ImageView im0 = new ImageView();
+            im0.setImage(imageE);
+            pane.getChildren().add(im0);
+            
 	        //...which will happen here:
 	        //populate the countries and players, and find out if there was an error doing either activity
 	        pseudoFXUIGameMaster("Countries.txt", null, LOGGING_ON);
@@ -1189,8 +1216,16 @@ public class FXUIGameMaster extends Application {
 	        //now display elements -- status and buttons -- according to whether there was an error!
 	        errorDisplay = new Text(errorText);
 	        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
-	        if(errorDisplayBit){errorDisplay.setFill(Color.RED);}
-	        else{errorDisplay.setFill(Color.WHITE);}
+	        if(errorDisplayBit)
+	        {
+	        	errorDisplay.setFill(Color.RED);
+	        }
+	        else
+	        {
+	        	errorDisplay.setFill(Color.WHITE);
+	        	Image imageOK = new Image("RiskBoard.jpg", true);
+                im0.setImage(imageOK);
+	        }
 	        
 	        //The vertical box to contain the major buttons and status.
 	        VBox primaryStatusButtonPanel = new VBox(10);
@@ -1247,16 +1282,15 @@ public class FXUIGameMaster extends Application {
 			} ));
 	        
 	        
-	        scrollPane = new ScrollPane();
+	        
 	        //tweaks to perform if there was an error...
-	        if(errorDisplayBit){   
-	        	pane.setStyle("-fx-background-image: url(\"RiskBoardAE.jpg\")");
+	        if(errorDisplayBit){
 	        	currentPlayStatus.setText("------");
 	        	startBtn.setDisable(true);
 	        	endGame.setDisable(true);
 	        }
 	        else{
-				scrollPane.setOnKeyPressed(event -> Platform.runLater( () -> {
+				pane.setOnKeyPressed(event -> Platform.runLater( () -> {
 				  try
 				  {
 					  currentPlayStatus.setText("Game started...");
@@ -1272,12 +1306,29 @@ public class FXUIGameMaster extends Application {
 	        //****layout of text & buttons displayed upon launch ends here.***
 	        
 	        pane.getChildren().add(primaryStatusButtonPanel);
-			scrollPane.setContent(pane);
+	        
+
+			// DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+			scene = new Scene(pane,widthOfPriScreen, heightOfPriScreen);
+		
 			
 			//one more tweak to perform if there was -no- error
-			if (!errorDisplayBit)
+			scene.widthProperty().addListener(new ChangeListener<Number>() {
+                @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
+                    System.out.println("Width: " + newSceneWidth);
+                    resize(null);
+                }
+            });
+            scene.heightProperty().addListener(new ChangeListener<Number>() {
+                @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
+                    System.out.println("Height: " + newSceneHeight);
+                    resize(null);
+                }
+            });
 			
-			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+			
+            resize(primaryStage);
+			primaryStage.setTitle("RISK!");
 	        primaryStage.setScene(scene);
 	        primaryStage.show();
 	        
@@ -1294,6 +1345,44 @@ public class FXUIGameMaster extends Application {
 		}
 		
 	}
+	
+	private void resize(Stage stageIn)
+    {
+        double currLiveRatio = scene.getWidth()/scene.getHeight();
+        double targetRatio = (double)(DEFAULT_APP_WIDTH)/(double)(DEFAULT_APP_HEIGHT);
+        double newWidth = 0;
+        double newHeight = 0;
+        
+        
+        if (currLiveRatio <= targetRatio) //wider than high; limit by height
+        {
+            newWidth = scene.getWidth();
+            newHeight = scene.getWidth() / targetRatio;
+            Scale scale = new Scale(newWidth/(DEFAULT_APP_WIDTH), newWidth/(DEFAULT_APP_WIDTH));
+            scale.setPivotX(0);
+            scale.setPivotY(0);
+            scene.getRoot().getTransforms().setAll(scale);
+            if(stageIn != null){
+            	stageIn.setHeight(newHeight);
+            }
+
+        }
+        else //higher than wide; limit by width
+        {
+            newHeight = scene.getHeight();
+            newWidth = scene.getHeight() * targetRatio;
+            Scale scale = new Scale(newHeight/(DEFAULT_APP_HEIGHT), newHeight/(DEFAULT_APP_HEIGHT));
+            scale.setPivotX(0);
+            scale.setPivotY(0);
+            scene.getRoot().getTransforms().setAll(scale);
+            if(stageIn != null){
+            	stageIn.setWidth(newWidth);
+            	
+            }
+            
+        }
+      
+    }
 	
 	class MissingTextPrompt {
 
@@ -1424,6 +1513,7 @@ public class FXUIGameMaster extends Application {
 
 		      
 		      final Hyperlink hlinkD = new Hyperlink("denney");
+		      hlinkD.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
 		      hlinkD.setOnAction(new EventHandler<ActionEvent>() {
 		    	  @Override public void handle(ActionEvent t){
 		    		  try {
@@ -1437,6 +1527,7 @@ public class FXUIGameMaster extends Application {
 		      });
 		      
 		      final Hyperlink hlinkW = new Hyperlink("wallace");
+		      hlinkW.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
 		      hlinkW.setOnAction(new EventHandler<ActionEvent>() {
 		    	  @Override public void handle(ActionEvent t){
 		    		  try {
@@ -1449,10 +1540,13 @@ public class FXUIGameMaster extends Application {
 		    	  }
 		      });
 		      
-		      final Text bridge2= new Text();
-		      bridge2.setText("\n\n:::::::\n2015\n:::::::\n\n");
+		      final Text bridge2= new Text("\n\n:::::::\n2015\n:::::::\n\n");
 		      bridge2.setTextAlignment(TextAlignment.CENTER);
-		      bridge2.setFont(Font.font("Arial", FontWeight.THIN, 12));
+		      bridge2.setFont(Font.font("Arial", FontWeight.THIN, 16));
+		      
+		      final Text deepVersionInfo= new Text(versionInfo + "\n\n");
+		      deepVersionInfo.setTextAlignment(TextAlignment.CENTER);
+		      deepVersionInfo.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		      
 		      final Button submitButton = new Button("OK");
 		      submitButton.setDefaultButton(true);
@@ -1468,6 +1562,7 @@ public class FXUIGameMaster extends Application {
 		      layout.setStyle("-fx-padding: 50;");
 		      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
 		      layout.getChildren().setAll(
+		    	deepVersionInfo,
 		        hlinkD, bridge2, hlinkW,
 		        submitButton
 		      );

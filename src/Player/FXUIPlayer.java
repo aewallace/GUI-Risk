@@ -155,7 +155,7 @@ public class FXUIPlayer implements Player {
 			      guideText.setTextAlignment(TextAlignment.CENTER);
 			      layout.getChildren().add(guideText);
 			      
-			      //status text: total reinforcements available, reinf used, reinf available.
+			      //status: total reinforcements available, reinf used, reinf available.
 			      Text statusText = new Text();
 			      statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 			      
@@ -292,10 +292,6 @@ public class FXUIPlayer implements Player {
 		      final VBox layout = new VBox(10);
 		      layout.setAlignment(Pos.CENTER);
 		      layout.setStyle("-fx-padding: 20;");
-		      /*layout.getChildren().setAll(
-		        textField, 
-		        submitButton
-		      );*/
 		      
 		      //generic instructions for initial allocation
 		      Text guideText = new Text();
