@@ -40,6 +40,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -56,6 +57,7 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 import Map.Country;
 import Map.RiskMap;
 import Player.FXUIPlayer;
@@ -88,11 +90,14 @@ import Util.TextNodes;
  * 	a human player through FXUI Player (FXUIPlayer) type.
  * 
  * 
- * UI elements are JavaFX, done with Java JDK 8.
+ * UI elements are JavaFX, done with Java JDK 8. (By extension, elements were done under JavaFX 8)
+ * Compatibility with JDK 7 / JRE1.7 was retroactively restored.
+ * (source files with "Stamp" -- aka date/time stamp -- of Feb 21 2015, 6:00 PM -- aka Y2015.M02.D21.HM1800 -- & later apply).
+ * JDK 7/JRE 1.7 will be the target until further notified.
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK\nVersion REL00-GH08\nStamp Y2015.M02.D21.HM0000\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2059\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	protected static final String LOGFILE = "LOG.txt";
@@ -157,17 +162,18 @@ public class FXUIGameMaster extends Application {
 	      }
 	      final Button yeah = new Button("Yes");
 	      yeah.setOnAction(new EventHandler<ActionEvent>() {
-	        @Override public void handle(ActionEvent t) {
-	        	crossbar.signalPlayerEndingGame();
-	        	proceedWithExit = true;
-	        	if(!mainWindowExit)
-	  	      {
-	  	    	  currentPlayStatus.setText("I D L E");
-	  	      }
-	  	      
-	          dialog.close();
-	        }
-	      });
+		        @Override public void handle(ActionEvent t) {
+		        	crossbar.signalPlayerEndingGame();
+					proceedWithExit = true;
+					if(!mainWindowExit)
+				  {
+					  currentPlayStatus.setText("I D L E");
+				  }
+				  
+				  dialog.close();
+		        }
+		      });
+	      
 	      final Button nah = new Button("No");
 	      nah.setDefaultButton(true);
 	      nah.setOnAction(new EventHandler<ActionEvent>() {
@@ -522,7 +528,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(attacker, null, "You failed to provide a valid advance response.");
 		}
-		else if (crossbar.isPlayerBowingOut() && crossbar.getPlayerName() == attacker.getName())
+		else if (crossbar.isPlayerBowingOut() && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
 		{
 			eliminate(attacker, null, "The advancer decided to take a break. 'S OK. Get some cookies. Or hot cocoa.");
 		}
@@ -1124,9 +1130,10 @@ public class FXUIGameMaster extends Application {
 	
 	private void loadTextNodesForUI(String nodeFile) {
 		try {
-			if (nodeFile != null) {
+			if (nodeFile != null) { // TODO make better way to package app with original TextNodes.txt file
 				this.textNodeMap = new HashMap<String, Text>();
 				File fileRepresentation = new File(nodeFile);
+				getClass().getResourceAsStream(nodeFile);
 						//basic check for existence of country list file
 				if (!fileRepresentation.exists()){
 					Scanner reader = new Scanner(TextNodes.nodes);
@@ -1140,6 +1147,7 @@ public class FXUIGameMaster extends Application {
 				        this.pane.getChildren().add(txt);
 					}
 					reader.close();
+					//errorText= "Loaded. Ready.";
 				}
 				else{
 					Scanner reader = new Scanner(fileRepresentation);
@@ -1182,9 +1190,9 @@ public class FXUIGameMaster extends Application {
 	 * (In this file is the method to present an exit confirmation dialog, as is the class representing the About dialog.)
 	 */
 	@Override
-	public void start(Stage primaryStage) throws Exception {
+	public void start(final Stage primaryStage) throws Exception {
 		try{
-			About nAbout = new About();
+			final About nAbout = new About();
 			myStage = primaryStage;
 			
 			
@@ -1242,46 +1250,91 @@ public class FXUIGameMaster extends Application {
 	        
 	        //End the current game, but don't close the program.
 	        Button endGame = new Button("Bow out.\n(End current game)");
-	        endGame.setOnAction(event -> Platform.runLater(() -> {
-		    	if(crossbar.playerDialogIsActive())
-				{
-					crossbar.getCurrentPlayerDialog().close();
-					crossbar.setCurrentPlayerDialog(null);
-				}
-			} ));
+	        endGame.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								if(crossbar.playerDialogIsActive())
+								{
+									crossbar.getCurrentPlayerDialog().close();
+									crossbar.setCurrentPlayerDialog(null);
+								}
+							}
+			        	});
+		    	  }
+	        });
 	        
 	        //Button to initiate the game
 	        Button startBtn = new Button("Let's go!!\n(Start new game)");
-	        startBtn.setOnAction(event -> Platform.runLater(() -> {
-			  try
-			  {
-				  currentPlayStatus.setText("in play.");
-				  pseudoMain();
-			  }//end try
-			  catch(Exception e)
-			  {	
-				  // TODO: in case any uncaught exceptions occur, catch 'em here.
-			  }	
-			}));
+	        startBtn.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								try
+								  {
+									  currentPlayStatus.setText("in play.");
+									  pseudoMain();
+								  }//end try
+								  catch(Exception e)
+								  {	
+									  // TODO: in case any uncaught exceptions occur, catch 'em here.
+								  }	
+							}
+			        	});
+		    	  }
+			  
+			});
 	        
 	        //your standard About buttons...
 	        HBox talkToMe = new HBox(15);
 	        Button tellMe = new Button("About");
-	        tellMe.setOnAction(event -> Platform.runLater(() -> nAbout.launch(pane.getScene().getWindow(), false) ));
+	        tellMe.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								nAbout.launch(pane.getScene().getWindow(), false);
+							}
+			        	});
+		    	  }
+	        });
 	        
 	        //...I said "About buttons". Plural. Yep.	
 	        Button tellMe2 = new Button("more.");
-	        tellMe2.setOnAction(event -> Platform.runLater(() -> nAbout.more(pane.getScene().getWindow()) ));
+	        tellMe2.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								nAbout.more(pane.getScene().getWindow());
+							}
+			        	});
+		    	  }
+	        });
 	        talkToMe.getChildren().addAll(tellMe, tellMe2);
 	        
 	        //Exit the application entirely
 	        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
-	        exitApp.setOnAction(event -> Platform.runLater(() -> {
-				primaryStage.close();
-				mainWindowExit = true;
-			} ));
-	        
-	        
+	        exitApp.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								// TODO Auto-generated method stub
+								primaryStage.close();
+								mainWindowExit = true;
+							}
+							
+						});
+		    	  }
+	        });
 	        
 	        //tweaks to perform if there was an error...
 	        if(errorDisplayBit){
@@ -1290,16 +1343,25 @@ public class FXUIGameMaster extends Application {
 	        	endGame.setDisable(true);
 	        }
 	        else{
-				pane.setOnKeyPressed(event -> Platform.runLater( () -> {
-				  try
-				  {
-					  currentPlayStatus.setText("Game started...");
-					  pseudoMain();
-				  }//end try
-				  catch(Exception e)
-				  {	
-				  } //end catch	
-			    }));
+				pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
+			    	  @Override public void handle(KeyEvent t){
+				        	Platform.runLater(new Runnable()
+				        	{
+								@Override
+								public void run() {
+									try
+									  {
+										  currentPlayStatus.setText("Game started...");
+										  pseudoMain();
+									  }//end try
+									  catch(Exception e)
+									  {	
+									  } //end catch	
+								}
+				        	});
+			    	  }
+				  
+			    });
 	        }
 	        
 	        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,endGame,exitApp,talkToMe);
@@ -1338,7 +1400,14 @@ public class FXUIGameMaster extends Application {
 	        //Help control what happens when the user tries to exit by telling the app...what...to do.
 	        //In this case, we're telling it "Yes, we're trying to exit from the main window, so display the appropriate dialog.
 	        //That's what this single boolean does.
-	        scene.getWindow().setOnCloseRequest(t -> mainWindowExit = true);
+	        scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
+		    	  @Override
+		    	  public void handle(WindowEvent t)
+		    	  {
+		    		  mainWindowExit = true;
+		    	  }
+		    	 });
+		
 		}
 		catch (Exception e) {
 			// TODO analyze whether this try-catch is required.
@@ -1481,7 +1550,8 @@ public class FXUIGameMaster extends Application {
 	      dialog.show();
 	      if(autoExit)
 	      {
-	    	  Runnable task = () -> {
+	    	  Runnable task = new Runnable() {
+	        	  @Override public void run() {
         		  try
         		  {
         			  Thread.sleep(5000);
@@ -1495,12 +1565,14 @@ public class FXUIGameMaster extends Application {
         		  catch(Exception e)
         		  {	
         		  } //end catch	
-    	     };
+    	     }
+	    	 };
 	    	Thread th = new Thread(task);
 	    	th.setDaemon(true);
 	    	th.start();
 	      }
 	    }
+	    
 	    public void more(Window owner) {
 		      final Stage dialog = new Stage();
 
