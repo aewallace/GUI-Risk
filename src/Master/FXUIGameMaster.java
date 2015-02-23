@@ -97,7 +97,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2059\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2116\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	protected static final String LOGFILE = "LOG.txt";
@@ -339,6 +339,8 @@ public class FXUIGameMaster extends Application {
 					attempts = doYouWantToMakeAnExit(attempts);
 				}
 			}
+			
+			updateDisplay();
 			
 			if (!valid || (crossbar.isPlayerBowingOut() && player.getName() == crossbar.getPlayerName())) {
 				try {
