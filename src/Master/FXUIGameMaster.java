@@ -5,23 +5,38 @@
 *Base build from original GameMaster class implementation, by Seth Denney, Sept 10 2014 
 */
 
+// TODO see about backing up the responses--or the results of the responses
+
 
 package Master;
 
 import java.awt.Desktop;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -61,6 +76,7 @@ import javafx.stage.WindowEvent;
 import Map.Country;
 import Map.RiskMap;
 import Player.FXUIPlayer;
+import Player.EasyDefaultPlayer;
 import Player.HardDefaultPlayer;
 import Player.NormalDefaultPlayer;
 import Player.Player;
@@ -79,6 +95,7 @@ import Util.PlayerEliminatedException;
 import Util.RiskConstants;
 import Util.RiskUtils;
 import Util.RollOutcome;
+import Util.SavePoint;
 import Util.TextNodes;
 
 /**
@@ -96,16 +113,22 @@ import Util.TextNodes;
  * JDK 7/JRE 1.7 will be the target until further notified.
  *
  */
-public class FXUIGameMaster extends Application {
+public class FXUIGameMaster extends Application implements Serializable {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 7520356274763151952L;
 	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2116\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
+	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
+	private static int workingMode = IDLE_MODE;
 	protected static final String LOGFILE = "LOG.txt";
 	protected static final String STATSFILE = "STATS.txt";
 	protected static final String EVENT_DELIM = "...";
 	protected static final boolean LOGGING_OFF = false;
 	protected static final boolean LOGGING_ON = true;
-	protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
+	//protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
 	private static Stage myStage;
 	protected RiskMap map;
@@ -129,19 +152,28 @@ public class FXUIGameMaster extends Application {
     private Text currentPlayStatus;
     private String errorText;
     private boolean errorDisplayBit;
+    private ArrayList<Text> playerDisplayCache = null;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
     private int numGames = 1;
     private boolean proceedWithExit = false;
     private boolean mainWindowExit = false;
     
+    //to handle recovering a prior session
+    private SavePoint savePoint = new SavePoint();
+    private SavePoint loadedSaveIn = null;
+    private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
+    ArrayList<Button> buttonCache = new ArrayList<Button>();
+    private static boolean gameQuit = false;
+    
     // TODO analyze viability of serialization vs using the already-existing log
     
     
-    /*
-     * If the app detects a call from the system to exit the program, and it's from a dialog window, handle the call by...asking if we really want to exit
+    /**
+     * If the app detects a call from the system to exit the program, 
+     * and it's from a dialog window, handle the call by...asking if we really want to exit.
      */
-    public int doYouWantToMakeAnExit(int currentAttempts) {
+    public int doYouWantToMakeAnExit(int currentAttempts){
 		proceedWithExit = false;
 		Window owner = pane.getScene().getWindow();
 			
@@ -167,6 +199,7 @@ public class FXUIGameMaster extends Application {
 					proceedWithExit = true;
 					if(!mainWindowExit)
 				  {
+						gameQuit = true;
 					  currentPlayStatus.setText("I D L E");
 				  }
 				  
@@ -208,9 +241,189 @@ public class FXUIGameMaster extends Application {
 			return currentAttempts - 1;
 		}
     }
+    
+    /**
+     * Prepares save info. Use at the beginning of each new round, as a checkpoint,
+     *   to avoid any one player getting an advantage over any other player upon later resume.
+     *   Doesn't guarantee perfect state save, but helps.
+     */
+    private void prepareSave(){
+    	if(loadedSaveIn != null){ //updating an old save
+    		savePoint.updateSaveIdentificationInfo(loadedSaveIn.getOriginalSaveDate(), new Date(), this.round);
+    	}
+    	else{ //completely new save
+    		savePoint.updateSaveIdentificationInfo(new Date(), new Date(), this.round);
+    	}
+    	savePoint.prepAllCountryDetails(map);
+    	savePoint.prepAllPlayerDetails((HashMap<String, Player>) playerMap, allPlayers);
+    	savePoint.prepRoundsCompleted(round);
+    	for (String player : players){
+    		savePoint.prepCardsForGivenPlayer(player, createCardSetCopy(player));
+    	}
+    	System.out.println("Checkpoint reached.");
+    	buttonCache.get(2).setDisable(false);
+    }
+    
+    /**
+     * Takes info prepared at each round -- as a checkpoint -- to allow easy resume later
+     */
+    private boolean performSave(){
+    	buttonCache.get(2).setDisable(true);
+    	boolean succeeded = false;
+    	try{
+    		OutputStream file = new FileOutputStream("fxuigm_save.ser");
+    		OutputStream buffer = new BufferedOutputStream(file);
+    		ObjectOutput output = new ObjectOutputStream(buffer);
+    		output.writeObject(savePoint);
+    		output.close();
+    		succeeded = true;
+    	}
+    	catch(Exception e){
+    		System.out.println("Save failed. ::: " + e);
+    		
+    	}
+    	buttonCache.get(2).setDisable(false);
+    	if(!succeeded)
+    	{
+    		errorDisplay.setText("Save failed");
+    	}
+    	return succeeded;
+    }
+    
+    private boolean loadFromSave(){
+    	boolean loadSucceeded = false;
+    	try{
+    		InputStream file = new FileInputStream("fxuigm_save.ser");
+    		InputStream buffer = new BufferedInputStream(file);
+    		ObjectInput input = new ObjectInputStream(buffer);
+    		SavePoint loadedSave = (SavePoint)input.readObject();
+    		input.close();
+    		loadedSaveIn = loadedSave;
+    		loadPlayersFromSave(loadedSave);
+    		resetCountryInfo(loadedSave);
+        	representPlayersOnUI();
+        	updateDisplay();
+        	loadSucceeded = true;
+    	}
+    	catch(Exception e){
+    		System.out.println("Load failed. ::: " + e);
+    	}
+    	return loadSucceeded;
+    }
 	
+    protected boolean loadPlayersFromSave(SavePoint loadedSave)
+    {
+    	//clear the player list...just in case.
+    	for (Text txtM : playerDisplayCache)
+    	{
+    		this.pane.getChildren().remove(txtM);
+    	}
+		writeLogLn("Loading players...");
+		this.playerMap = new HashMap<String, Player>();
+		this.allPlayers = new ArrayList<String>();
+		this.players = new ArrayList<String>();
+		
+	    final String FXP = FXUIPlayer.class.toString();
+		final String EDP = EasyDefaultPlayer.class.toString();
+		final String HDP = HardDefaultPlayer.class.toString();
+		final String NDP = NormalDefaultPlayer.class.toString();
+		final String S_P = Seth.class.toString();
+		System.out.println(FXP + EDP + HDP + NDP + S_P + "000000A");
+		System.out.println("loadPlayersFromSave entered...");
+		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " is what we will be loading today");
+		for (Entry<String, Boolean> playerIn : loadedSave.getPlayerIsEliminatedMap().entrySet())
+		{
+			this.allPlayers.add(playerIn.getKey());
+			Player playerObjectToCast = null;
+			System.out.println(playerIn.getValue());
+			if (playerIn.getValue() == false)//player isn't eliminated
+			{
+				this.players.add(playerIn.getKey());
+				String switcher = loadedSave.getActivePlayersAndTheirTypes().get(playerIn.getKey());
+				System.out.println(switcher + "000001");
+				if (switcher.equals(FXP)){
+					playerObjectToCast = new FXUIPlayer(playerIn.getKey());
+					FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
+				}
+				else if (switcher.equals(EDP)){
+					playerObjectToCast = new EasyDefaultPlayer(playerIn.getKey());
+				}
+				else if (switcher.equals(HDP)){
+					playerObjectToCast = new HardDefaultPlayer(playerIn.getKey());
+				}
+				else if (switcher.equals(NDP)){
+					playerObjectToCast = new NormalDefaultPlayer(playerIn.getKey());
+				}
+				else if (switcher.equals(S_P)){
+					playerObjectToCast = new Seth(playerIn.getKey());
+				}
+				
+				if(playerObjectToCast == null){
+					System.out.println("Failed to cast/load " + playerIn.getKey() + " as a valid player.");
+				}
+				else
+				{
+					this.playerMap.put(playerIn.getKey(), playerObjectToCast);
+					this.players.add(playerIn.getKey());
+				}
+			}
+			
+		}
+		
+		this.playerCardMap = new HashMap<String, Collection<Card>>();
+		for (Player playerM : this.playerMap.values()) {
+			ArrayList<Card> newCards = new ArrayList<Card>();
+			if (loadedSave.getPlayersAndTheirCards().get(playerM.getName()) != null)
+			{
+				for (String cardRepresentation : loadedSave.getPlayersAndTheirCards().get(playerM.getName() ) ){
+					if(cardRepresentation.contains(RiskConstants.WILD_CARD)){
+						newCards.add(new Card(RiskConstants.WILD_CARD, null));
+					}
+					else{
+						String[] ssmm = cardRepresentation.split(",");
+						Card cdOut = new Card(ssmm[0], stringCountryRepresentation.get(ssmm[1]));
+						newCards.add(cdOut);
+					}
+				}
+			}
+			this.playerCardMap.put(playerM.getName(), newCards);
+		}
+		
+		
+		shufflePlayers(this.players);//choose a random turn order
+		
+		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
+			return false;
+		}
+		else {
+			writeLogLn("Players:");
+			for (String playerName : this.players) {
+				writeLogLn(playerName);
+			}
+			writeLogLn(EVENT_DELIM);
+			return true;
+		}
+	}
+    
+    
+    public void resetCountryInfo(SavePoint loadedSave)
+    {
+    	for (Entry<String, Integer> entryOutArmy : loadedSave.getCountriesAndArmyCount().entrySet()){
+    		map.setCountryArmies(stringCountryRepresentation.get(entryOutArmy.getKey()), entryOutArmy.getValue());
+    	}
+    	for (Entry<String, String> entryOutOwner : loadedSave.getCountriesAndOwners().entrySet()){
+    		map.setCountryOwner(stringCountryRepresentation.get(entryOutOwner.getKey()), entryOutOwner.getValue());
+    	}
+    	
+    	this.round = loadedSave.getRoundsPlayed();
+    }
+    
 
 	public void pseudoFXUIGameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
+		for (Country country : Country.values()) {
+			stringCountryRepresentation.put(country.getName(), country);
+		}
+		
 		this.round = 0;
 		this.turnCount = 0;
 		if (rand == null) {
@@ -239,13 +452,72 @@ public class FXUIGameMaster extends Application {
 		
 	}
 	
+	public void setButtonAvailability(){
+		//IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
+		/*0 = startBtn
+	    		1 = restoreMe/loaded)*/
+	    if(workingMode == IDLE_MODE)
+		{
+	    	buttonCache.get(0).setDisable(false);
+	    	buttonCache.get(1).setDisable(false);
+	    	buttonCache.get(2).setDisable(true);
+		}
+		else {
+			buttonCache.get(0).setDisable(true);
+	    	buttonCache.get(1).setDisable(true);
+		}
+	}
+    		
+	
+	public boolean beginWithStartButton(){
+		if(workingMode != IDLE_MODE)
+		{
+			return false;
+		}
+		else{
+			workingMode = NEW_GAME_MODE;
+		}
+		setButtonAvailability();
+		pseudoMain();
+		return true;
+	}
+	
+	public boolean beginWithLoadButton(){
+		if(workingMode != IDLE_MODE)
+		{
+			return false;
+		}
+		else {
+			workingMode = LOADED_GAME_MODE;
+		}
+		setButtonAvailability();
+		pseudoMain();
+		return true;
+	}
+	
 	public String begin() {
-		if (initializeForces()) {
+		boolean initiationGood = false;
+		if (workingMode == NEW_GAME_MODE){
+			initiationGood = initializeForces();
+			if(!initiationGood){
+				  currentPlayStatus.setText("creation of new game failed");
+			}
+		}
+		else if (workingMode == LOADED_GAME_MODE){
+			initiationGood = loadFromSave();
+			if(!initiationGood){
+				  currentPlayStatus.setText("load failed!!");
+			}
+		}
+		if (initiationGood) {
+			currentPlayStatus.setText("in play.");
 			//play round-robin until there is only one player left
 			int turn = 0;
-			while (this.players.size() > 1) {
+			while (this.players.size() > 1 && !gameQuit) {
 				if (turn == 0) {
 					this.round++;
+					prepareSave();
+					performSave();
 					writeLogLn("Beginning Round " + round + "!");
 					if (this.round > RiskConstants.MAX_ROUNDS) {
 						return "Stalemate!";
@@ -256,20 +528,26 @@ public class FXUIGameMaster extends Application {
 				writeStatsLn();
 				this.turnCount++;
 				try {
-					//System.out.println("G TE M U 4 6 5 M");
-					//System.out.println(currentPlayer.getName());
 					updateDisplay();
 					reinforce(currentPlayer, true);
-					//System.out.println("G GE M U 4 6 5 M");
-					//System.out.println(currentPlayer.getName());
+					if(gameQuit){
+						break;
+					}
 					updateDisplay();
 					attack(currentPlayer);
-					//System.out.println("G ME M U 4 6 5 M");
-					//System.out.println(currentPlayer.getName());
+					if(gameQuit){
+						break;
+					}
 					updateDisplay();
 					fortify(currentPlayer);
+					if(gameQuit){
+						break;
+					}
 					updateDisplay();
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
+					if(gameQuit){
+						break;
+					}
 				}
 				catch (PlayerEliminatedException e) {
 					//If an elimination exception is thrown up to this level,
@@ -279,7 +557,7 @@ public class FXUIGameMaster extends Application {
 			}
 
 			
-			if(!mainWindowExit){
+			if(!mainWindowExit && !gameQuit){
 				writeStatsLn();
 				System.out.println(this.players.get(0) + " is the victor!");
 				writeLogLn(this.players.get(0) + " is the victor!");
@@ -289,6 +567,7 @@ public class FXUIGameMaster extends Application {
 				System.out.println("Game forced to exit by UI player; sorry 'bout it!");
 			}
 		}
+		
 		try {
 			if (this.log != null && this.stats != null) {
 				log.close();
@@ -297,6 +576,9 @@ public class FXUIGameMaster extends Application {
 		}
 		catch (IOException e) {
 		}
+		workingMode = IDLE_MODE;
+		setButtonAvailability();
+		gameQuit = false;
 		if(this.players.size() > 0)
 		{
 			return this.players.get(0);
@@ -337,6 +619,9 @@ public class FXUIGameMaster extends Application {
 						crossbar.setCurrentPlayerDialog(null);
 					}
 					attempts = doYouWantToMakeAnExit(attempts);
+					if (attempts==RiskConstants.MAX_ATTEMPTS){
+						gameQuit = true;
+					}
 				}
 			}
 			
@@ -371,6 +656,9 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean valid = false;
 		reinforcements += getCardTurnIn(currentPlayer, getPlayerCardCounts());
+		if(gameQuit){
+			return;
+		}
 		Map<String, Integer> oppCards = getPlayerCardCounts();
 		// TODO turn off oppCards IN THIS METHOD; it's unused after you get extra reinforcements manually beforehand
 		if (withCountryBonus) {
@@ -381,6 +669,9 @@ public class FXUIGameMaster extends Application {
 			try{
 				attempts++;
 				ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
+				if(gameQuit){
+					return;
+				}
 				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
 					for (Map.Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
 						this.map.addCountryArmies(entry.getKey(), entry.getValue());
@@ -396,6 +687,12 @@ public class FXUIGameMaster extends Application {
 					crossbar.setCurrentPlayerDialog(null);
 				}
 				attempts = doYouWantToMakeAnExit(attempts);
+				if (attempts==RiskConstants.MAX_ATTEMPTS){
+					gameQuit = true;
+				}
+				if(gameQuit){
+					return;
+				}
 			}
 		}
 		if (!valid) {
@@ -451,6 +748,9 @@ public class FXUIGameMaster extends Application {
 			catch (OSExitException e)
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
+				if (attempts==RiskConstants.MAX_ATTEMPTS){
+					gameQuit = true;
+				}
 			}
 			
 		}
@@ -524,6 +824,9 @@ public class FXUIGameMaster extends Application {
 			catch (OSExitException e)
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
+				if (attempts==RiskConstants.MAX_ATTEMPTS){
+					gameQuit = true;
+				}
 				System.out.println("AA ::: " + e);
 			}
 		}
@@ -579,6 +882,9 @@ public class FXUIGameMaster extends Application {
 			catch (OSExitException e)
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
+				if (attempts==RiskConstants.MAX_ATTEMPTS){
+					gameQuit = true;
+				}
 				System.out.println("FF ::: " + e);
 			}
 		}
@@ -586,7 +892,7 @@ public class FXUIGameMaster extends Application {
 	
 	protected ReinforcementResponse tryInitialAllocation(Player player, int reinforcements) throws OSExitException {
 		try {
-			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
 				ReinforcementResponse rsp = player.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements);
 				validatePlayerName(player);
 				return rsp;
@@ -615,7 +921,7 @@ public class FXUIGameMaster extends Application {
 	
 	protected CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired) throws OSExitException {
 		try {
-			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
 				CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
 				validatePlayerName(player);
 				return rsp;
@@ -647,7 +953,7 @@ public class FXUIGameMaster extends Application {
 			rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
 			return rsp;*/
-			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
 				ReinforcementResponse rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 				validatePlayerName(player);
 				return rsp;
@@ -671,8 +977,7 @@ public class FXUIGameMaster extends Application {
 	
 	protected AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException{
 		try {
-			
-			if(player.getName() != FXUI_PLAYER_NAME){ //if a CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
 				AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 				validatePlayerName(player);
 				return rsp;
@@ -708,7 +1013,7 @@ public class FXUIGameMaster extends Application {
 	
 	protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) throws OSExitException {
 		try {
-			if(player.getName() != FXUI_PLAYER_NAME) //CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)) //CPU player
 			{
 				AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
 				validatePlayerName(player);
@@ -734,7 +1039,7 @@ public class FXUIGameMaster extends Application {
 	
 	protected FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException {
 		try {
-			if(player.getName() != FXUI_PLAYER_NAME) //CPU player
+			if(!player.getClass().equals(FXUIPlayer.class)) //CPU player
 			{
 				FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 				validatePlayerName(player);
@@ -830,6 +1135,9 @@ public class FXUIGameMaster extends Application {
 					crossbar.setCurrentPlayerDialog(null);
 				}
 				attempts = doYouWantToMakeAnExit(attempts);
+				if (attempts==RiskConstants.MAX_ATTEMPTS){
+					gameQuit = true;
+				}
 				System.out.println("gCTI ::: " + e);
 			}
 		}
@@ -1071,6 +1379,7 @@ public class FXUIGameMaster extends Application {
 	private void representPlayersOnUI() {
 		//requires loadPlayers to have been run
     	try {
+    		this.playerDisplayCache = new ArrayList<Text>();
 			ArrayList<Color> colors = new ArrayList<Color>();
 			colors.add(Color.WHITE);
 			colors.add(Color.AQUA);
@@ -1088,6 +1397,8 @@ public class FXUIGameMaster extends Application {
 				txt.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 				txt.setFill(colors.get((i) % colors.size()));
 				this.pane.getChildren().add(txt);
+				this.playerDisplayCache.add(txt);
+				//this.pane.getChildren().remove(txt);
 			}
 		}
 		catch (Exception e) {
@@ -1278,8 +1589,7 @@ public class FXUIGameMaster extends Application {
 							public void run() {
 								try
 								  {
-									  currentPlayStatus.setText("in play.");
-									  pseudoMain();
+									  beginWithStartButton();
 								  }//end try
 								  catch(Exception e)
 								  {	
@@ -1319,7 +1629,53 @@ public class FXUIGameMaster extends Application {
 			        	});
 		    	  }
 	        });
-	        talkToMe.getChildren().addAll(tellMe, tellMe2);
+	        
+	        //testing saving functionality
+	        Button saveMe = new Button("save.");
+	        saveMe.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								try{
+									performSave();
+								}
+								catch(Exception e)
+								{
+									
+								}
+							}
+			        	});
+		    	  }
+	        });
+	        saveMe.setDisable(true);
+	        
+	        Button restoreMe = new Button("load.");
+	        restoreMe.setOnAction(new EventHandler<ActionEvent>(){
+		    	  @Override public void handle(ActionEvent t){
+			        	Platform.runLater(new Runnable()
+			        	{
+							@Override
+							public void run() {
+								try{
+									beginWithLoadButton();
+								}
+								catch(Exception e)
+								{
+									
+								}
+							}
+			        	});
+		    	  }
+	        });
+	        
+	        
+	        buttonCache.add(startBtn);
+	        buttonCache.add(restoreMe);
+	        buttonCache.add(saveMe);
+	        
+	        talkToMe.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
 	        
 	        //Exit the application entirely
 	        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
@@ -1353,8 +1709,7 @@ public class FXUIGameMaster extends Application {
 								public void run() {
 									try
 									  {
-										  currentPlayStatus.setText("Game started...");
-										  pseudoMain();
+										  beginWithStartButton();
 									  }//end try
 									  catch(Exception e)
 									  {	
@@ -1407,6 +1762,7 @@ public class FXUIGameMaster extends Application {
 		    	  public void handle(WindowEvent t)
 		    	  {
 		    		  mainWindowExit = true;
+		    		  doYouWantToMakeAnExit(0);
 		    	  }
 		    	 });
 		
@@ -1452,8 +1808,10 @@ public class FXUIGameMaster extends Application {
             }
             
         }
-      
     }
+        
+      
+} //end of main FXUIGameMaster class
 	
 	class MissingTextPrompt {
 
@@ -1492,31 +1850,106 @@ public class FXUIGameMaster extends Application {
 
 	}
 	    
-    class About {
+class About {
 
-	    About(){
-	    }
-	    
-	    public void launch(Window owner, boolean autoExit) {
+    About(){
+    }
+    
+    public void launch(Window owner, boolean autoExit) {
+      final Stage dialog = new Stage();
+
+      dialog.setTitle("Hi, friend. :D");
+      dialog.initOwner(owner);
+      //dialog.initStyle(StageStyle.UTILITY);
+      //dialog.initModality(Modality.WINDOW_MODAL);
+      dialog.setX(owner.getX());
+      dialog.setY(owner.getY() + 300);
+
+      final Text info1= new Text();
+      info1.setText(":::\n\nRISK!\nor\nconquest of the modern Mercator");
+      info1.setTextAlignment(TextAlignment.CENTER);
+      info1.setFont(Font.font("Arial", FontWeight.THIN, 16));
+      
+      final Hyperlink hlink = new Hyperlink(":::");
+      hlink.setOnAction(new EventHandler<ActionEvent>() {
+    	  @Override public void handle(ActionEvent t){
+    		  try {
+    	            Desktop.getDesktop().browse(new URI("http://xkcd.com/977/"));
+    	        } catch (IOException e1) {
+    	            e1.printStackTrace();
+    	        } catch (URISyntaxException e1) {
+    	            e1.printStackTrace();
+    	        }
+    	  }
+      });
+      
+      final Text info2= new Text();
+      info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n:D\n\n:::::::");
+      info2.setTextAlignment(TextAlignment.CENTER);
+      info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
+      
+      final Button submitButton = new Button("OK");
+      submitButton.setDefaultButton(true);
+      submitButton.setOnAction(new EventHandler<ActionEvent>() {
+        @Override public void handle(ActionEvent t) {
+          dialog.close();
+        }
+      });
+      //textField.setMinHeight(TextField.USE_PREF_SIZE);
+
+      final VBox layout = new VBox();
+      layout.setAlignment(Pos.CENTER);
+      layout.setStyle("-fx-padding: 50;");
+      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
+      layout.getChildren().setAll(
+        info1, hlink, info2,
+        submitButton
+      );
+
+      dialog.setScene(new Scene(layout));
+      dialog.show();
+      if(autoExit)
+      {
+    	  Runnable task = new Runnable() {
+        	  @Override public void run() {
+    		  try
+    		  {
+    			  Thread.sleep(5000);
+    			  Platform.runLater(new Runnable()
+					{
+    				  @Override public void run(){
+						dialog.close();
+					} 
+					});
+    		  }//end try
+    		  catch(Exception e)
+    		  {	
+    		  } //end catch	
+	     }
+    	 };
+    	Thread th = new Thread(task);
+    	th.setDaemon(true);
+    	th.start();
+      }
+    }
+    
+    public void more(Window owner) {
 	      final Stage dialog = new Stage();
 
-	      dialog.setTitle("Hi, friend. :D");
+	      dialog.setTitle("more.");
 	      dialog.initOwner(owner);
 	      //dialog.initStyle(StageStyle.UTILITY);
 	      //dialog.initModality(Modality.WINDOW_MODAL);
 	      dialog.setX(owner.getX());
 	      dialog.setY(owner.getY() + 300);
 
-	      final Text info1= new Text();
-	      info1.setText(":::\n\nRISK!\nor\nconquest of the modern Mercator");
-	      info1.setTextAlignment(TextAlignment.CENTER);
-	      info1.setFont(Font.font("Arial", FontWeight.THIN, 16));
 	      
-	      final Hyperlink hlink = new Hyperlink(":::");
-	      hlink.setOnAction(new EventHandler<ActionEvent>() {
+	      final Hyperlink hlinkD = new Hyperlink("denney");
+	      hlinkD.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
+	      hlinkD.setOnAction(new EventHandler<ActionEvent>() {
 	    	  @Override public void handle(ActionEvent t){
 	    		  try {
-	    	            Desktop.getDesktop().browse(new URI("http://xkcd.com/977/"));
+	    	            Desktop.getDesktop().browse(new URI("http://github.com/sethau"));
 	    	        } catch (IOException e1) {
 	    	            e1.printStackTrace();
 	    	        } catch (URISyntaxException e1) {
@@ -1525,10 +1958,27 @@ public class FXUIGameMaster extends Application {
 	    	  }
 	      });
 	      
-	      final Text info2= new Text();
-	      info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n:D\n\n:::::::");
-	      info2.setTextAlignment(TextAlignment.CENTER);
-	      info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
+	      final Hyperlink hlinkW = new Hyperlink("wallace");
+	      hlinkW.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
+	      hlinkW.setOnAction(new EventHandler<ActionEvent>() {
+	    	  @Override public void handle(ActionEvent t){
+	    		  try {
+	    	            Desktop.getDesktop().browse(new URI("http://github.com/aewallace"));
+	    	        } catch (IOException e1) {
+	    	            e1.printStackTrace();
+	    	        } catch (URISyntaxException e1) {
+	    	            e1.printStackTrace();
+	    	        }
+	    	  }
+	      });
+	      
+	      final Text bridge2= new Text("\n\n:::::::\n2015\n:::::::\n\n");
+	      bridge2.setTextAlignment(TextAlignment.CENTER);
+	      bridge2.setFont(Font.font("Arial", FontWeight.THIN, 16));
+	      
+	      final Text deepVersionInfo= new Text(FXUIGameMaster.versionInfo + "\n\n");
+	      deepVersionInfo.setTextAlignment(TextAlignment.CENTER);
+	      deepVersionInfo.setFont(Font.font("Arial", FontWeight.THIN, 12));
 	      
 	      final Button submitButton = new Button("OK");
 	      submitButton.setDefaultButton(true);
@@ -1539,113 +1989,21 @@ public class FXUIGameMaster extends Application {
 	      });
 	      //textField.setMinHeight(TextField.USE_PREF_SIZE);
 
-	      final VBox layout = new VBox();
+	      final VBox layout = new VBox(10);
 	      layout.setAlignment(Pos.CENTER);
 	      layout.setStyle("-fx-padding: 50;");
 	      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
 	      layout.getChildren().setAll(
-	        info1, hlink, info2,
+	    	deepVersionInfo,
+	        hlinkD, bridge2, hlinkW,
 	        submitButton
 	      );
 
 	      dialog.setScene(new Scene(layout));
-	      dialog.show();
-	      if(autoExit)
-	      {
-	    	  Runnable task = new Runnable() {
-	        	  @Override public void run() {
-        		  try
-        		  {
-        			  Thread.sleep(5000);
-        			  Platform.runLater(new Runnable()
-						{
-        				  @Override public void run(){
-							dialog.close();
-						} 
-						});
-        		  }//end try
-        		  catch(Exception e)
-        		  {	
-        		  } //end catch	
-    	     }
-	    	 };
-	    	Thread th = new Thread(task);
-	    	th.setDaemon(true);
-	    	th.start();
-	      }
+	      dialog.showAndWait();
 	    }
-	    
-	    public void more(Window owner) {
-		      final Stage dialog = new Stage();
 
-		      dialog.setTitle("more.");
-		      dialog.initOwner(owner);
-		      //dialog.initStyle(StageStyle.UTILITY);
-		      //dialog.initModality(Modality.WINDOW_MODAL);
-		      dialog.setX(owner.getX());
-		      dialog.setY(owner.getY() + 300);
-
-		      
-		      final Hyperlink hlinkD = new Hyperlink("denney");
-		      hlinkD.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
-		      hlinkD.setOnAction(new EventHandler<ActionEvent>() {
-		    	  @Override public void handle(ActionEvent t){
-		    		  try {
-		    	            Desktop.getDesktop().browse(new URI("http://github.com/sethau"));
-		    	        } catch (IOException e1) {
-		    	            e1.printStackTrace();
-		    	        } catch (URISyntaxException e1) {
-		    	            e1.printStackTrace();
-		    	        }
-		    	  }
-		      });
-		      
-		      final Hyperlink hlinkW = new Hyperlink("wallace");
-		      hlinkW.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
-		      hlinkW.setOnAction(new EventHandler<ActionEvent>() {
-		    	  @Override public void handle(ActionEvent t){
-		    		  try {
-		    	            Desktop.getDesktop().browse(new URI("http://github.com/aewallace"));
-		    	        } catch (IOException e1) {
-		    	            e1.printStackTrace();
-		    	        } catch (URISyntaxException e1) {
-		    	            e1.printStackTrace();
-		    	        }
-		    	  }
-		      });
-		      
-		      final Text bridge2= new Text("\n\n:::::::\n2015\n:::::::\n\n");
-		      bridge2.setTextAlignment(TextAlignment.CENTER);
-		      bridge2.setFont(Font.font("Arial", FontWeight.THIN, 16));
-		      
-		      final Text deepVersionInfo= new Text(versionInfo + "\n\n");
-		      deepVersionInfo.setTextAlignment(TextAlignment.CENTER);
-		      deepVersionInfo.setFont(Font.font("Arial", FontWeight.THIN, 12));
-		      
-		      final Button submitButton = new Button("OK");
-		      submitButton.setDefaultButton(true);
-		      submitButton.setOnAction(new EventHandler<ActionEvent>() {
-		        @Override public void handle(ActionEvent t) {
-		          dialog.close();
-		        }
-		      });
-		      //textField.setMinHeight(TextField.USE_PREF_SIZE);
-
-		      final VBox layout = new VBox(10);
-		      layout.setAlignment(Pos.CENTER);
-		      layout.setStyle("-fx-padding: 50;");
-		      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
-		      layout.getChildren().setAll(
-		    	deepVersionInfo,
-		        hlinkD, bridge2, hlinkW,
-		        submitButton
-		      );
-
-		      dialog.setScene(new Scene(layout));
-		      dialog.showAndWait();
-		    }
-
-	  }
+  }
 	
-}
+
 

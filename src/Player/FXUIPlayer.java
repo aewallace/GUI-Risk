@@ -8,6 +8,7 @@
 **/
 
 package Player;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -58,8 +59,12 @@ import Util.RiskUtils;
  * JDK 7/JRE 1.7 will be the target until further notified.
  *
  */
-public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2100\nType:Alpha(01)";
+public class FXUIPlayer implements Player, Serializable {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -7347767546021096558L;
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2101\nType:Alpha(01)";
 	private String name;
 	//private String currentFocus = null;
 	private int reinforcementsApplied = 0;
@@ -70,7 +75,11 @@ public class FXUIPlayer implements Player {
 	private static FXUI_Crossbar crossbar;
 	
 	//to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
-	class doWeExit{
+	class doWeExit implements Serializable{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -4811130654807399456L;
 		private boolean systemExitUsed = true;
 		
 		//get whether the program should attempt to exit back to the OS, or if the app should continue running after "dialog.close()" is called
