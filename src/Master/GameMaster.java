@@ -16,6 +16,7 @@ import Player.EasyDefaultPlayer;
 import Player.HardDefaultPlayer;
 import Player.NormalDefaultPlayer;
 import Player.Player;
+import Player.PlayerFactory;
 import Player.Seth;
 import Response.AdvanceResponse;
 import Response.AttackResponse;
@@ -47,10 +48,9 @@ public class GameMaster {
 	private static int allocationIdx = 0;
 	
 	private FileWriter log, stats;
-	private List<String> allPlayers;
 	private int round, turnCount;
 	
-	public GameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
+	public GameMaster(String mapFile, String players, boolean logSwitch) throws IOException {
 		this.round = 0;
 		this.turnCount = 0;
 		if (rand == null) {
@@ -66,7 +66,7 @@ public class GameMaster {
 		}
 		this.map = starterMap.getCopy();
 		loadDeck();
-		if (!loadPlayers(playerFile)) {
+		if (!loadPlayers(players)) {
 			System.out.println("Invalid number of players. 2-6 Players allowed.");
 		}
 		allocateMap();
@@ -536,50 +536,28 @@ public class GameMaster {
 		}
 	}
 	
-	private boolean loadPlayers(String playerFile) {
+	private boolean loadPlayers(String players) {
 		writeLogLn("Loading players...");
 		this.playerMap = new HashMap<String, Player>();
-		this.allPlayers = new ArrayList<String>();
 		
-		this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
-		this.allPlayers.add("Easy 1");
+		if (players == null) {
+			players = RiskConstants.DEFAULT_PLAYERS;
+		}
 		
-		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
-		this.allPlayers.add("Normal 2");
+		List<Player> playerList = PlayerFactory.getPlayersFromString(players);
 		
-		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
-		this.allPlayers.add("Hard 3");
+		for (Player player : playerList) {
+			this.playerMap.put(player.getName(), player);
+		}
 		
-		this.playerMap.put("Hard 4", new HardDefaultPlayer("Hard 4"));
-		this.allPlayers.add("Hard 4");
-		
-		this.playerMap.put("Hard 5", new HardDefaultPlayer("Hard 5"));
-		this.allPlayers.add("Hard 5");
-		
-		this.playerMap.put("Seth 1", new Seth("Seth 1"));
-		this.allPlayers.add("Seth 1");
-		
-//		this.playerMap.put("Seth 2", new Seth("Seth 2"));
-//		this.allPlayers.add("Seth 2");
-//		
-//		this.playerMap.put("Seth 3", new Seth("Seth 3"));
-//		this.allPlayers.add("Seth 3");
-//		
-//		this.playerMap.put("Seth 4", new Seth("Seth 4"));
-//		this.allPlayers.add("Seth 4");
-//		
-//		this.playerMap.put("Seth 5", new Seth("Seth 5"));
-//		this.allPlayers.add("Seth 5");
-//		
-//		this.playerMap.put("Seth 6", new Seth("Seth 6"));
-//		this.allPlayers.add("Seth 6");
-		
-		this.players = new ArrayList<String>(this.allPlayers);
+		this.players = new ArrayList<String>(this.playerMap.keySet());
 		shufflePlayers(this.players);//choose a random turn order
+		
 		this.playerCardMap = new HashMap<String, Collection<Card>>();
 		for (Player player : this.playerMap.values()) {
 			this.playerCardMap.put(player.getName(), new ArrayList<Card>());
 		}
+		
 		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
 			return false;
 		}
@@ -677,7 +655,7 @@ public class GameMaster {
 		if (this.stats != null) {
 			try {
 				stats.write(this.turnCount + " " + this.round + " ");
-				for (String playerName : this.allPlayers) {
+				for (String playerName : this.players) {
 					//count player's countries
 					stats.write(RiskUtils.getPlayerCountries(this.map, playerName).size() + " ");
 					//count player's armies
@@ -692,13 +670,26 @@ public class GameMaster {
 	}
 	
 	public static void main(String[] args) throws IOException {
+		RiskConstants.SEED = 1;
+		int numGames = 1;
+		String players = null;
 		try {
+			if (args != null) {
+				if (args.length >= 1) {
+					numGames = Integer.parseInt(args[0]);
+				}
+				if (args.length >= 2) {
+					RiskConstants.SEED = Integer.parseInt(args[1]);
+				}
+				if (args.length >= 3) {
+					players = args[2];
+				}
+			}
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
-			int numGames = 2000;
-			RiskConstants.SEED = 1;
 			for (int i = 0; i < numGames; i++) {
 				RiskConstants.resetTurnIn();
-				GameMaster game = new GameMaster("Countries.txt", null, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				PlayerFactory.resetPlayerCounts();
+				GameMaster game = new GameMaster("Countries.txt", players, i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
 				System.out.print((i + 1) + " - ");
 				String victor = game.begin();
 				if (!winLog.containsKey(victor)) {

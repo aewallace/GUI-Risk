@@ -20,6 +20,8 @@ public class RiskConstants {
 	public static final int MIN_PLAYERS = 2;
 	public static final int MAX_PLAYERS = 6;
 	
+	public static final String DEFAULT_PLAYERS = "Easy,Normal,Hard";
+	
 	public static final int MAX_ROUNDS = 100000;
 	
 	public static final int INIT_ARMIES = 120;

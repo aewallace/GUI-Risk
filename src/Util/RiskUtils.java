@@ -65,12 +65,24 @@ public class RiskUtils {
 	 * Returns true IFF the specified player controls the specified continent.
 	 */
 	public static boolean playerControlsContinent(RiskMap map, Continent continent, String playerName) {
+		return playerName.equals(getContinentOwner(map, continent));
+	}
+	
+	/**
+	 * Returns the name of the player who controls the specified continent,
+	 * or null if the continent is contested.
+	 */
+	public static String getContinentOwner(RiskMap map, Continent continent) {
+		String owner = null;
 		for (Country country : continent.getCountries()) {
-			if (!playerName.equals(map.getCountryOwner(country))) {
-				return false;
+			if (owner == null) {
+				owner = map.getCountryOwner(country);
+			}
+			else if (!owner.equals(map.getCountryOwner(country))) {
+				return null;
 			}
 		}
-		return true;
+		return owner;
 	}
 	
 	/**
