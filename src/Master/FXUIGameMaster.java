@@ -118,7 +118,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	 * 
 	 */
 	private static final long serialVersionUID = 7520356274763151952L;
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2116\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0A\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -130,7 +130,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	protected static final boolean LOGGING_ON = true;
 	//protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
-	private static Stage myStage;
+	//private static Stage myStage;
 	protected RiskMap map;
 	protected Deque<Card> deck;
 	protected List<String> players;
@@ -145,7 +145,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	protected List<String> allPlayers;
 	protected int round, turnCount;
 	
-	private ScrollPane scrollPane;
+	//private ScrollPane scrollPane;
     private Scene scene;
     private Pane pane;
     private Text errorDisplay;
@@ -265,7 +265,12 @@ public class FXUIGameMaster extends Application implements Serializable {
     }
     
     /**
-     * Takes info prepared at each round -- as a checkpoint -- to allow easy resume later
+     * Performs actual write to disc using most recent checkpoint available.
+     * Checkpoints are acquired with prepareSave(), automatically performed after initial player allocation.
+     * Write to secondary storage is triggered either automatically at each new round,
+     * or manually with the "Save" button  (with no discernible difference between the two).
+     * 
+     * @return returns true on successful save, or false when a show-stopping exception was thrown.
      */
     private boolean performSave(){
     	buttonCache.get(2).setDisable(true);
@@ -290,6 +295,12 @@ public class FXUIGameMaster extends Application implements Serializable {
     	return succeeded;
     }
     
+    /**
+     * Triggers the chain of events to fully load a checkpoint from a previous save,
+     * and reconstruct the scene as best as possible, using slightly more specific info than a new game.
+     * Also stores the SavePoint object within the class for future reference.
+     * @return returns true if the load succeeded, or false if a show-stopping exception was encountered
+     */
     private boolean loadFromSave(){
     	boolean loadSucceeded = false;
     	try{
@@ -311,6 +322,12 @@ public class FXUIGameMaster extends Application implements Serializable {
     	return loadSucceeded;
     }
 	
+    
+    /**
+     * Pulls the players and their cards from a given SavePoint object.
+     * @param loadedSave the save from which we get player info
+     * @return returns false if the amount of *active* players is outside the bounds of the Risk rules, or true otherwise
+     */
     protected boolean loadPlayersFromSave(SavePoint loadedSave)
     {
     	//clear the player list...just in case.
@@ -328,19 +345,19 @@ public class FXUIGameMaster extends Application implements Serializable {
 		final String HDP = HardDefaultPlayer.class.toString();
 		final String NDP = NormalDefaultPlayer.class.toString();
 		final String S_P = Seth.class.toString();
-		System.out.println(FXP + EDP + HDP + NDP + S_P + "000000A");
+		//System.out.println(FXP + EDP + HDP + NDP + S_P + "000000A");
 		System.out.println("loadPlayersFromSave entered...");
-		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " is what we will be loading today");
+		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " players is what we will be loading today");
 		for (Entry<String, Boolean> playerIn : loadedSave.getPlayerIsEliminatedMap().entrySet())
 		{
 			this.allPlayers.add(playerIn.getKey());
 			Player playerObjectToCast = null;
-			System.out.println(playerIn.getValue());
+			//System.out.println(playerIn.getValue());
 			if (playerIn.getValue() == false)//player isn't eliminated
 			{
 				this.players.add(playerIn.getKey());
 				String switcher = loadedSave.getActivePlayersAndTheirTypes().get(playerIn.getKey());
-				System.out.println(switcher + "000001");
+				//System.out.println(switcher + "000001");
 				if (switcher.equals(FXP)){
 					playerObjectToCast = new FXUIPlayer(playerIn.getKey());
 					FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
@@ -405,7 +422,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
     
-    
+    /**
+     * Takes country info (including owners + army count) from a SavePoint object,
+     * and updates the internal data of the map with said info. Refreshing the map is done elsewhere.
+     * @param loadedSave the SavePoint object from which we source our data
+     */
     public void resetCountryInfo(SavePoint loadedSave)
     {
     	for (Entry<String, Integer> entryOutArmy : loadedSave.getCountriesAndArmyCount().entrySet()){
@@ -418,40 +439,13 @@ public class FXUIGameMaster extends Application implements Serializable {
     	this.round = loadedSave.getRoundsPlayed();
     }
     
-
-	public void pseudoFXUIGameMaster(String mapFile, String playerFile, boolean logSwitch) throws IOException {
-		for (Country country : Country.values()) {
-			stringCountryRepresentation.put(country.getName(), country);
-		}
-		
-		this.round = 0;
-		this.turnCount = 0;
-		if (rand == null) {
-			rand = new Random(RiskConstants.SEED);
-		}
-		//System.out.println("E G U 4 6 5 S");
-		if (logSwitch == LOGGING_ON) {
-			this.log = new FileWriter(LOGFILE);
-			this.stats = new FileWriter(STATSFILE);
-		}
-		
-		//System.out.println("E T U 4 6 5 Q");
-		writeLogLn("Loading map from " + mapFile + "...");
-		if (starterMap == null) {
-			starterMap = new RiskMap();
-		}
-		
-		//System.out.println("E M G 4 6 9 M");
-		this.map = starterMap.getCopy();
-		loadDeck();
-		if (!loadPlayers(playerFile)) {
-			System.out.println("Invalid number of players. 2-6 Players allowed.");
-		}
-		
-		allocateMap();
-		
-	}
-	
+    /**
+     * This method is used as a way to have the new game, load game and save game buttons disabled when in critical points, or when
+     * the option is not pertinent, and re-enable them when the game is not in any critical sections. Does not handle
+     * all fine-tuned disables/enables; only initial startup and game play. Based on states that might otherwise be easily
+     * compromised.
+     * TODO include what happens when the user starts the game by pressing a key on the keyboard.
+     */
 	public void setButtonAvailability(){
 		//IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
 		/*0 = startBtn
@@ -468,7 +462,12 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
     		
-	
+	/**
+	 * Start up a new game using the new game/start button [title varies with different revisions]
+	 * Prevents starting a new game if a game is already in progress, albeit does so silently...
+	 * Ideally, the user will never have this option.
+	 * @return false if a game was already in progress, or true if the game could be started and reach a state of completion
+	 */
 	public boolean beginWithStartButton(){
 		if(workingMode != IDLE_MODE)
 		{
@@ -482,6 +481,13 @@ public class FXUIGameMaster extends Application implements Serializable {
 		return true;
 	}
 	
+	/**
+	 * Starts a game based on information from a previous save. Called into play using the "load" button.
+	 * Prevents loading a prior game if a game is already in progress, albeit does so silently...
+	 * Ideally, the user will never have this option, but eh.
+	 * @return false if another game was active, true if the game manages to reach completion (or a comparable state of
+	 * physical idleness not necessarily equal to IDLE_MODE is reached)
+	 */
 	public boolean beginWithLoadButton(){
 		if(workingMode != IDLE_MODE)
 		{
@@ -495,6 +501,12 @@ public class FXUIGameMaster extends Application implements Serializable {
 		return true;
 	}
 	
+	/**
+	 * Once button logic has been handled, and it is verified that no other game has been started,
+	 * this method is run to trigger the various states of attack/defense/etc, trigger checkpoints, and
+	 * check for any calls to exit the game prematurely that were not caught by internal exception handlers.
+	 * @return name of the winner if the game has an ideal termination, null otherwise.
+	 */
 	public String begin() {
 		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
@@ -514,9 +526,9 @@ public class FXUIGameMaster extends Application implements Serializable {
 			//play round-robin until there is only one player left
 			int turn = 0;
 			while (this.players.size() > 1 && !gameQuit) {
+				prepareSave();
 				if (turn == 0) {
 					this.round++;
-					prepareSave();
 					performSave();
 					writeLogLn("Beginning Round " + round + "!");
 					if (this.round > RiskConstants.MAX_ROUNDS) {
@@ -589,6 +601,12 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
 	
+	/**
+	 * Triggers each Player type to invoke initial troop allocation on countries assigned to each player.
+	 * Used only for new games, as similar information for each round
+	 * is cached in SavePoint objects as the game goes on.
+	 * @return returns true if at least one player succeeded, false otherwise
+	 */
 	protected boolean initializeForces() {
 		boolean valid;
 		int attempts;
@@ -1418,7 +1436,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			for (int i = 0; i < this.numGames; i++) {
 				RiskConstants.resetTurnIn();
 				//System.out.println("E M U 7 6 5 6");
-				pseudoFXUIGameMaster("Countries.txt", null, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				initializeFXGMClass("Countries.txt", null, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
 				//System.out.println("E M U 7 6 5 4");
 				System.out.print((i + 1) + " - ");
 				String victor = begin();
@@ -1460,7 +1478,6 @@ public class FXUIGameMaster extends Application implements Serializable {
 				        this.pane.getChildren().add(txt);
 					}
 					reader.close();
-					//errorText= "Loaded. Ready.";
 				}
 				else{
 					Scanner reader = new Scanner(fileRepresentation);
@@ -1494,6 +1511,47 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
 	
+	/**
+	 * Does a tiny bit of initialization on the map's internal structures, without setting
+	 * up/displaying players or other user-facing info.
+	 * @param mapFile
+	 * @param playerFile
+	 * @param logSwitch
+	 * @throws IOException
+	 */
+    public void initializeFXGMClass(String mapFile, String playerFile, boolean logSwitch) throws IOException {
+		for (Country country : Country.values()) {
+			stringCountryRepresentation.put(country.getName(), country);
+		}
+		
+		this.round = 0;
+		this.turnCount = 0;
+		if (rand == null) {
+			rand = new Random(RiskConstants.SEED);
+		}
+		//System.out.println("E G U 4 6 5 S");
+		if (logSwitch == LOGGING_ON) {
+			this.log = new FileWriter(LOGFILE);
+			this.stats = new FileWriter(STATSFILE);
+		}
+		
+		//System.out.println("E T U 4 6 5 Q");
+		writeLogLn("Loading map from " + mapFile + "...");
+		if (starterMap == null) {
+			starterMap = new RiskMap();
+		}
+		
+		//System.out.println("E M G 4 6 9 M");
+		this.map = starterMap.getCopy();
+		loadDeck();
+		if (!loadPlayers(playerFile)) {
+			System.out.println("Invalid number of players. 2-6 Players allowed.");
+		}
+		
+		allocateMap();
+		
+	}
+	
 	
 	/**
 	 * Get your life in the form of a game!
@@ -1506,7 +1564,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	public void start(final Stage primaryStage) throws Exception {
 		try{
 			final About nAbout = new About();
-			myStage = primaryStage;
+			//myStage = primaryStage;
 			
 			
 			double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
@@ -1531,7 +1589,7 @@ public class FXUIGameMaster extends Application implements Serializable {
             
 	        //...which will happen here:
 	        //populate the countries and players, and find out if there was an error doing either activity
-	        pseudoFXUIGameMaster("Countries.txt", null, LOGGING_ON);
+	        initializeFXGMClass("Countries.txt", null, LOGGING_ON);
 	        loadTextNodesForUI("TextNodes.txt");
 	        representPlayersOnUI();
 	        //now display elements -- status and buttons -- according to whether there was an error!
@@ -1812,44 +1870,12 @@ public class FXUIGameMaster extends Application implements Serializable {
         
       
 } //end of main FXUIGameMaster class
-	
-	class MissingTextPrompt {
 
-	    MissingTextPrompt(Window owner) {
-	      final Stage dialog = new Stage();
-
-	      dialog.setTitle("Enter Missing Text");
-	      dialog.initOwner(owner);
-	      dialog.initStyle(StageStyle.UTILITY);
-	      dialog.initModality(Modality.WINDOW_MODAL);
-	      dialog.setX(owner.getX() + owner.getWidth());
-	      dialog.setY(owner.getY());
-
-	      final TextField textField = new TextField();
-	      final Button submitButton = new Button("Submit");
-	      submitButton.setDefaultButton(true);
-	      submitButton.setOnAction(new EventHandler<ActionEvent>() {
-	        @Override public void handle(ActionEvent t) {
-	          dialog.close();
-	        }
-	      });
-	      textField.setMinHeight(TextField.USE_PREF_SIZE);
-
-	      final VBox layout = new VBox(10);
-	      layout.setAlignment(Pos.CENTER_RIGHT);
-	      layout.setStyle("-fx-padding: 10;");
-	      //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
-	      layout.getChildren().setAll(
-	        textField, 
-	        submitButton
-	      );
-
-	      dialog.setScene(new Scene(layout));
-	      dialog.showAndWait();
-	    }
-
-	}
-	    
+/**
+ * Handles the "about" and "more" dialog windows
+ * @author wallace162x11
+ *
+ */
 class About {
 
     About(){

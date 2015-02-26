@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import javafx.beans.property.ObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
@@ -64,7 +65,7 @@ public class FXUIPlayer implements Player, Serializable {
 	 * 
 	 */
 	private static final long serialVersionUID = -7347767546021096558L;
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion REL00-GH09\nStamp Y2015.M02.D22.HM2101\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0A\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
 	private String name;
 	//private String currentFocus = null;
 	private int reinforcementsApplied = 0;
@@ -278,18 +279,27 @@ public class FXUIPlayer implements Player, Serializable {
 	/**
 	 * Propose a subset of the player's cards that can be redeemed for additional reinforcements.
 	 * RESPONSE REQUIRED WHEN PLAYER HOLDS AT LEAST 5 CARDS, OTHERWISE OPTIONAL
+	 * Dummy method for this class.
 	 * @param map
 	 * @param myCards
 	 * @param playerCards
 	 * @param turnInRequired
 	 * @return subset of the player's cards
 	 */
+	@Override
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired){
 		return null;
 	}
 	
-	/*
-	 * @param owner: Window from which the associated UI dialog will spawn; given a JavaFX Pane object 'sourcePane', equals sourcePane.getScene().getWindow()
+	/**
+	 * Propose a subset of the player's cards that can be redeemed for additional reinforcements.
+	 * RESPONSE REQUIRED WHEN PLAYER HOLDS AT LEAST 5 CARDS, OTHERWISE OPTIONAL
+	 * @param map
+	 * @param myCards
+	 * @param playerCards
+	 * @param turnInRequired
+	 * @return subset of the player's cards
+	 * @param owner: Window from which the associated UI dialog will spawn; given a JavaFX Pane object 'sourcePane', equals sourcePane.getScene().getWindow(); can be null!
 	 */
 	public CardTurnInResponse proposeTurnIn(RiskMap map, final Collection<Card> myCards, Map<String, Integer> playerCards, final boolean turnInRequired, Window owner) throws OSExitException
 	{
@@ -315,7 +325,7 @@ public class FXUIPlayer implements Player, Serializable {
 		      //generic instructions for initial allocation
 		      Text guideText = new Text();
 		      guideText.setText(turnInRequired ? "As you have " + myCards.size() + " cards,\nplease turn in a selection of 3 cards:\n3x same type\nOR\n3x different type\nOR\nWild+Any combo\n"
-		      		+ "[This action is required for this round]" : "Turn In Cards?\nIf you can form a set of cards with...\n3x same type\nOR\n3x different type\nOR\nWild+Any combo\n"
+		      		+ "[This action is required for this round]" : "Turn In Cards?\nIf you can form a set of cards with...\n3x same type\nOR\n3x different type\nOR\nWild+Any two\n"
 		      		+ "...You are allowed to do so at this point.\nOtherwise, you may review your cards for later use.");
 		      guideText.setTextAlignment(TextAlignment.CENTER);
 		      layout.getChildren().add(guideText);
@@ -323,7 +333,7 @@ public class FXUIPlayer implements Player, Serializable {
 		      
 		      
 		      
-		      //buttons for countries you own, and text to display *additional* units to deplor to each country
+		      //buttons for countries you own, and text to display *additional* units to deploy to each country
 		      final HBox cardArrayDisplayRowA = new HBox(4);
 		      final HBox cardArrayDisplayRowB = new HBox(4);
 		      cardArrayDisplayRowA.setAlignment(Pos.CENTER);
@@ -337,7 +347,11 @@ public class FXUIPlayer implements Player, Serializable {
 		    	  	Text subText = new Text(deselected);
 		    	  	cardStatusMapping.put(indexInCards, subText);
 					//button to increment reinforcement count for selected country
-				    Button card = new Button ("******\n\n" + cdIn.toString() + "\n\n******");
+		    	  	String ctySrced = cdIn.getType().equals(RiskConstants.WILD_CARD) ? "wild" : cdIn.getCountry().getName();
+				    Button card = new Button ("******\n[type]\n" + cdIn.getType().toLowerCase() + "\n*****\n" + ctySrced.toLowerCase() + "\n[country]\n******");
+				    card.setAlignment(Pos.CENTER);
+				    card.setTextAlignment(TextAlignment.CENTER);
+				    
 				    card.setOnAction(new EventHandler<ActionEvent>(){
 				    	  @Override public void handle(ActionEvent t){
 				    		  turningInNoCards =  false;
@@ -458,7 +472,7 @@ public class FXUIPlayer implements Player, Serializable {
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
 		
-		//if, say, USA offered 5 reinfocements, with Mexico using 2 and Canada using 1, then <USA <Mexico, 2>> is the expected format
+		//if, say, USA offered 5 reinforcements, with Mexico using 2 and Canada using 1, then <USA <Mexico, 2>> is the expected format
 		//use in FORTIFY, not REINFORCE...
 		//HashMap<String, HashMap<String, Integer>> countryNeighborReinforcementAllocation = new HashMap<String, HashMap<String, Integer>>();
 		
@@ -864,7 +878,7 @@ public class FXUIPlayer implements Player, Serializable {
 		    	  @Override
 		        	public void handle(ActionEvent event){
 			    	  updater.resetAcceptance();
-					  if (rsp.getNumArmies() < sourceArmies)
+					  if (rsp.getNumArmies() < sourceArmies - 1)
 					  {
 						  //System.out.println(rsp.getNumArmies());
 						  rsp.setNumArmies(rsp.getNumArmies() + 1);
@@ -880,7 +894,7 @@ public class FXUIPlayer implements Player, Serializable {
 		    	  @Override
 		        	public void handle(ActionEvent event){
 			    	  updater.resetAcceptance();
-				      if (rsp.getNumArmies() > minAdv + 1 && sourceArmies - (rsp.getNumArmies() + 1) > 0)
+				      if (rsp.getNumArmies() > minAdv + 1 && sourceArmies - (rsp.getNumArmies() + 1) >= 0)
 				      {
 				    	  updater.resetAcceptance();
 				    	  //System.out.println(rsp.getNumArmies());
@@ -1064,7 +1078,7 @@ public class FXUIPlayer implements Player, Serializable {
 		    	  @Override
 		        	public void handle(ActionEvent event){
 						int curArmies = rsp.getNumArmies();
-							  if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()))
+							  if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()) - 1)
 							  {
 								  rsp.setNumArmies(rsp.getNumArmies() + 1);
 						    	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
