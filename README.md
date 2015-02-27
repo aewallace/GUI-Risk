@@ -48,6 +48,9 @@ You may now download a JAR file (Java 8 likely required) that allows you to play
 Together, FXUIGameMaster and FXUIPlayer (with associated helper classes) now offer the luxury of playing through a game of Risk to get an idea of how things go. Basic ability are included, with enhancements to come.
 ###LogPlayer UI "updated"
 ...before starting the main Risk game UI, I took a look at Seth's original LogPlayer. I iterated upon it, not changing much of the feel (yet) but added some functionality. It is from this that I was able to start FXUIGameMaster, though only some remnants of initial setup from LogPlayer will catch your eye there. So please reviewing previously played games, whether just CPU from GameMaster or including YOU with FXUIGameMaster!
+##Total available entry points in this source branch
+...There are 3 executable targets: LogPlayer (to playback logged events from a game of Risk), GameMaster (the original version of the game that supports CPU players only -- or otherwise features no UI), and FXUIGameMaster (which is the focus of this branch: the UI-playable version of Risk).
+Keep this in mind during compilation. Depending on your environment/your IDE, you may be able to dynamically select which one to run. Or you may have to manually remove files. Do what's necessary.
 
 #Thank you!
 ###Just a general thank you from me to Seth for all the work he did in the original version, and the enthusiasm he has shown as I have added my two cents on the project. I appreciate it, man.
