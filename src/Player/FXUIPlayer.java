@@ -65,7 +65,7 @@ public class FXUIPlayer implements Player, Serializable {
 	 * 
 	 */
 	private static final long serialVersionUID = -7347767546021096558L;
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0A\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Ah\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
 	private String name;
 	//private String currentFocus = null;
 	private int reinforcementsApplied = 0;

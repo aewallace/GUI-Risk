@@ -21,14 +21,16 @@ public class SavePoint implements Serializable {
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -3525239178041045698L;
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH00\nStamp Y2015.M02.D24.HM1830\nType:MNT(00)";
+	private static final long serialVersionUID = 2015022600000001L;
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH01\nStamp Y2015.M02.D26.HM1830\nType:MNT(00)";
 	public HashMap<String, String> countriesPlusOwners;
 	public HashMap<String, Integer> countriesPlusArmies;
 	
 
 	public HashMap<String, ArrayList<String>> playersPlusCards;
 	public HashMap<String, String> activePlayersAndTheirTypes;
+	
+	public ArrayList<String> logCache;
 
 	public HashMap<String, Boolean> playerIsEliminatedMap;
 
@@ -47,6 +49,8 @@ public class SavePoint implements Serializable {
 		playerIsEliminatedMap = new HashMap<String, Boolean>();
 
 		int roundsPlayed = 0;
+		
+		logCache = new ArrayList<String>();
 		// TODO Auto-generated constructor stub
 	}
 	
@@ -59,6 +63,8 @@ public class SavePoint implements Serializable {
 	public HashMap<String, Boolean> getPlayerIsEliminatedMap(){return playerIsEliminatedMap;}
 
 	public int getRoundsPlayed(){return roundsPlayed;}
+	
+	public ArrayList<String> getLogCache(){return logCache;}
 	
 	/**
 	 * 
@@ -150,6 +156,10 @@ public class SavePoint implements Serializable {
 	
 	public void prepRoundsCompleted(int roundsCompleted){
 		roundsPlayed = roundsCompleted;
+	}
+	
+	public void prepLogCache(ArrayList<String> logCacheIn){
+		logCache = logCacheIn;
 	}
 	/*String RiskMap.getCountryOwner(Country country)
 	int RiskMap.getCountryArmies(Country country)

@@ -80,6 +80,7 @@ import Player.EasyDefaultPlayer;
 import Player.HardDefaultPlayer;
 import Player.NormalDefaultPlayer;
 import Player.Player;
+import Player.PlayerFactory;
 import Player.Seth;
 import Response.AdvanceResponse;
 import Response.AttackResponse;
@@ -118,7 +119,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	 * 
 	 */
 	private static final long serialVersionUID = 7520356274763151952L;
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0A\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Bh\nStamp Y2015.M02.D26.HM1730\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -128,9 +129,8 @@ public class FXUIGameMaster extends Application implements Serializable {
 	protected static final String EVENT_DELIM = "...";
 	protected static final boolean LOGGING_OFF = false;
 	protected static final boolean LOGGING_ON = true;
-	//protected static final String FXUI_PLAYER_NAME = "FXUIPlayer";
+	protected static boolean loggingEnabled;
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
-	//private static Stage myStage;
 	protected RiskMap map;
 	protected Deque<Card> deck;
 	protected List<String> players;
@@ -142,6 +142,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	protected static int allocationIdx = 0;
 	
 	protected FileWriter log, stats;
+	protected ArrayList<String> internalLogCache = new ArrayList<String>();
 	protected List<String> allPlayers;
 	protected int round, turnCount;
 	
@@ -257,6 +258,7 @@ public class FXUIGameMaster extends Application implements Serializable {
     	savePoint.prepAllCountryDetails(map);
     	savePoint.prepAllPlayerDetails((HashMap<String, Player>) playerMap, allPlayers);
     	savePoint.prepRoundsCompleted(round);
+    	savePoint.prepLogCache(internalLogCache);
     	for (String player : players){
     		savePoint.prepCardsForGivenPlayer(player, createCardSetCopy(player));
     	}
@@ -312,8 +314,10 @@ public class FXUIGameMaster extends Application implements Serializable {
     		loadedSaveIn = loadedSave;
     		loadPlayersFromSave(loadedSave);
     		resetCountryInfo(loadedSave);
+    		restorePreviousLogInfo(loadedSave);
         	representPlayersOnUI();
         	updateDisplay();
+        	
         	loadSucceeded = true;
     	}
     	catch(Exception e){
@@ -322,6 +326,37 @@ public class FXUIGameMaster extends Application implements Serializable {
     	return loadSucceeded;
     }
 	
+    
+    /**
+     * Loads the log from the prior game -- up to the checkpoint -- so we can update the actual physical log file properly.
+     */
+    private boolean restorePreviousLogInfo(SavePoint loadedSave)
+    {
+    	internalLogCache = loadedSaveIn.getLogCache();
+    	
+    	if (loggingEnabled == LOGGING_ON) {
+    		try {
+    			if (this.log != null && this.stats != null) {
+    				log.close();
+    			}
+    			this.log = new FileWriter(LOGFILE);
+    			
+    			if(this.stats == null){
+    				this.stats = new FileWriter(STATSFILE);
+    				}
+    		}
+    		catch (IOException e) {
+    		}
+			
+		}
+    	
+    	for (String cacheLine : internalLogCache)
+    	{
+    		writeLogLn(false, cacheLine);
+    	}
+    	
+    	return loadedSave == null || loadedSave.getLogCache() == null;
+    }
     
     /**
      * Pulls the players and their cards from a given SavePoint object.
@@ -335,7 +370,7 @@ public class FXUIGameMaster extends Application implements Serializable {
     	{
     		this.pane.getChildren().remove(txtM);
     	}
-		writeLogLn("Loading players...");
+		writeLogLn(true, "Loading players...");
 		this.playerMap = new HashMap<String, Player>();
 		this.allPlayers = new ArrayList<String>();
 		this.players = new ArrayList<String>();
@@ -413,11 +448,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 			return false;
 		}
 		else {
-			writeLogLn("Players:");
+			writeLogLn(true, "Players:");
 			for (String playerName : this.players) {
-				writeLogLn(playerName);
+				writeLogLn(true, playerName);
 			}
-			writeLogLn(EVENT_DELIM);
+			writeLogLn(true, EVENT_DELIM);
 			return true;
 		}
 	}
@@ -530,13 +565,13 @@ public class FXUIGameMaster extends Application implements Serializable {
 				if (turn == 0) {
 					this.round++;
 					performSave();
-					writeLogLn("Beginning Round " + round + "!");
+					writeLogLn(true, "Beginning Round " + round + "!");
 					if (this.round > RiskConstants.MAX_ROUNDS) {
 						return "Stalemate!";
 					}
 				}
 				Player currentPlayer = this.playerMap.get(this.players.get(turn));
-				writeLogLn(currentPlayer.getName() + " is starting their turn.");
+				writeLogLn(true, currentPlayer.getName() + " is starting their turn.");
 				writeStatsLn();
 				this.turnCount++;
 				try {
@@ -572,7 +607,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			if(!mainWindowExit && !gameQuit){
 				writeStatsLn();
 				System.out.println(this.players.get(0) + " is the victor!");
-				writeLogLn(this.players.get(0) + " is the victor!");
+				writeLogLn(true, this.players.get(0) + " is the victor!");
 			}
 			else
 			{
@@ -614,7 +649,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		//get initial troop allocation
 		while (playerIndex < this.players.size()) {
 			Player player = this.playerMap.get(this.players.get(playerIndex));
-			writeLogLn("Getting initial troop allocation from " + player.getName() + "...");
+			writeLogLn(true, "Getting initial troop allocation from " + player.getName() + "...");
 			int reinforcements;
 			valid = false;
 			attempts = 0;
@@ -627,7 +662,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 							&& validateInitialAllocation(rsp.getAllocation(), player.getName(), reinforcements)) {
 						allocateArmies(player.getName(), rsp.getAllocation(), reinforcements);
 						playerIndex++;
-						writeLogLn("Troops successfully allocated for " + player.getName() + "...");
+						writeLogLn(true, "Troops successfully allocated for " + player.getName() + "...");
 					}
 				}
 				catch(OSExitException e){
@@ -682,7 +717,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (withCountryBonus) {
 			reinforcements += RiskUtils.calculateReinforcements(this.map, currentPlayer.getName());
 		}
-		writeLogLn(currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
+		writeLogLn(true, currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !mainWindowExit) {
 			try{
 				attempts++;
@@ -693,7 +728,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
 					for (Map.Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
 						this.map.addCountryArmies(entry.getKey(), entry.getValue());
-						writeLogLn(entry.getValue() + " " + entry.getKey().getName());
+						writeLogLn(true, entry.getValue() + " " + entry.getKey().getName());
 					}
 				}
 			}
@@ -719,7 +754,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		else if(crossbar.isPlayerBowingOut()) {
 			eliminate(currentPlayer, null, "Player decided to leave. Come back any time, friend!");
 		}
-		writeLogLn(EVENT_DELIM);
+		writeLogLn(true, EVENT_DELIM);
 	}
 	
 	protected void attack(Player currentPlayer) throws PlayerEliminatedException {
@@ -734,7 +769,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 				AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 				if (atkRsp != null) {
 					if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
-						writeLogLn(currentPlayer.getName() + " is attacking "
+						writeLogLn(true, currentPlayer.getName() + " is attacking "
 								+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 								+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 						System.out.println(currentPlayer.getName() + " is attacking "
@@ -797,13 +832,13 @@ public class FXUIGameMaster extends Application implements Serializable {
 		RollOutcome result = DiceRoller.roll(atk.getNumDice(), dfd.getNumDice());
 		this.map.addCountryArmies(atk.getAtkCountry(), -1 * result.getAtkLosses());
 		this.map.addCountryArmies(atk.getDfdCountry(), -1 * result.getDfdLosses());
-		writeLogLn("\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
+		writeLogLn(true, "\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
 	}
 	
 	protected boolean checkForTakeover(Player attacker, AttackResponse atkRsp, boolean hasGottenCard) throws PlayerEliminatedException {
 		if (this.map.getCountryArmies(atkRsp.getDfdCountry()) == 0) {
 			String loserName = this.map.getCountryOwner(atkRsp.getDfdCountry());
-			writeLogLn(attacker.getName() + " has taken " + atkRsp.getDfdCountry() + " from " + loserName + "!");
+			writeLogLn(true, attacker.getName() + " has taken " + atkRsp.getDfdCountry() + " from " + loserName + "!");
 			this.map.setCountryOwner(atkRsp.getDfdCountry(), attacker.getName());
 			if (!hasGottenCard) {
 				awardCard(attacker.getName());
@@ -834,7 +869,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			try{
 				AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
 				if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map)) {
-					writeLogLn(attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
+					writeLogLn(true, attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
 					this.map.addCountryArmies(atkRsp.getAtkCountry(), -1 * advRsp.getNumArmies());
 					this.map.addCountryArmies(atkRsp.getDfdCountry(), advRsp.getNumArmies());
 				}
@@ -858,7 +893,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	}
 	
 	protected void awardCard(String playerName) {
-		writeLogLn("Awarding " + playerName + " one card.");
+		writeLogLn(true, "Awarding " + playerName + " one card.");
 		if (this.deck.size() > 0) {
 			this.playerCardMap.get(playerName).add(this.deck.removeFirst());
 		}
@@ -887,7 +922,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 				FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 				if (rsp != null) {
 					if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
-						writeLogLn(currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
+						writeLogLn(true, currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
 						this.map.addCountryArmies(rsp.getFromCountry(), -1 * rsp.getNumArmies());
 						this.map.addCountryArmies(rsp.getToCountry(), rsp.getNumArmies());
 					}
@@ -1107,12 +1142,12 @@ public class FXUIGameMaster extends Application implements Serializable {
 	}
 	
 	protected void allocateArmies(String playerName, Map<Country, Integer> allocation, int reinforcements) {
-		writeLogLn(playerName + " reinforcing with " + reinforcements + " armies.");
+		writeLogLn(true, playerName + " reinforcing with " + reinforcements + " armies.");
 		for (Map.Entry<Country, Integer> entry : allocation.entrySet()) {
 			this.map.setCountryArmies(entry.getKey(), entry.getValue());
-			writeLogLn(entry.getValue() + " " + entry.getKey().getName());
+			writeLogLn(true, entry.getValue() + " " + entry.getKey().getName());
 		}
-		writeLogLn(EVENT_DELIM);
+		writeLogLn(true, EVENT_DELIM);
 	}
 	
 	protected int getCardTurnIn(Player currentPlayer, Map<String, Integer> oppCards) throws PlayerEliminatedException {
@@ -1126,7 +1161,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 				if (rsp != null) {
 					if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerCardMap.get(currentPlayer.getName()))) {
 						cardBonus = RiskConstants.advanceTurnIn();
-						writeLogLn(currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
+						writeLogLn(true, currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
 						if (rsp.getBonusCountry() != null) {
 							if (this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
 								this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
@@ -1199,7 +1234,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	}
 	
 	protected void loadDeck() {
-		writeLogLn("Building deck...");
+		writeLogLn(true, "Building deck...");
 		List<Card> newDeck = new ArrayList<Card>();
 		int i = 0;
 		for (Country country : Country.values()) {
@@ -1224,60 +1259,60 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
 	
-	protected boolean loadPlayers(String playerFile) {
-		writeLogLn("Loading players...");
+	protected boolean loadPlayers(String players) {
+		writeLogLn(true, "Loading players...");
 		this.playerMap = new HashMap<String, Player>();
-		this.allPlayers = new ArrayList<String>();
+		if (players == null) {
+			players = RiskConstants.DEFAULT_PLAYERS;
+		}
 		
-		//this.playerMap.put("Easy 1", new EasyDefaultPlayer("Easy 1"));
-		//this.allPlayers.add("Easy 1");
+		List<Player> playerList = PlayerFactory.getPlayersFromString(players);
 		
-		this.playerMap.put("Normal 2", new NormalDefaultPlayer("Normal 2"));
-		this.allPlayers.add("Normal 2");
+		boolean doUIGamer = true;
+		boolean doSethGamer = true;
 		
-		this.playerMap.put("Hard 3", new HardDefaultPlayer("Hard 3"));
-		this.allPlayers.add("Hard 3");
+		int maxPlayersToAdd = RiskConstants.MAX_PLAYERS;
 		
-		this.playerMap.put("Hard 4", new HardDefaultPlayer("Hard 4"));
-		this.allPlayers.add("Hard 4");
+		if(doUIGamer){
+			this.playerMap.put("FXUIPlayer", new FXUIPlayer("FXUIPlayer"));
+			FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
+			maxPlayersToAdd--;
+		}
 		
-		this.playerMap.put("Hard 5", new HardDefaultPlayer("Hard 5"));
-		this.allPlayers.add("Hard 5");
+		if(doSethGamer){
+			this.playerMap.put("Seth", new Seth("Seth"));
+			maxPlayersToAdd--;
+		}
 		
-		this.playerMap.put("Seth 1", new Seth("Seth 1"));
-		this.allPlayers.add("Seth 1");
+		for (Player player : playerList) {
+			if (maxPlayersToAdd > 0){
+				this.playerMap.put(player.getName(), player);
+				maxPlayersToAdd--;
+			}
+			
+		}
 		
-		this.playerMap.put("FXUIPlayer", new FXUIPlayer("FXUIPlayer"));
-		FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
-		this.allPlayers.add("FXUIPlayer");
-//		
-//		this.playerMap.put("Seth 3", new Seth("Seth 3"));
-//		this.allPlayers.add("Seth 3");
-//		
-//		this.playerMap.put("Seth 4", new Seth("Seth 4"));
-//		this.allPlayers.add("Seth 4");
-//		
-//		this.playerMap.put("Seth 5", new Seth("Seth 5"));
-//		this.allPlayers.add("Seth 5");
-//		
-//		this.playerMap.put("Seth 6", new Seth("Seth 6"));
-//		this.allPlayers.add("Seth 6");
+		//this.players = new ArrayList<String>(this.allPlayers);
+		this.players = new ArrayList<String>(this.playerMap.keySet());
+		this.allPlayers = new ArrayList<String>(this.playerMap.keySet());
 		
-		this.players = new ArrayList<String>(this.allPlayers);
 		shufflePlayers(this.players);//choose a random turn order
+		
 		this.playerCardMap = new HashMap<String, Collection<Card>>();
+		
 		for (Player player : this.playerMap.values()) {
 			this.playerCardMap.put(player.getName(), new ArrayList<Card>());
 		}
+		
 		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
 			return false;
 		}
 		else {
-			writeLogLn("Players:");
+			writeLogLn(true, "Players:");
 			for (String playerName : this.players) {
-				writeLogLn(playerName);
+				writeLogLn(true, playerName);
 			}
-			writeLogLn(EVENT_DELIM);
+			writeLogLn(true, EVENT_DELIM);
 			return true;
 		}
 	}
@@ -1296,7 +1331,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	//only allocates unowned countries
 	protected void allocateUnownedCountries() {
 		if (this.players.size() > 0) {
-			writeLogLn("Re-allocating eliminated player's countries...");
+			writeLogLn(true, "Re-allocating eliminated player's countries...");
 			for (Country country : Country.values()) {
 				if (map.getCountryOwner(country) == null) {
 					map.setCountryOwner(country, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
@@ -1315,14 +1350,9 @@ public class FXUIGameMaster extends Application implements Serializable {
 	//allocates ALL countries on map
 	protected void allocateMap() {
 		if (this.players.size() > 0) {
-			writeLogLn("Allocating countries...");
+			writeLogLn(true, "Allocating countries...");
 			for (Card card : this.deck) {
-				//System.out.println("E S M - 0 8 P");
-				//System.out.println(card.getType());
-				//System.out.println(card.getCountry() + " + " + allocationIdx + "+" + this.players.size() + "--" + allocationIdx % this.players.size());
-				//if(this.playerMap == null){ System.out.println("E S M - 0 8 P M 1");}
-				//if(this.players == null){ System.out.println("E S M - 0 8 P M 3");}
-				//if(this.playerMap.get(this.players.get(allocationIdx % this.players.size())) == null){ System.out.println("E S M - 0 8 P X -");}
+				
 				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
 					try{
 					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
@@ -1340,7 +1370,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
 		if (this.playerMap.containsKey(loser.getName())) {
-			writeLogLn(loser.getName() + " Eliminated! " + reason);
+			writeLogLn(true, loser.getName() + " Eliminated! " + reason);
 			System.out.println(loser.getName() + " Eliminated! " + reason);
 			for (Country country : Country.values()) {
 				if (map.getCountryOwner(country).equals(loser.getName())) {
@@ -1365,7 +1395,10 @@ public class FXUIGameMaster extends Application implements Serializable {
 		}
 	}
 	
-	protected void writeLogLn(String line) {
+	protected void writeLogLn(boolean mirrorToInternalCache, String line) {
+		if(mirrorToInternalCache){
+			internalLogCache.add(line);
+		}
 		if (this.log != null) {
 			try {
 				this.log.write(line + "\r\n");
@@ -1380,7 +1413,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (this.stats != null) {
 			try {
 				stats.write(this.turnCount + " " + this.round + " ");
-				for (String playerName : this.allPlayers) {
+				for (String playerName : this.players) {
 					//count player's countries
 					stats.write(RiskUtils.getPlayerCountries(this.map, playerName).size() + " ");
 					//count player's armies
@@ -1408,7 +1441,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			this.playerColorMap = new HashMap<String, Color>();
 			int i = -1;
 			//this.allPlayers
-			for (String playerName : this.allPlayers)
+			for (String playerName : this.playerMap.keySet())
 			{
 				this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
 				Text txt = new Text(200 * (i) + 50, 20, "∎"+playerName.toLowerCase());
@@ -1430,15 +1463,16 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	public void pseudoMain(){
 	try {
-		//System.out.println("E M U 7 6 5 8");
+		// TODO add support for selecting types of players
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
 			RiskConstants.SEED = 1;
 			for (int i = 0; i < this.numGames; i++) {
 				RiskConstants.resetTurnIn();
-				//System.out.println("E M U 7 6 5 6");
+				PlayerFactory.resetPlayerCounts();
 				initializeFXGMClass("Countries.txt", null, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
-				//System.out.println("E M U 7 6 5 4");
+				
 				System.out.print((i + 1) + " - ");
+				
 				String victor = begin();
 				if (victor != null)
 				{
@@ -1514,12 +1548,13 @@ public class FXUIGameMaster extends Application implements Serializable {
 	/**
 	 * Does a tiny bit of initialization on the map's internal structures, without setting
 	 * up/displaying players or other user-facing info.
+	 * Replaces GameMaster() from the original GameMaster class, since JavaFX would otherwise leave it unused.
 	 * @param mapFile
 	 * @param playerFile
 	 * @param logSwitch
 	 * @throws IOException
 	 */
-    public void initializeFXGMClass(String mapFile, String playerFile, boolean logSwitch) throws IOException {
+    public void initializeFXGMClass(String mapFile, String players, boolean logSwitch) throws IOException {
 		for (Country country : Country.values()) {
 			stringCountryRepresentation.put(country.getName(), country);
 		}
@@ -1529,22 +1564,21 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (rand == null) {
 			rand = new Random(RiskConstants.SEED);
 		}
-		//System.out.println("E G U 4 6 5 S");
-		if (logSwitch == LOGGING_ON) {
+		
+		loggingEnabled = logSwitch;
+		if (loggingEnabled == LOGGING_ON) {
 			this.log = new FileWriter(LOGFILE);
 			this.stats = new FileWriter(STATSFILE);
 		}
 		
-		//System.out.println("E T U 4 6 5 Q");
-		writeLogLn("Loading map from " + mapFile + "...");
+		writeLogLn(true, "Loading map from " + mapFile + "...");
 		if (starterMap == null) {
 			starterMap = new RiskMap();
 		}
 		
-		//System.out.println("E M G 4 6 9 M");
 		this.map = starterMap.getCopy();
 		loadDeck();
-		if (!loadPlayers(playerFile)) {
+		if (!loadPlayers(players)) {
 			System.out.println("Invalid number of players. 2-6 Players allowed.");
 		}
 		
