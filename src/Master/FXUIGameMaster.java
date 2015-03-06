@@ -15,6 +15,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -543,6 +544,8 @@ public class FXUIGameMaster extends Application implements Serializable {
 	 * @return name of the winner if the game has an ideal termination, null otherwise.
 	 */
 	public String begin() {
+		//This is only here temporarily, until I can figure out the control flow of this application.
+		((FXUIPlayer) this.playerMap.get("FXUIPlayer")).setOwnerWindow(this.pane.getScene().getWindow());
 		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
 			initiationGood = initializeForces();
@@ -945,28 +948,19 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected ReinforcementResponse tryInitialAllocation(Player player, int reinforcements) throws OSExitException {
 		try {
-			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
-				ReinforcementResponse rsp = player.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements);
-				validatePlayerName(player);
-				return rsp;
-			}
-			else{ //if not a CPU player, aka if a human player
-				FXUIPlayer pIn =(FXUIPlayer)player;
-				ReinforcementResponse rsp = pIn.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements, pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
-			
+			ReinforcementResponse rsp = player.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements);
+			validatePlayerName(player);
+			return rsp;
 		}
-		catch(OSExitException e){
+		/*catch(OSExitException e){
 			if(crossbar.playerDialogIsActive())
 			{
 				crossbar.getCurrentPlayerDialog().close();
 				crossbar.setCurrentPlayerDialog(null);
 			}
 			throw e;
-		}
-		catch (Exception e) {
+		}*/
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -974,27 +968,19 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired) throws OSExitException {
 		try {
-			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
-				CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
-				validatePlayerName(player);
-				return rsp;
-			}
-			else{ //if not a CPU player, aka if a human player
-				FXUIPlayer pIn =(FXUIPlayer)player;
-				CardTurnInResponse rsp = pIn.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired, pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
+			CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
+			validatePlayerName(player);
+			return rsp;
 		}
-		catch(OSExitException e){
+		/*catch(OSExitException e){
 			if(crossbar.playerDialogIsActive())
 			{
 				crossbar.getCurrentPlayerDialog().close();
 				crossbar.setCurrentPlayerDialog(null);
 			}
 			throw e;
-		}
-		catch (Exception e) {
+		}*/
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1002,27 +988,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected ReinforcementResponse tryReinforce(Player player, Map<String, Integer> oppCards, int reinforcements) throws OSExitException{
 		try {
-			/*
-			rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
+			ReinforcementResponse rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
-			return rsp;*/
-			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
-				ReinforcementResponse rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
-				validatePlayerName(player);
-				return rsp;
-			}
-			else{ //if not a CPU player, aka if a human player
-				FXUIPlayer pIn =(FXUIPlayer)player;
-				ReinforcementResponse rsp = pIn.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements, pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
+			return rsp;
 		}
-		catch (OSExitException e)
-		{
-			throw e;
-		}
-		catch (Exception e) {
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1030,23 +1000,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException{
 		try {
-			if(!player.getClass().equals(FXUIPlayer.class)){ //if a CPU player
-				AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
-				validatePlayerName(player);
-				return rsp;
-			}
-			else{ //if not a CPU player, aka if a human player
-				FXUIPlayer pIn =(FXUIPlayer)player;
-				AttackResponse rsp = pIn.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
+			AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
+			validatePlayerName(player);
+			return rsp;
 		}
-		catch (OSExitException e)
-		{
-			throw e;
-		}
-		catch (Exception e) {
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1058,7 +1016,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			validatePlayerName(player);
 			return rsp;
 		}
-		catch (Exception e) {
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1066,25 +1024,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) throws OSExitException {
 		try {
-			if(!player.getClass().equals(FXUIPlayer.class)) //CPU player
-			{
-				AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
-				validatePlayerName(player);
-				return rsp;
-			}
-			else //human player
-			{
-				FXUIPlayer fxPlayer = (FXUIPlayer)player;
-				AdvanceResponse rsp = fxPlayer.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice(), pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
+			AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+			validatePlayerName(player);
+			return rsp;
 		}
-		catch (OSExitException e)
-		{
-			throw e;
-		}
-		catch (Exception e) {
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1092,25 +1036,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 	
 	protected FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException {
 		try {
-			if(!player.getClass().equals(FXUIPlayer.class)) //CPU player
-			{
-				FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
-				validatePlayerName(player);
-				return rsp;
-			}
-			else //human player
-			{
-				FXUIPlayer fxPlayer = (FXUIPlayer)player;
-				FortifyResponse rsp = fxPlayer.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, pane.getScene().getWindow());
-				validatePlayerName(player);
-				return rsp;
-			}
+			FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
+			validatePlayerName(player);
+			return rsp;
 		}
-		catch (OSExitException e)
-		{
-			throw e;
-		}
-		catch (Exception e) {
+		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
@@ -1452,7 +1382,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 				//this.pane.getChildren().remove(txt);
 			}
 		}
-		catch (Exception e) {
+		catch (RuntimeException e) {
 		}
     }
 	
@@ -1488,8 +1418,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 				}
 			}
 		}
-		catch (Exception e) {
+		catch (RuntimeException e) {
 			System.out.println(e);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
 	
@@ -1528,8 +1461,11 @@ public class FXUIGameMaster extends Application implements Serializable {
 				}
 			}
 		}
-		catch (Exception e) {
+		catch (RuntimeException e) {
 			//errorDisplay.setText(e.getMessage());
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
 	
@@ -1596,85 +1532,204 @@ public class FXUIGameMaster extends Application implements Serializable {
 	 */
 	@Override
 	public void start(final Stage primaryStage) throws Exception {
-		try{
-			final About nAbout = new About();
-			//myStage = primaryStage;
-			
-			
-			double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
-			double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
-			System.out.println("Width first set: " + widthOfPriScreen + " :: Height first set: " + heightOfPriScreen);
-			
-			pane = new Pane();
-	        pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-	        pane.setStyle("-fx-background-color: blue");
-	        /*We set the image in the pane based on whether there was an error or not.
-	        * If there was an error, it'll be changed later.*/
-	       
-	        //Facilitate checking for errors...
-	        errorDisplayBit = false;
-	        errorText = "Status...";
-	        
-	        //pre-load the error background, just in case...
-	        Image imageE = new Image("RiskBoardAE.jpg",true);
-            ImageView im0 = new ImageView();
-            im0.setImage(imageE);
-            pane.getChildren().add(im0);
-            
-	        //...which will happen here:
-	        //populate the countries and players, and find out if there was an error doing either activity
-	        initializeFXGMClass("Countries.txt", null, LOGGING_ON);
-	        loadTextNodesForUI("TextNodes.txt");
-	        representPlayersOnUI();
-	        //now display elements -- status and buttons -- according to whether there was an error!
-	        errorDisplay = new Text(errorText);
-	        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
-	        if(errorDisplayBit)
-	        {
-	        	errorDisplay.setFill(Color.RED);
-	        }
-	        else
-	        {
-	        	errorDisplay.setFill(Color.WHITE);
-	        	Image imageOK = new Image("RiskBoard.jpg", true);
-                im0.setImage(imageOK);
-	        }
-	        
-	        //The vertical box to contain the major buttons and status.
-	        VBox primaryStatusButtonPanel = new VBox(10);
-	        primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
-	        primaryStatusButtonPanel.setLayoutX(29);
-	        primaryStatusButtonPanel.setLayoutY(525);
-	        primaryStatusButtonPanel.getChildren().add(errorDisplay);
-	        
-        	
-	        currentPlayStatus = new Text("H E L L O");
-	        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
-	        currentPlayStatus.setFill(Color.WHITE);
-	        
-	        
-	        //End the current game, but don't close the program.
-	        Button endGame = new Button("Bow out.\n(End current game)");
-	        endGame.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								if(crossbar.playerDialogIsActive())
-								{
-									crossbar.getCurrentPlayerDialog().close();
-									crossbar.setCurrentPlayerDialog(null);
-								}
+		final About nAbout = new About();
+		//myStage = primaryStage;
+		
+		
+		double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
+		double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
+		System.out.println("Width first set: " + widthOfPriScreen + " :: Height first set: " + heightOfPriScreen);
+		
+		pane = new Pane();
+        pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+        pane.setStyle("-fx-background-color: blue");
+        /*We set the image in the pane based on whether there was an error or not.
+        * If there was an error, it'll be changed later.*/
+       
+        //Facilitate checking for errors...
+        errorDisplayBit = false;
+        errorText = "Status...";
+        
+        //pre-load the error background, just in case...
+        Image imageE = new Image("RiskBoardAE.jpg",true);
+        ImageView im0 = new ImageView();
+        im0.setImage(imageE);
+        pane.getChildren().add(im0);
+        
+        //...which will happen here:
+        //populate the countries and players, and find out if there was an error doing either activity
+        initializeFXGMClass("Countries.txt", null, LOGGING_ON);
+        loadTextNodesForUI("TextNodes.txt");
+        representPlayersOnUI();
+        //now display elements -- status and buttons -- according to whether there was an error!
+        errorDisplay = new Text(errorText);
+        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
+        if(errorDisplayBit)
+        {
+        	errorDisplay.setFill(Color.RED);
+        }
+        else
+        {
+        	errorDisplay.setFill(Color.WHITE);
+        	Image imageOK = new Image("RiskBoard.jpg", true);
+            im0.setImage(imageOK);
+        }
+        
+        //The vertical box to contain the major buttons and status.
+        VBox primaryStatusButtonPanel = new VBox(10);
+        primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
+        primaryStatusButtonPanel.setLayoutX(29);
+        primaryStatusButtonPanel.setLayoutY(525);
+        primaryStatusButtonPanel.getChildren().add(errorDisplay);
+        
+    	
+        currentPlayStatus = new Text("H E L L O");
+        currentPlayStatus.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
+        currentPlayStatus.setFill(Color.WHITE);
+        
+        
+        //End the current game, but don't close the program.
+        Button endGame = new Button("Bow out.\n(End current game)");
+        endGame.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							if(crossbar.playerDialogIsActive())
+							{
+								crossbar.getCurrentPlayerDialog().close();
+								crossbar.setCurrentPlayerDialog(null);
 							}
-			        	});
-		    	  }
-	        });
-	        
-	        //Button to initiate the game
-	        Button startBtn = new Button("Let's go!!\n(Start new game)");
-	        startBtn.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
+						}
+		        	});
+	    	  }
+        });
+        
+        //Button to initiate the game
+        Button startBtn = new Button("Let's go!!\n(Start new game)");
+        startBtn.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							try
+							  {
+								  beginWithStartButton();
+							  }//end try
+							  catch(Exception e)
+							  {	
+								  // TODO: in case any uncaught exceptions occur, catch 'em here.
+							  }	
+						}
+		        	});
+	    	  }
+		  
+		});
+        
+        //your standard About buttons...
+        HBox talkToMe = new HBox(15);
+        Button tellMe = new Button("About");
+        tellMe.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							nAbout.launch(pane.getScene().getWindow(), false);
+						}
+		        	});
+	    	  }
+        });
+        
+        //...I said "About buttons". Plural. Yep.	
+        Button tellMe2 = new Button("more.");
+        tellMe2.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							nAbout.more(pane.getScene().getWindow());
+						}
+		        	});
+	    	  }
+        });
+        
+        //testing saving functionality
+        Button saveMe = new Button("save.");
+        saveMe.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							try{
+								performSave();
+							}
+							catch(Exception e)
+							{
+								
+							}
+						}
+		        	});
+	    	  }
+        });
+        saveMe.setDisable(true);
+        
+        Button restoreMe = new Button("load.");
+        restoreMe.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							try{
+								beginWithLoadButton();
+							}
+							catch(Exception e)
+							{
+								
+							}
+						}
+		        	});
+	    	  }
+        });
+        
+        
+        buttonCache.add(startBtn);
+        buttonCache.add(restoreMe);
+        buttonCache.add(saveMe);
+        
+        talkToMe.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
+        
+        //Exit the application entirely
+        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
+        exitApp.setOnAction(new EventHandler<ActionEvent>(){
+	    	  @Override public void handle(ActionEvent t){
+		        	Platform.runLater(new Runnable()
+		        	{
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							primaryStage.close();
+							mainWindowExit = true;
+						}
+						
+					});
+	    	  }
+        });
+        
+        //tweaks to perform if there was an error...
+        if(errorDisplayBit){
+        	currentPlayStatus.setText("------");
+        	startBtn.setDisable(true);
+        	endGame.setDisable(true);
+        }
+        else{
+			pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
+		    	  @Override public void handle(KeyEvent t){
 			        	Platform.runLater(new Runnable()
 			        	{
 							@Override
@@ -1685,183 +1740,58 @@ public class FXUIGameMaster extends Application implements Serializable {
 								  }//end try
 								  catch(Exception e)
 								  {	
-									  // TODO: in case any uncaught exceptions occur, catch 'em here.
-								  }	
+								  } //end catch	
 							}
 			        	});
 		    	  }
 			  
-			});
-	        
-	        //your standard About buttons...
-	        HBox talkToMe = new HBox(15);
-	        Button tellMe = new Button("About");
-	        tellMe.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								nAbout.launch(pane.getScene().getWindow(), false);
-							}
-			        	});
-		    	  }
-	        });
-	        
-	        //...I said "About buttons". Plural. Yep.	
-	        Button tellMe2 = new Button("more.");
-	        tellMe2.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								nAbout.more(pane.getScene().getWindow());
-							}
-			        	});
-		    	  }
-	        });
-	        
-	        //testing saving functionality
-	        Button saveMe = new Button("save.");
-	        saveMe.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								try{
-									performSave();
-								}
-								catch(Exception e)
-								{
-									
-								}
-							}
-			        	});
-		    	  }
-	        });
-	        saveMe.setDisable(true);
-	        
-	        Button restoreMe = new Button("load.");
-	        restoreMe.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								try{
-									beginWithLoadButton();
-								}
-								catch(Exception e)
-								{
-									
-								}
-							}
-			        	});
-		    	  }
-	        });
-	        
-	        
-	        buttonCache.add(startBtn);
-	        buttonCache.add(restoreMe);
-	        buttonCache.add(saveMe);
-	        
-	        talkToMe.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
-	        
-	        //Exit the application entirely
-	        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
-	        exitApp.setOnAction(new EventHandler<ActionEvent>(){
-		    	  @Override public void handle(ActionEvent t){
-			        	Platform.runLater(new Runnable()
-			        	{
-							@Override
-							public void run() {
-								// TODO Auto-generated method stub
-								primaryStage.close();
-								mainWindowExit = true;
-							}
-							
-						});
-		    	  }
-	        });
-	        
-	        //tweaks to perform if there was an error...
-	        if(errorDisplayBit){
-	        	currentPlayStatus.setText("------");
-	        	startBtn.setDisable(true);
-	        	endGame.setDisable(true);
-	        }
-	        else{
-				pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
-			    	  @Override public void handle(KeyEvent t){
-				        	Platform.runLater(new Runnable()
-				        	{
-								@Override
-								public void run() {
-									try
-									  {
-										  beginWithStartButton();
-									  }//end try
-									  catch(Exception e)
-									  {	
-									  } //end catch	
-								}
-				        	});
-			    	  }
-				  
-			    });
-	        }
-	        
-	        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,endGame,exitApp,talkToMe);
-	        //****layout of text & buttons displayed upon launch ends here.***
-	        
-	        pane.getChildren().add(primaryStatusButtonPanel);
-	        
+		    });
+        }
+        
+        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,endGame,exitApp,talkToMe);
+        //****layout of text & buttons displayed upon launch ends here.***
+        
+        pane.getChildren().add(primaryStatusButtonPanel);
+        
 
-			// DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-			scene = new Scene(pane,widthOfPriScreen, heightOfPriScreen);
+		// DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+		scene = new Scene(pane,widthOfPriScreen, heightOfPriScreen);
+	
 		
-			
-			//one more tweak to perform if there was -no- error
-			scene.widthProperty().addListener(new ChangeListener<Number>() {
-                @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
-                    System.out.println("Width: " + newSceneWidth);
-                    resize(null);
-                }
-            });
-            scene.heightProperty().addListener(new ChangeListener<Number>() {
-                @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
-                    System.out.println("Height: " + newSceneHeight);
-                    resize(null);
-                }
-            });
-			
-			
-            resize(primaryStage);
-			primaryStage.setTitle("RISK!");
-	        primaryStage.setScene(scene);
-	        primaryStage.show();
-	        
-	        //go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
-	        nAbout.launch(pane.getScene().getWindow(), true);
-	        
-	        //Help control what happens when the user tries to exit by telling the app...what...to do.
-	        //In this case, we're telling it "Yes, we're trying to exit from the main window, so display the appropriate dialog.
-	        //That's what this single boolean does.
-	        scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
-		    	  @Override
-		    	  public void handle(WindowEvent t)
-		    	  {
-		    		  mainWindowExit = true;
-		    		  doYouWantToMakeAnExit(0);
-		    	  }
-		    	 });
+		//one more tweak to perform if there was -no- error
+		scene.widthProperty().addListener(new ChangeListener<Number>() {
+            @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
+                System.out.println("Width: " + newSceneWidth);
+                resize(null);
+            }
+        });
+        scene.heightProperty().addListener(new ChangeListener<Number>() {
+            @Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
+                System.out.println("Height: " + newSceneHeight);
+                resize(null);
+            }
+        });
 		
-		}
-		catch (Exception e) {
-			// TODO analyze whether this try-catch is required.
-		}
+		
+        resize(primaryStage);
+		primaryStage.setTitle("RISK!");
+        primaryStage.setScene(scene);
+        primaryStage.show();
+        
+        //go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
+        nAbout.launch(pane.getScene().getWindow(), true);
+        
+        //Help control what happens when the user tries to exit by telling the app...what...to do.
+        //In this case, we're telling it "Yes, we're trying to exit from the main window, so display the appropriate dialog.
+        //That's what this single boolean does.
+        scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
+	    	  @Override
+	    	  public void handle(WindowEvent t)
+	    	  {
+	    		  mainWindowExit = true;
+	    		  doYouWantToMakeAnExit(0);
+	    	  }
+	    	 });
 		
 	}
 	
