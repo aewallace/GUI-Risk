@@ -8,7 +8,6 @@
 **/
 
 package Player;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -16,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import javafx.beans.property.ObjectProperty;
+
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
@@ -60,12 +59,8 @@ import Util.RiskUtils;
  * JDK 7/JRE 1.7 will be the target until further notified.
  *
  */
-public class FXUIPlayer implements Player, Serializable {
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = -7347767546021096558L;
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Ah\nStamp Y2015.M02.D25.HM2056\nType:Alpha(01)";
+public class FXUIPlayer implements Player {
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Ch\nStamp Y2015.M03.D05.HM2144\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar;
@@ -79,11 +74,7 @@ public class FXUIPlayer implements Player, Serializable {
 	//private String currentFocus = null;
 	
 	//to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
-	class doWeExit implements Serializable{
-		/**
-		 * 
-		 */
-		private static final long serialVersionUID = -4811130654807399456L;
+	class doWeExit{
 		private boolean systemExitUsed = true;
 		
 		//get whether the program should attempt to exit back to the OS, or if the app should continue running after "dialog.close()" is called
@@ -143,6 +134,11 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return initial allocation
 	 */
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
+		
 		crossbar.setPlayerName(getName());
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
@@ -281,6 +277,11 @@ public class FXUIPlayer implements Player, Serializable {
 	 */
 	@Override
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired) {
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
+				
 		final CardTurnInResponse rsp = new CardTurnInResponse();  
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
 		final HashMap<Integer, Text> cardStatusMapping = new HashMap<Integer, Text>();
@@ -430,6 +431,10 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return reinforcement allocation
 	 */
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements){
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -569,6 +574,10 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return attack choice
 	 */
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
 		final AttackResponse rsp = new AttackResponse();
 		final HashMap<String, Country> myCountries = new HashMap<String, Country>();
 		final HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
@@ -750,6 +759,10 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return advance choice
 	 */
 	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int minAdv){
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
 		final int sourceArmies = map.getCountryArmies(fromCountry);
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
 		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
@@ -888,6 +901,10 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return fortification choice
 	 */
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
 		final FortifyResponse rsp = new FortifyResponse();
 		final HashMap<String, Country> myCountries = new HashMap<String, Country>();
 		HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
@@ -1088,6 +1105,10 @@ public class FXUIPlayer implements Player, Serializable {
 	 * @return defense choice
 	 */
 	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country atkCountry, Country dfdCountry, int numAtkDice){
+		//if the player asked to end the game, don't even display the dialog
+		if(crossbar.isPlayerEndingGame()){
+	    	return null;
+	    }
 		DefendResponse rsp = new DefendResponse();
 		int numDice = map.getCountryArmies(dfdCountry);
 		if (numDice > RiskConstants.MAX_DFD_DICE) {
@@ -1095,58 +1116,9 @@ public class FXUIPlayer implements Player, Serializable {
 		}
 		rsp.setNumDice(numDice);
 		return rsp;
-		// TODO this stolen from seth's cpu. must find a way to jiggle & juggle these bits later.
+		// TODO this stolen from seth's cpu. must find a way to jiggle & juggle these bits later if necessary.
 	}
 	
-	
-	//consider this a template of how to create a dialog window with this class and the necessary FXUIGM
-	public String testRequiredInputPrompt(Window owner) {
-		System.out.println("Hi Hi HIII");
-		String result = "";
-			
-		final Stage dialog = new Stage();
-		System.out.println("Hi Hi HIII T2");
-	    
-	    dialog.setTitle("Enter Missing Text");
-	    dialog.initOwner(owner);
-	    
-	    System.out.println("Hi Hi HIII X2");
-	    //dialog.initStyle(StageStyle.UTILITY);
-	    //dialog.initModality(Modality.WINDOW_MODAL);
-	    dialog.setX(owner.getX());
-	    dialog.setY(owner.getY());
-	    
-	    System.out.println("Hi Hi HIII X3");
-
-	    final TextField textField = new TextField();
-	    final Button submitButton = new Button("Submit");
-	    submitButton.setDefaultButton(true);
-	    submitButton.setOnAction(new EventHandler<ActionEvent>() {
-	      @Override public void handle(ActionEvent t) {
-	        dialog.close();
-	      }
-	    });
-	    textField.setMinHeight(TextField.USE_PREF_SIZE);
-	    
-	    System.out.println("Hi Hi HIII");
-
-	    final VBox layout = new VBox(10);
-	    layout.setAlignment(Pos.CENTER_RIGHT);
-	    layout.setStyle("-fx-padding: 20;");
-	    layout.getChildren().setAll(
-	      textField, 
-	      submitButton
-	    );
-
-	    dialog.setScene(new Scene(layout));
-	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    dialog.showAndWait();
-	    result = textField.getText();
-	    
-	    FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-		return result;
-	    
-	    }
 	
 	/**
 	 * Getter for the player name.

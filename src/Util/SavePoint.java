@@ -161,13 +161,4 @@ public class SavePoint implements Serializable {
 	public void prepLogCache(ArrayList<String> logCacheIn){
 		logCache = logCacheIn;
 	}
-	/*String RiskMap.getCountryOwner(Country country)
-	int RiskMap.getCountryArmies(Country country)
-
-	Collection<Card> FXUIGameMaster.createCardSetCopy(String playerName)
-	Player.getClass()*/
-	
-	//this.players (List<String>)
-	//this.allPlayers (List<String>)
-
 }

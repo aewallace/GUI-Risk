@@ -2,7 +2,7 @@
 *Albert Wallace, 2015. Version info now found in class definition.
 *for Seth Denney's RISK, JavaFX UI-capable version
 *
-*Base build from original GameMaster class implementation, by Seth Denney, Sept 10 2014 
+*Base build from original GameMaster class implementation, by Seth Denney, Feb 20 2015 
 */
 
 // TODO see about backing up the responses--or the results of the responses
@@ -25,11 +25,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Deque;
@@ -48,7 +46,6 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
-import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
@@ -115,12 +112,8 @@ import Util.TextNodes;
  * JDK 7/JRE 1.7 will be the target until further notified.
  *
  */
-public class FXUIGameMaster extends Application implements Serializable {
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 7520356274763151952L;
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Bh\nStamp Y2015.M02.D26.HM1730\nType:Alpha(01)";
+public class FXUIGameMaster extends Application {
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Dh\nStamp Y2015.M03.D05.HM2144\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -168,7 +161,6 @@ public class FXUIGameMaster extends Application implements Serializable {
     ArrayList<Button> buttonCache = new ArrayList<Button>();
     private static boolean gameQuit = false;
     
-    // TODO analyze viability of serialization vs using the already-existing log
     
     
     /**
@@ -200,12 +192,14 @@ public class FXUIGameMaster extends Application implements Serializable {
 		        	crossbar.signalPlayerEndingGame();
 					proceedWithExit = true;
 					if(!mainWindowExit)
-				  {
+					{
 						gameQuit = true;
-					  currentPlayStatus.setText("I D L E");
-				  }
-				  
-				  dialog.close();
+						currentPlayStatus.setText("I D L E");
+					}
+					if(crossbar.getCurrentPlayerDialog() != null){
+							crossbar.getCurrentPlayerDialog().close();
+					}
+					dialog.close();
 		        }
 		      });
 	      
@@ -381,19 +375,16 @@ public class FXUIGameMaster extends Application implements Serializable {
 		final String HDP = HardDefaultPlayer.class.toString();
 		final String NDP = NormalDefaultPlayer.class.toString();
 		final String S_P = Seth.class.toString();
-		//System.out.println(FXP + EDP + HDP + NDP + S_P + "000000A");
 		System.out.println("loadPlayersFromSave entered...");
 		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " players is what we will be loading today");
 		for (Entry<String, Boolean> playerIn : loadedSave.getPlayerIsEliminatedMap().entrySet())
 		{
 			this.allPlayers.add(playerIn.getKey());
 			Player playerObjectToCast = null;
-			//System.out.println(playerIn.getValue());
 			if (playerIn.getValue() == false)//player isn't eliminated
 			{
 				this.players.add(playerIn.getKey());
 				String switcher = loadedSave.getActivePlayersAndTheirTypes().get(playerIn.getKey());
-				//System.out.println(switcher + "000001");
 				if (switcher.equals(FXP)){
 					playerObjectToCast = new FXUIPlayer(playerIn.getKey());
 					FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
@@ -483,18 +474,15 @@ public class FXUIGameMaster extends Application implements Serializable {
      * TODO include what happens when the user starts the game by pressing a key on the keyboard.
      */
 	public void setButtonAvailability(){
-		//IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
-		/*0 = startBtn
-	    		1 = restoreMe/loaded)*/
 	    if(workingMode == IDLE_MODE)
 		{
-	    	buttonCache.get(0).setDisable(false);
-	    	buttonCache.get(1).setDisable(false);
-	    	buttonCache.get(2).setDisable(true);
+	    	buttonCache.get(0).setDisable(false); //we can start a new game
+	    	buttonCache.get(1).setDisable(false); //we can load a previous game
+	    	buttonCache.get(2).setDisable(true); //we cannot use the save button
 		}
 		else {
-			buttonCache.get(0).setDisable(true);
-	    	buttonCache.get(1).setDisable(true);
+			buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
+	    	buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
 		}
 	}
     		
@@ -560,14 +548,14 @@ public class FXUIGameMaster extends Application implements Serializable {
 			}
 		}
 		if (initiationGood) {
+			crossbar.resetEndGameSignal();
 			currentPlayStatus.setText("in play.");
 			//play round-robin until there is only one player left
 			int turn = 0;
 			while (this.players.size() > 1 && !gameQuit) {
-				prepareSave();
+				
 				if (turn == 0) {
 					this.round++;
-					performSave();
 					writeLogLn(true, "Beginning Round " + round + "!");
 					if (this.round > RiskConstants.MAX_ROUNDS) {
 						return "Stalemate!";
@@ -577,6 +565,12 @@ public class FXUIGameMaster extends Application implements Serializable {
 				writeLogLn(true, currentPlayer.getName() + " is starting their turn.");
 				writeStatsLn();
 				this.turnCount++;
+				if (currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()))
+				{
+					prepareSave();
+					performSave();
+					
+				}
 				try {
 					updateDisplay();
 					reinforce(currentPlayer, true);
@@ -683,7 +677,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 			
 			updateDisplay();
 			
-			if (!valid || (crossbar.isPlayerBowingOut() && player.getName() == crossbar.getPlayerName())) {
+			if (!valid || (crossbar.isPlayerEndingGame() && player.getName() == crossbar.getPlayerName())) {
 				try {
 					if(!valid){
 					eliminate(player, null, "You failed to provide a valid initial army allocation.");
@@ -754,7 +748,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
 		}
-		else if(crossbar.isPlayerBowingOut()) {
+		else if(crossbar.isPlayerEndingGame()) {
 			eliminate(currentPlayer, null, "Player decided to leave. Come back any time, friend!");
 		}
 		writeLogLn(true, EVENT_DELIM);
@@ -824,7 +818,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (!valid) {
 			eliminate(defender, null, "You failed to provide a valid defense response.");
 		}
-		else if(crossbar.isPlayerBowingOut() && defender.getName() == crossbar.getPlayerName())
+		else if(crossbar.isPlayerEndingGame() && defender.getName() == crossbar.getPlayerName())
 		{
 			eliminate(defender, null, "This defender wants a break. Go ahead, friend. You deserve it.");
 		}
@@ -889,7 +883,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (!valid) {
 			eliminate(attacker, null, "You failed to provide a valid advance response.");
 		}
-		else if (crossbar.isPlayerBowingOut() && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
+		else if (crossbar.isPlayerEndingGame() && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
 		{
 			eliminate(attacker, null, "The advancer decided to take a break. 'S OK. Get some cookies. Or hot cocoa.");
 		}
@@ -1127,7 +1121,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		if (!valid && turnInRequired) {
 			eliminate(currentPlayer, null, "You were required to turn in cards this turn, and you failed to do so.");
 		}
-		else if(crossbar.isPlayerBowingOut() && currentPlayer.getName() == crossbar.getPlayerName()){
+		else if(crossbar.isPlayerEndingGame() && currentPlayer.getName() == crossbar.getPlayerName()){
 			eliminate(currentPlayer, null, "The player is opting out of the game altogether. Have a good day, buddy.");
 		}
 		return cardBonus;
@@ -1596,6 +1590,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		        	{
 						@Override
 						public void run() {
+							crossbar.signalPlayerEndingGame();
 							if(crossbar.playerDialogIsActive())
 							{
 								crossbar.getCurrentPlayerDialog().close();
@@ -1614,14 +1609,7 @@ public class FXUIGameMaster extends Application implements Serializable {
 		        	{
 						@Override
 						public void run() {
-							try
-							  {
-								  beginWithStartButton();
-							  }//end try
-							  catch(Exception e)
-							  {	
-								  // TODO: in case any uncaught exceptions occur, catch 'em here.
-							  }	
+							beginWithStartButton();
 						}
 		        	});
 	    	  }

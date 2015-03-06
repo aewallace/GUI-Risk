@@ -1,10 +1,8 @@
 //FXUI GameMaster-Player Crossbar Link
-//Albert Wallace, 2015. (See serial version UID for further version info).
+//Albert Wallace, 2015. (Version 00x02h, Stamp 2015.03.05.2144, Type Final(FF).
 //for Seth Denney's RISK, JavaFX UI-capable version
 
 package Util;
-
-import java.io.Serializable;
 
 import javafx.stage.Stage;
 
@@ -19,8 +17,7 @@ import javafx.stage.Stage;
  * FXUI_Crossbar may change over time in the future, depending on what things may need to be transferred.
  * 	If so desired, FXUI_Crossbar may be tied into a virtual "clock" should major amounts of threading come into play.
  */
-public class FXUI_Crossbar implements Serializable{
-	private static final long serialVersionUID = 2015021720200000001L;
+public class FXUI_Crossbar {
 	
 	private static Stage currentPlayerJFXStage = null;
 	private static boolean fxPlayerQuit = false;
@@ -53,14 +50,6 @@ public class FXUI_Crossbar implements Serializable{
 		}
 	}
 	
-	public boolean isPlayerBowingOut()
-	{
-		final boolean returnT = fxPlayerQuit;
-		fxPlayerQuit = false;
-		return returnT;
-		
-	}
-	
 	public String getPlayerName(){
 		return playerName;
 	}
@@ -72,7 +61,15 @@ public class FXUI_Crossbar implements Serializable{
 	public void signalPlayerEndingGame()
 	{
 		fxPlayerQuit = true;
-		
+	}
+	
+	public void resetEndGameSignal()
+	{
+		fxPlayerQuit = false;
+	}
+	
+	public boolean isPlayerEndingGame(){
+		return fxPlayerQuit;
 	}
 
 }
