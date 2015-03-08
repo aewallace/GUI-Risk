@@ -579,33 +579,6 @@ public class FXUIPlayer implements Player {
 	    	return null;
 	    }
 		final AttackResponse rsp = new AttackResponse();
-		final HashMap<String, Country> myCountries = new HashMap<String, Country>();
-		final HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
-		final HashMap<String, ArrayList<String>> countryNeighborsAsStrings = new HashMap<String, ArrayList<String>>();
-		final ArrayList<String> myCountriesAsStrings = new ArrayList<String>();
-		//get the countries in an easily sorted string array representation, and store them in a map for easy reference
-		for (Country country : RiskUtils.getPlayerCountries(map, this.name))
-		{
-			myCountries.put(country.getName(), country);
-			myCountriesAsStrings.add(country.getName());
-			//countryNeighbors.put(country.getName(), (ArrayList<Country>) country.getNeighbors());
-			ArrayList<String> stng = new ArrayList<String>();
-			HashMap<String, Country> cyAn = new HashMap<String, Country>();
-			//add neighbor to list of attackable countries, if the owner isn't me.
-			for (Country tgtCt : country.getNeighbors()){
-				if(map.getCountryOwner(tgtCt) != this.name)
-				{
-					stng.add(tgtCt.getName());
-					cyAn.put(tgtCt.getName(), tgtCt);
-				}
-			}
-			//stng.sort(null);
-			Collections.sort(stng);
-			countryNeighborsAsStrings.put(country.getName(), stng);
-			countryNeighbors.put(country.getName(), cyAn);
-		}
-		//myCountriesAsStrings.sort(null);
-		Collections.sort(myCountriesAsStrings);
 		
 		ScrollPane spane = new ScrollPane();
 	    final Stage dialog = new Stage();
@@ -620,7 +593,6 @@ public class FXUIPlayer implements Player {
 	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
 	    layout.setStyle("-fx-padding: 20;");
-	    
 	    
 	    //Generic instructions for reinforcement
 	    Text guideText = new Text();
@@ -638,33 +610,36 @@ public class FXUIPlayer implements Player {
 	    sourceCountriesVBox.setAlignment(Pos.CENTER);
 	    targetCountriesVBox.setAlignment(Pos.CENTER);
 	    sourceCountriesVBox.getChildren().add(new Text("Source:"));
-	    
-	    
-	    //buttons for countries you own, and text to display *additional* units to deplor to each country
-	    for (final String ctSource : myCountriesAsStrings)
+
+		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
+		
+	    //buttons for countries you own, and text to display *additional* units to deploy to each country
+	    for (Country source : sources)
 			{
-				final Button ctSrcBtn = new Button(ctSource);
+				final Button ctSrcBtn = new Button(source.getName());
 				//button to increment reinforcement count for selected country
-			  ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
-			  	  @Override public void handle(ActionEvent t){
-			  		final String srcID = ctSource;
-		  			attackSource = srcID;
-		  			attackTarget = "-----"; /* TODO represent as variable*/
-		  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
-			  		targetCountriesVBox.getChildren().clear();
-			  		targetCountriesVBox.getChildren().add(new Text("Target:"));
-			  		for (final String ctTarget : countryNeighborsAsStrings.get(srcID))
-			  		{
-			  			final Button ctTgtBtn = new Button(ctTarget);
-							ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
-							  	  @Override public void handle(ActionEvent t){
-						  			final String tgtID = ctTarget;
-						  			attackTarget = tgtID;
-						  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
-							  	  }//end of actionevent definition
-							});
-							targetCountriesVBox.getChildren().add(ctTgtBtn);
-			  		}//end of outer button for loop
+				ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
+					@Override public void handle(ActionEvent t){
+						rsp.setAtkCountry(source);
+			  			attackSource = source.getName();
+			  			attackTarget = "-----"; /* TODO represent as variable*/
+			  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+				  		targetCountriesVBox.getChildren().clear();
+				  		targetCountriesVBox.getChildren().add(new Text("Target:"));
+				  		for (Country target : source.getNeighbors())
+				  		{
+				  			if (!map.getCountryOwner(target).equals(getName())) {
+					  			final Button ctTgtBtn = new Button(target.getName());
+									ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
+										@Override public void handle(ActionEvent t){
+									  		  rsp.setDfdCountry(target);
+									  		  attackTarget = target.getName();
+									  		  statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+									  	  }
+									});
+									targetCountriesVBox.getChildren().add(ctTgtBtn);
+				  			}
+				  		}
 			  	  }
 			  }
 			  );
@@ -681,28 +656,19 @@ public class FXUIPlayer implements Player {
 	    Button acceptIt = new Button ("Accept/OK");
 	    acceptIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
-	  		if (myCountriesAsStrings.contains(attackSource) && countryNeighborsAsStrings.get(attackSource).contains(attackTarget))
+	  		if (rsp.getAtkCountry() != null && rsp.getDfdCountry() != null)
 	  		{
-	  			int maxDiceAvailable = map.getCountryArmies(myCountries.get(attackSource)) > RiskConstants.MAX_ATK_DICE ? 3 : map.getCountryArmies(myCountries.get(attackSource)) - 1;
-	  			if (maxDiceAvailable > 0)
-	  			{
-	  				rsp.setAtkCountry(myCountries.get(attackSource));
-	  				rsp.setDfdCountry(countryNeighbors.get(attackSource).get(attackTarget));
-	  				rsp.setNumDice(maxDiceAvailable);
-	  				if(!AttackResponse.isValidResponse(rsp, map, getName()))
-	  				{
-	  					statusText.setText("Not a valid response; try another combo.");
-	  				}
-	  				else{
-	  					passTurn = false;
-	  					exitDecider.setAsNonSystemClose();
-	  					dialog.close();
-	  				}
-	  			}
-	  			else
-	  			{
-	  				statusText.setText("Not a valid response;\nAttack from a country with 2+ troops.");
-	  			} 
+	  			int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+	  			rsp.setNumDice(maxDiceAvailable);
+  				if(!AttackResponse.isValidResponse(rsp, map, getName()))
+  				{
+  					statusText.setText("Not a valid response; try another combo.");
+  				}
+  				else{
+  					passTurn = false;
+  					exitDecider.setAsNonSystemClose();
+  					dialog.close();
+  				}
 	  		}
 	  		else
 	  		{
@@ -906,34 +872,31 @@ public class FXUIPlayer implements Player {
 	    	return null;
 	    }
 		final FortifyResponse rsp = new FortifyResponse();
-		final HashMap<String, Country> myCountries = new HashMap<String, Country>();
-		HashMap<String, HashMap<String, Country>> countryNeighbors = new HashMap<String, HashMap<String, Country>>();
-		final HashMap<String, ArrayList<String>> countryNeighborsAsStrings = new HashMap<String, ArrayList<String>>();
-		ArrayList<String> myCountriesAsStrings = new ArrayList<String>();
-		//get the countries in an easily sorted string array representation, and store them in a map for easy reference
-		for (Country country : RiskUtils.getPlayerCountries(map, this.name))
-		{
-			myCountries.put(country.getName(), country);
-			myCountriesAsStrings.add(country.getName());
-			ArrayList<String> stng = new ArrayList<String>();
-			HashMap<String, Country> cyAn = new HashMap<String, Country>();
-			//add neighbor to list of attackable countries, if the owner isn't me.
-			for (Country tgtCt : country.getNeighbors()){
-				if(map.getCountryOwner(tgtCt) == this.name)
-				{
-					stng.add(tgtCt.getName());
-					cyAn.put(tgtCt.getName(), tgtCt);
+		
+		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
+		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
+		Map<Country, Set<Country>> destMap = new HashMap<Country, Set<Country>>();
+		
+		//Create Map of each possible fortification source to all possible destinations
+		for (Country source : sources) {
+			if (!destMap.containsKey(source)) {
+				boolean found = false;
+				for (Set<Country> connectedSet : allConnectedSets) {
+					for (Country country : connectedSet) {
+						if (source == country) {
+							destMap.put(source, connectedSet);
+							found = true;
+							break;
+						}
+					}
+					if (found) {
+						break;
+					}
 				}
 			}
-			//stng.sort();
-			Collections.sort(stng);
-			countryNeighborsAsStrings.put(country.getName(), stng);
-			countryNeighbors.put(country.getName(), cyAn);
 		}
-		//myCountriesAsStrings.sort(null);
-		Collections.sort(myCountriesAsStrings);
 		
-		ScrollPane spane = new ScrollPane();
+		//ScrollPane spane = new ScrollPane();
 		final Stage dialog = new Stage();
 		dialog.setTitle("Fortify? [optional]");
 		//dialog.initOwner(owner);
@@ -965,40 +928,35 @@ public class FXUIPlayer implements Player {
 		targetCountriesVBox.setAlignment(Pos.CENTER);
 		sourceCountriesVBox.getChildren().add(new Text("Source:"));
 		
-		
-		//buttons for the source and destination countries
-		for (final String ctSource : myCountriesAsStrings)
-			{
-				final Button ctSrcBtn = new Button(ctSource);
-				//button to increment reinforcement count for selected country
-			  ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
+		for (Country source : sources) {
+			final Button ctSrcBtn = new Button(source.getName());
+			
+			ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
 			  	  @Override
-			    	public void handle(ActionEvent event){
-						final String srcID = ctSource;
-						rsp.setFromCountry(myCountries.get(srcID));
-						rsp.setNumArmies(0);
-						rsp.setToCountry(null);
-						statusText.setText("Current selection:\nFortifying\n????\nusing ??? troops from\n" + rsp.getFromCountry().getName() + ".");
+			  	  public void handle(ActionEvent event) {
+						statusText.setText("Current selection:\nFortifying\n????\nusing ??? troops from\n" + source.getName() + ".");
 						targetCountriesVBox.getChildren().clear();
 						targetCountriesVBox.getChildren().add(new Text("Target:"));
-						for (String ctTarget : countryNeighborsAsStrings.get(srcID))
-						{
-							final Button ctTgtBtn = new Button(ctTarget);
-							final String ctTargetUM = ctTarget;
-							ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
-							  	  @Override public void handle(ActionEvent t){
-						  			final String tgtID = ctTargetUM;
-						  			rsp.setToCountry(myCountries.get(tgtID));
-						  			statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing ??? troops from\n" + rsp.getFromCountry().getName() + ".");
-							  	  }//end of actionevent definition
-							});
-							targetCountriesVBox.getChildren().add(ctTgtBtn);
-						}//end of button loop
-			  	}
-				});
-			  //button to decrement reinforcement count for selected country
-			  sourceCountriesVBox.getChildren().add(ctSrcBtn);
-			}
+
+						rsp.setFromCountry(source);
+						
+						for (Country dest : destMap.get(source)) {
+							if (dest != source) {
+								final Button ctTgtBtn = new Button(dest.getName());
+								ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
+								  	  @Override public void handle(ActionEvent t){
+							  			rsp.setToCountry(dest);
+							  			statusText.setText("Current selection:\nFortifying\n" + dest.getName() + "\nusing ??? troops from\n" + source.getName() + ".");
+								  	  }//end of actionevent definition
+								});
+								targetCountriesVBox.getChildren().add(ctTgtBtn);
+							}
+						}
+			  	  }
+			});
+			//button to decrement reinforcement count for selected country
+			sourceCountriesVBox.getChildren().add(ctSrcBtn);
+		}
 		
 		final HBox bothCountryGroups = new HBox(10);
 		bothCountryGroups.getChildren().addAll(sourceCountriesVBox, targetCountriesVBox);

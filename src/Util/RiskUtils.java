@@ -199,4 +199,17 @@ public class RiskUtils {
 		}
 		return borderCountries;
 	}
+	
+	/**
+	 * Returns only the countries that have more than one army (ie. can attack of fortify)
+	 */
+	public static Collection<Country> getPossibleSourceCountries(RiskMap map, Collection<Country> countries) {
+		Collection<Country> possibleSources = new ArrayList<Country>();
+		for (Country country : countries) {
+			if (map.getCountryArmies(country) > 1) {
+				possibleSources.add(country);
+			}
+		}
+		return possibleSources;
+	}
 }
