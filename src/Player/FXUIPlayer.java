@@ -535,8 +535,10 @@ public class FXUIPlayer implements Player {
 	    //add status and buttons to layout
 	    layout.getChildren().addAll(statusText, acceptIt);
 	    
+	    ScrollPane spane = new ScrollPane();
+	    spane.setContent(layout);
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
-	    dialog.setScene(new Scene(layout));
+	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    dialog.showAndWait();
 	
@@ -695,7 +697,7 @@ public class FXUIPlayer implements Player {
 	    
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 	    spane.setContent(layout);
-	    dialog.setScene(new Scene(layout));
+	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    dialog.showAndWait();
 	    if (exitDecider.isSystemExit())
@@ -896,7 +898,7 @@ public class FXUIPlayer implements Player {
 			}
 		}
 		
-		//ScrollPane spane = new ScrollPane();
+		ScrollPane spane = new ScrollPane();
 		final Stage dialog = new Stage();
 		dialog.setTitle("Fortify? [optional]");
 		//dialog.initOwner(owner);
@@ -1034,9 +1036,9 @@ public class FXUIPlayer implements Player {
 		layout.setAlignment(Pos.CENTER);
 		
 		//formally add linear layout to scene, and wait for the user to be done (click the OK button)
-		//spane.setContent(layout);
-		//dialog.setScene(new Scene(spane));
-		dialog.setScene(new Scene(layout));
+		spane.setContent(layout);
+		dialog.setScene(new Scene(spane));
+		//dialog.setScene(new Scene(layout));
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 		dialog.showAndWait();
 		if (exitDecider.isSystemExit())
