@@ -4,6 +4,8 @@
 
 package Util;
 
+import Player.FXUIPlayer;
+import Player.Player;
 import javafx.stage.Stage;
 
 
@@ -68,8 +70,8 @@ public class FXUI_Crossbar {
 		fxPlayerQuit = false;
 	}
 	
-	public boolean isPlayerEndingGame(){
-		return fxPlayerQuit;
+	public boolean isPlayerEndingGame(Player currentPlayer){
+		return fxPlayerQuit && currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
 	}
 
 }

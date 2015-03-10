@@ -48,7 +48,7 @@ public class SavePoint implements Serializable {
 
 		playerIsEliminatedMap = new HashMap<String, Boolean>();
 
-		int roundsPlayed = 0;
+		roundsPlayed = 0;
 		
 		logCache = new ArrayList<String>();
 		// TODO Auto-generated constructor stub

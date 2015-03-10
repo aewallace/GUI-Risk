@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Dh\nStamp Y2015.M03.D05.HM2144\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Eh\nStamp Y2015.M03.D09.HM2314\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -196,9 +196,7 @@ public class FXUIGameMaster extends Application {
 						gameQuit = true;
 						currentPlayStatus.setText("I D L E");
 					}
-					if(crossbar.getCurrentPlayerDialog() != null){
-							crossbar.getCurrentPlayerDialog().close();
-					}
+					crossbar.tryCloseCurrentPlayerDialog();
 					dialog.close();
 		        }
 		      });
@@ -228,7 +226,7 @@ public class FXUIGameMaster extends Application {
 	      dialog.showAndWait();
 	      
 	      }
-		catch(Exception e){System.out.println(e);}
+		catch(Exception e){System.out.println("attempted exit failed:: " + e);}
 		if(proceedWithExit)
 		{
 			return RiskConstants.MAX_ATTEMPTS;
@@ -299,7 +297,7 @@ public class FXUIGameMaster extends Application {
      * @return returns true if the load succeeded, or false if a show-stopping exception was encountered
      */
     private boolean loadFromSave(){
-    	boolean loadSucceeded = false;
+    	boolean loadSucceeded = true;
     	try{
     		InputStream file = new FileInputStream("fxuigm_save.ser");
     		InputStream buffer = new BufferedInputStream(file);
@@ -307,16 +305,18 @@ public class FXUIGameMaster extends Application {
     		SavePoint loadedSave = (SavePoint)input.readObject();
     		input.close();
     		loadedSaveIn = loadedSave;
-    		loadPlayersFromSave(loadedSave);
-    		resetCountryInfo(loadedSave);
-    		restorePreviousLogInfo(loadedSave);
+    		loadSucceeded = loadSucceeded && loadPlayersFromSave(loadedSave);
+    		if(!loadSucceeded){System.out.println("load failure P0");} // TODO allow better diagnostics and recovery in the future
+    		loadSucceeded = loadSucceeded && resetCountryInfo(loadedSave);
+    		if(!loadSucceeded){System.out.println("load failure P1");}
+    		loadSucceeded = loadSucceeded && restorePreviousLogInfo(loadedSave);
+    		if(!loadSucceeded){System.out.println("load failure P2");}
         	representPlayersOnUI();
         	updateDisplay();
-        	
-        	loadSucceeded = true;
     	}
     	catch(Exception e){
     		System.out.println("Load failed. ::: " + e);
+    		loadSucceeded = false;
     	}
     	return loadSucceeded;
     }
@@ -347,10 +347,10 @@ public class FXUIGameMaster extends Application {
     	
     	for (String cacheLine : internalLogCache)
     	{
+    		
     		writeLogLn(false, cacheLine);
     	}
-    	
-    	return loadedSave == null || loadedSave.getLogCache() == null;
+    	return loadedSave != null && loadedSave.getLogCache() != null;
     }
     
     /**
@@ -360,12 +360,17 @@ public class FXUIGameMaster extends Application {
      */
     protected boolean loadPlayersFromSave(SavePoint loadedSave)
     {
+    	boolean success = true;
     	//clear the player list...just in case.
     	for (Text txtM : playerDisplayCache)
     	{
     		this.pane.getChildren().remove(txtM);
     	}
 		writeLogLn(true, "Loading players...");
+		this.playerMap.clear();
+		this.allPlayers.clear();
+		this.players.clear();
+		
 		this.playerMap = new HashMap<String, Player>();
 		this.allPlayers = new ArrayList<String>();
 		this.players = new ArrayList<String>();
@@ -375,15 +380,15 @@ public class FXUIGameMaster extends Application {
 		final String HDP = HardDefaultPlayer.class.toString();
 		final String NDP = NormalDefaultPlayer.class.toString();
 		final String S_P = Seth.class.toString();
-		System.out.println("loadPlayersFromSave entered...");
-		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " players is what we will be loading today");
+		System.out.print("loadPlayersFromSave entered...");
+		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " players to load today!!");
 		for (Entry<String, Boolean> playerIn : loadedSave.getPlayerIsEliminatedMap().entrySet())
 		{
 			this.allPlayers.add(playerIn.getKey());
 			Player playerObjectToCast = null;
+			
 			if (playerIn.getValue() == false)//player isn't eliminated
 			{
-				this.players.add(playerIn.getKey());
 				String switcher = loadedSave.getActivePlayersAndTheirTypes().get(playerIn.getKey());
 				if (switcher.equals(FXP)){
 					playerObjectToCast = new FXUIPlayer(playerIn.getKey());
@@ -404,6 +409,7 @@ public class FXUIGameMaster extends Application {
 				
 				if(playerObjectToCast == null){
 					System.out.println("Failed to cast/load " + playerIn.getKey() + " as a valid player.");
+					success = false;
 				}
 				else
 				{
@@ -434,9 +440,7 @@ public class FXUIGameMaster extends Application {
 		}
 		
 		
-		shufflePlayers(this.players);//choose a random turn order
-		
-		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
+		if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS || !success) {
 			return false;
 		}
 		else {
@@ -454,7 +458,7 @@ public class FXUIGameMaster extends Application {
      * and updates the internal data of the map with said info. Refreshing the map is done elsewhere.
      * @param loadedSave the SavePoint object from which we source our data
      */
-    public void resetCountryInfo(SavePoint loadedSave)
+    public boolean resetCountryInfo(SavePoint loadedSave)
     {
     	for (Entry<String, Integer> entryOutArmy : loadedSave.getCountriesAndArmyCount().entrySet()){
     		map.setCountryArmies(stringCountryRepresentation.get(entryOutArmy.getKey()), entryOutArmy.getValue());
@@ -464,6 +468,9 @@ public class FXUIGameMaster extends Application {
     	}
     	
     	this.round = loadedSave.getRoundsPlayed();
+    	
+    	return loadedSave.getCountriesAndArmyCount().entrySet().size() == loadedSave.getCountriesAndOwners().entrySet().size()
+    			&& loadedSave.getCountriesAndOwners().entrySet().size() > 0;
     }
     
     /**
@@ -553,7 +560,6 @@ public class FXUIGameMaster extends Application {
 			//play round-robin until there is only one player left
 			int turn = 0;
 			while (this.players.size() > 1 && !gameQuit) {
-				
 				if (turn == 0) {
 					this.round++;
 					writeLogLn(true, "Beginning Round " + round + "!");
@@ -577,16 +583,19 @@ public class FXUIGameMaster extends Application {
 					if(gameQuit){
 						break;
 					}
+					
 					updateDisplay();
 					attack(currentPlayer);
 					if(gameQuit){
 						break;
 					}
+					
 					updateDisplay();
 					fortify(currentPlayer);
 					if(gameQuit){
 						break;
 					}
+					
 					updateDisplay();
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
 					if(gameQuit){
@@ -599,9 +608,7 @@ public class FXUIGameMaster extends Application {
 					turn %= this.players.size();
 				}
 			}
-
-			
-			if(!mainWindowExit && !gameQuit){
+			if(!mainWindowExit && !gameQuit && this.players.size() > 0){
 				writeStatsLn();
 				System.out.println(this.players.get(0) + " is the victor!");
 				writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -623,6 +630,7 @@ public class FXUIGameMaster extends Application {
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
 		gameQuit = false;
+		crossbar.resetEndGameSignal();
 		if(this.players.size() > 0)
 		{
 			return this.players.get(0);
@@ -651,7 +659,7 @@ public class FXUIGameMaster extends Application {
 			valid = false;
 			attempts = 0;
 			while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !mainWindowExit) {
-				try{
+				/*try{*/
 					attempts++;
 					reinforcements = RiskConstants.INIT_ARMIES / this.players.size();
 					ReinforcementResponse rsp = tryInitialAllocation(player, reinforcements);
@@ -661,23 +669,19 @@ public class FXUIGameMaster extends Application {
 						playerIndex++;
 						writeLogLn(true, "Troops successfully allocated for " + player.getName() + "...");
 					}
-				}
+				/*}
 				catch(OSExitException e){
-					if(crossbar.playerDialogIsActive())
-					{
-						crossbar.getCurrentPlayerDialog().close();
-						crossbar.setCurrentPlayerDialog(null);
-					}
+					crossbar.tryCloseCurrentPlayerDialog();
 					attempts = doYouWantToMakeAnExit(attempts);
 					if (attempts==RiskConstants.MAX_ATTEMPTS){
 						gameQuit = true;
 					}
-				}
+				}*/
 			}
 			
 			updateDisplay();
 			
-			if (!valid || (crossbar.isPlayerEndingGame() && player.getName() == crossbar.getPlayerName())) {
+			if (!valid || (crossbar.isPlayerEndingGame(player) && player.getName() == crossbar.getPlayerName())) {
 				try {
 					if(!valid){
 					eliminate(player, null, "You failed to provide a valid initial army allocation.");
@@ -716,7 +720,7 @@ public class FXUIGameMaster extends Application {
 		}
 		writeLogLn(true, currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !mainWindowExit) {
-			try{
+			/*try{*/
 				attempts++;
 				ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
 				if(gameQuit){
@@ -728,7 +732,7 @@ public class FXUIGameMaster extends Application {
 						writeLogLn(true, entry.getValue() + " " + entry.getKey().getName());
 					}
 				}
-			}
+			/*}
 			catch(OSExitException e)
 			{
 				if(crossbar.playerDialogIsActive())
@@ -743,12 +747,12 @@ public class FXUIGameMaster extends Application {
 				if(gameQuit){
 					return;
 				}
-			}
+			}*/
 		}
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
 		}
-		else if(crossbar.isPlayerEndingGame()) {
+		else if(crossbar.isPlayerEndingGame(currentPlayer)) {
 			eliminate(currentPlayer, null, "Player decided to leave. Come back any time, friend!");
 		}
 		writeLogLn(true, EVENT_DELIM);
@@ -762,7 +766,7 @@ public class FXUIGameMaster extends Application {
 			updateDisplay();
 			attempts++;
 			resetTurn = false;
-			try{
+			/*try{*/
 				AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 				if (atkRsp != null) {
 					if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
@@ -794,14 +798,14 @@ public class FXUIGameMaster extends Application {
 					//because an attack is not required, a null response is taken to mean that the player declines the opportunity
 					attempts = RiskConstants.MAX_ATTEMPTS;
 				}
-			}
+			/*}
 			catch (OSExitException e)
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
 				if (attempts==RiskConstants.MAX_ATTEMPTS){
 					gameQuit = true;
 				}
-			}
+			}*/
 			
 		}
 	}
@@ -818,7 +822,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(defender, null, "You failed to provide a valid defense response.");
 		}
-		else if(crossbar.isPlayerEndingGame() && defender.getName() == crossbar.getPlayerName())
+		else if(crossbar.isPlayerEndingGame(defender))
 		{
 			eliminate(defender, null, "This defender wants a break. Go ahead, friend. You deserve it.");
 		}
@@ -863,27 +867,17 @@ public class FXUIGameMaster extends Application {
 		boolean valid = false;
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
 			attempts++;
-			try{
-				AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
-				if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map)) {
-					writeLogLn(true, attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
-					this.map.addCountryArmies(atkRsp.getAtkCountry(), -1 * advRsp.getNumArmies());
-					this.map.addCountryArmies(atkRsp.getDfdCountry(), advRsp.getNumArmies());
-				}
-			}
-			catch (OSExitException e)
-			{
-				attempts = doYouWantToMakeAnExit(attempts);
-				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					gameQuit = true;
-				}
-				System.out.println("AA ::: " + e);
+			AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
+			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map)) {
+				writeLogLn(true, attacker.getName() + " advanced " + advRsp.getNumArmies() + " into " + atkRsp.getDfdCountry() + " from " + atkRsp.getAtkCountry() + ".");
+				this.map.addCountryArmies(atkRsp.getAtkCountry(), -1 * advRsp.getNumArmies());
+				this.map.addCountryArmies(atkRsp.getDfdCountry(), advRsp.getNumArmies());
 			}
 		}
 		if (!valid) {
 			eliminate(attacker, null, "You failed to provide a valid advance response.");
 		}
-		else if (crossbar.isPlayerEndingGame() && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
+		else if (crossbar.isPlayerEndingGame(attacker) && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
 		{
 			eliminate(attacker, null, "The advancer decided to take a break. 'S OK. Get some cookies. Or hot cocoa.");
 		}
@@ -915,72 +909,46 @@ public class FXUIGameMaster extends Application {
 		boolean valid = false;
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
 			attempts++;
-			try{
-				FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
-				if (rsp != null) {
-					if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
-						writeLogLn(true, currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
-						this.map.addCountryArmies(rsp.getFromCountry(), -1 * rsp.getNumArmies());
-						this.map.addCountryArmies(rsp.getToCountry(), rsp.getNumArmies());
-					}
-				}
-				else {
-					//because fortification is not required, a null response is taken to mean that the player declines the opportunity
-					attempts = RiskConstants.MAX_ATTEMPTS;
+			FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
+			if (rsp != null) {
+				if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
+					writeLogLn(true, currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
+					this.map.addCountryArmies(rsp.getFromCountry(), -1 * rsp.getNumArmies());
+					this.map.addCountryArmies(rsp.getToCountry(), rsp.getNumArmies());
 				}
 			}
-			catch (OSExitException e)
-			{
-				attempts = doYouWantToMakeAnExit(attempts);
-				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					gameQuit = true;
-				}
-				System.out.println("FF ::: " + e);
+			else {
+				//because fortification is not required, a null response is taken to mean that the player declines the opportunity
+				attempts = RiskConstants.MAX_ATTEMPTS;
 			}
 		}
 	}
 	
-	protected ReinforcementResponse tryInitialAllocation(Player player, int reinforcements) throws OSExitException {
+	protected ReinforcementResponse tryInitialAllocation(Player player, int reinforcements){
 		try {
 			ReinforcementResponse rsp = player.getInitialAllocation(this.map.getReadOnlyCopy(), reinforcements);
 			validatePlayerName(player);
 			return rsp;
 		}
-		/*catch(OSExitException e){
-			if(crossbar.playerDialogIsActive())
-			{
-				crossbar.getCurrentPlayerDialog().close();
-				crossbar.setCurrentPlayerDialog(null);
-			}
-			throw e;
-		}*/
 		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
 	}
 	
-	protected CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired) throws OSExitException {
+	protected CardTurnInResponse tryTurnIn(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, boolean turnInRequired){
 		try {
 			CardTurnInResponse rsp = player.proposeTurnIn(this.map.getReadOnlyCopy(), cardSet, oppCards, turnInRequired);
 			validatePlayerName(player);
 			return rsp;
 		}
-		/*catch(OSExitException e){
-			if(crossbar.playerDialogIsActive())
-			{
-				crossbar.getCurrentPlayerDialog().close();
-				crossbar.setCurrentPlayerDialog(null);
-			}
-			throw e;
-		}*/
 		catch (RuntimeException|PlayerEliminatedException e) {
 			//e.printStackTrace();
 			return null;
 		}
 	}
 	
-	protected ReinforcementResponse tryReinforce(Player player, Map<String, Integer> oppCards, int reinforcements) throws OSExitException{
+	protected ReinforcementResponse tryReinforce(Player player, Map<String, Integer> oppCards, int reinforcements){
 		try {
 			ReinforcementResponse rsp = player.reinforce(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, reinforcements);
 			validatePlayerName(player);
@@ -992,7 +960,7 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	protected AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException{
+	protected AttackResponse tryAttack(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards){
 		try {
 			AttackResponse rsp = player.attack(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 			validatePlayerName(player);
@@ -1016,7 +984,7 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) throws OSExitException {
+	protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp){
 		try {
 			AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
 			validatePlayerName(player);
@@ -1028,7 +996,7 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	protected FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards) throws OSExitException {
+	protected FortifyResponse tryFortify(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards){
 		try {
 			FortifyResponse rsp = player.fortify(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards);
 			validatePlayerName(player);
@@ -1080,48 +1048,32 @@ public class FXUIGameMaster extends Application {
 		boolean valid = false;
 		boolean turnInRequired = oppCards.get(currentPlayer.getName()) >= RiskConstants.FORCE_TURN_IN;
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
-			try{
-				CardTurnInResponse rsp = tryTurnIn(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, turnInRequired);
-				if (rsp != null) {
-					if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerCardMap.get(currentPlayer.getName()))) {
-						cardBonus = RiskConstants.advanceTurnIn();
-						writeLogLn(true, currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
-						if (rsp.getBonusCountry() != null) {
-							if (this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
-								this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
-							}
-						}
-						for (Card card : rsp.getCards()) {
-							this.playerCardMap.get(currentPlayer.getName()).remove(card);
-							this.deck.addLast(card);
+			CardTurnInResponse rsp = tryTurnIn(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, turnInRequired);
+			if (rsp != null) {
+				if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerCardMap.get(currentPlayer.getName()))) {
+					cardBonus = RiskConstants.advanceTurnIn();
+					writeLogLn(true, currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
+					if (rsp.getBonusCountry() != null) {
+						if (this.map.getCountryOwner(rsp.getBonusCountry()).equals(currentPlayer.getName())) {
+							this.map.addCountryArmies(rsp.getBonusCountry(), RiskConstants.BONUS_COUNTRY_ARMIES);
 						}
 					}
+					for (Card card : rsp.getCards()) {
+						this.playerCardMap.get(currentPlayer.getName()).remove(card);
+						this.deck.addLast(card);
+					}
 				}
-				else {
-					//if a turn-in is not required, a null response is taken as the player declining
-					valid = !turnInRequired;
-				}
-				
-				attempts++;
-				System.out.println(attempts);
 			}
-			catch(OSExitException e){
-				if(crossbar.playerDialogIsActive())
-				{
-					crossbar.getCurrentPlayerDialog().close();
-					crossbar.setCurrentPlayerDialog(null);
-				}
-				attempts = doYouWantToMakeAnExit(attempts);
-				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					gameQuit = true;
-				}
-				System.out.println("gCTI ::: " + e);
+			else {
+				//if a turn-in is not required, a null response is taken as the player declining
+				valid = !turnInRequired;
 			}
+			attempts++;
 		}
 		if (!valid && turnInRequired) {
 			eliminate(currentPlayer, null, "You were required to turn in cards this turn, and you failed to do so.");
 		}
-		else if(crossbar.isPlayerEndingGame() && currentPlayer.getName() == crossbar.getPlayerName()){
+		else if(crossbar.isPlayerEndingGame(currentPlayer) && currentPlayer.getName() == crossbar.getPlayerName()){
 			eliminate(currentPlayer, null, "The player is opting out of the game altogether. Have a good day, buddy.");
 		}
 		return cardBonus;
@@ -1278,15 +1230,16 @@ public class FXUIGameMaster extends Application {
 			for (Card card : this.deck) {
 				
 				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
-					try{
 					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
-					//System.out.println("E G X N 0 0" + this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+					allocationIdx++;
+					/*try{
+					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					allocationIdx++;
 					}
 					catch(Exception e)
 					{
-						System.out.println(e);
-					}
+						System.out.println("allocateMap:: " + e);
+					}*/
 				}
 			}
 		}
@@ -1317,6 +1270,9 @@ public class FXUIGameMaster extends Application {
 			allocateUnownedCountries();
 			throw new PlayerEliminatedException(loser.getName() + " Eliminated! " + reason);
 		}
+		else{
+			System.out.println("eliminate() :: this.playerMap does not contain so-called 'loser'");
+		}
 	}
 	
 	protected void writeLogLn(boolean mirrorToInternalCache, String line) {
@@ -1329,6 +1285,7 @@ public class FXUIGameMaster extends Application {
 				this.log.flush();
 			}
 			catch (IOException e) {
+				System.out.println("Error writing log: " + e);
 			}
 		}
 	}
@@ -1347,6 +1304,7 @@ public class FXUIGameMaster extends Application {
 				this.stats.flush();
 			}
 			catch (IOException e) {
+				System.out.println("Error writing statistics: " + e);
 			}
 		}
 	}
@@ -1354,6 +1312,13 @@ public class FXUIGameMaster extends Application {
 	private void representPlayersOnUI() {
 		//requires loadPlayers to have been run
     	try {
+    		//clears the old display of players
+    		if(this.playerDisplayCache != null && this.playerDisplayCache.size() > 0){
+    			for (Text oldPlayer : this.playerDisplayCache){
+    				this.pane.getChildren().remove(oldPlayer);
+    			}
+    		}
+    		
     		this.playerDisplayCache = new ArrayList<Text>();
 			ArrayList<Color> colors = new ArrayList<Color>();
 			colors.add(Color.WHITE);
@@ -1364,7 +1329,7 @@ public class FXUIGameMaster extends Application {
 			colors.add(Color.VIOLET);
 			this.playerColorMap = new HashMap<String, Color>();
 			int i = -1;
-			//this.allPlayers
+			
 			for (String playerName : this.playerMap.keySet())
 			{
 				this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
@@ -1373,7 +1338,6 @@ public class FXUIGameMaster extends Application {
 				txt.setFill(colors.get((i) % colors.size()));
 				this.pane.getChildren().add(txt);
 				this.playerDisplayCache.add(txt);
-				//this.pane.getChildren().remove(txt);
 			}
 		}
 		catch (RuntimeException e) {
@@ -1398,6 +1362,8 @@ public class FXUIGameMaster extends Application {
 				System.out.print((i + 1) + " - ");
 				
 				String victor = begin();
+				
+				System.out.println("Hi user!!! game execute was successfully!!!!"); //yes very successfully!!!!
 				if (victor != null)
 				{
 					if (!winLog.containsKey(victor)) {
@@ -1413,11 +1379,53 @@ public class FXUIGameMaster extends Application {
 			}
 		}
 		catch (RuntimeException e) {
-			System.out.println(e);
+			System.out.println("fake main() method runtime error:: " + e);
+			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
+			//TODO determine if this particular catch statement is even needed?
 			e.printStackTrace();
 		}
+	}
+	
+	/**
+	 * Does a tiny bit of initialization on the map's internal structures, without setting
+	 * up/displaying players or other user-facing info.
+	 * Replaces GameMaster() from the original GameMaster class, since JavaFX would otherwise leave it unused.
+	 * @param mapFile
+	 * @param playerFile
+	 * @param logSwitch
+	 * @throws IOException
+	 */
+    public void initializeFXGMClass(String mapFile, String players, boolean logSwitch) throws IOException {
+		for (Country country : Country.values()) {
+			stringCountryRepresentation.put(country.getName(), country);
+		}
+		
+		this.round = 0;
+		this.turnCount = 0;
+		if (rand == null) {
+			rand = new Random(RiskConstants.SEED);
+		}
+		
+		loggingEnabled = logSwitch;
+		if (loggingEnabled == LOGGING_ON) {
+			this.log = new FileWriter(LOGFILE);
+			this.stats = new FileWriter(STATSFILE);
+		}
+		
+		writeLogLn(true, "Loading map from " + mapFile + "...");
+		if (starterMap == null) {
+			starterMap = new RiskMap();
+		}
+		
+		this.map = starterMap.getCopy();
+		loadDeck();
+		if (!loadPlayers(players)) {
+			System.out.println("Invalid number of players. 2-6 Players allowed.");
+		}
+		
+		allocateMap();
+		
 	}
 	
 	private void loadTextNodesForUI(String nodeFile) {
@@ -1475,46 +1483,7 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	/**
-	 * Does a tiny bit of initialization on the map's internal structures, without setting
-	 * up/displaying players or other user-facing info.
-	 * Replaces GameMaster() from the original GameMaster class, since JavaFX would otherwise leave it unused.
-	 * @param mapFile
-	 * @param playerFile
-	 * @param logSwitch
-	 * @throws IOException
-	 */
-    public void initializeFXGMClass(String mapFile, String players, boolean logSwitch) throws IOException {
-		for (Country country : Country.values()) {
-			stringCountryRepresentation.put(country.getName(), country);
-		}
-		
-		this.round = 0;
-		this.turnCount = 0;
-		if (rand == null) {
-			rand = new Random(RiskConstants.SEED);
-		}
-		
-		loggingEnabled = logSwitch;
-		if (loggingEnabled == LOGGING_ON) {
-			this.log = new FileWriter(LOGFILE);
-			this.stats = new FileWriter(STATSFILE);
-		}
-		
-		writeLogLn(true, "Loading map from " + mapFile + "...");
-		if (starterMap == null) {
-			starterMap = new RiskMap();
-		}
-		
-		this.map = starterMap.getCopy();
-		loadDeck();
-		if (!loadPlayers(players)) {
-			System.out.println("Invalid number of players. 2-6 Players allowed.");
-		}
-		
-		allocateMap();
-		
-	}
+	
 	
 	
 	/**
@@ -1591,11 +1560,8 @@ public class FXUIGameMaster extends Application {
 						@Override
 						public void run() {
 							crossbar.signalPlayerEndingGame();
-							if(crossbar.playerDialogIsActive())
-							{
-								crossbar.getCurrentPlayerDialog().close();
-								crossbar.setCurrentPlayerDialog(null);
-							}
+							crossbar.tryCloseCurrentPlayerDialog();
+							gameQuit = true; // TODO note duplication of telling code we want to end the game. fix it!
 						}
 		        	});
 	    	  }
@@ -1653,13 +1619,7 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-							try{
 								performSave();
-							}
-							catch(Exception e)
-							{
-								
-							}
 						}
 		        	});
 	    	  }
@@ -1673,13 +1633,7 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-							try{
-								beginWithLoadButton();
-							}
-							catch(Exception e)
-							{
-								
-							}
+							beginWithLoadButton();
 						}
 		        	});
 	    	  }
@@ -1700,7 +1654,6 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-							// TODO Auto-generated method stub
 							primaryStage.close();
 							mainWindowExit = true;
 						}
@@ -1722,13 +1675,7 @@ public class FXUIGameMaster extends Application {
 			        	{
 							@Override
 							public void run() {
-								try
-								  {
-									  beginWithStartButton();
-								  }//end try
-								  catch(Exception e)
-								  {	
-								  } //end catch	
+								beginWithStartButton();
 							}
 			        	});
 		    	  }
@@ -1901,7 +1848,8 @@ class About {
 					});
     		  }//end try
     		  catch(Exception e)
-    		  {	
+    		  {
+    			  System.out.println("about.about:: " + e);
     		  } //end catch	
 	     }
     	 };
