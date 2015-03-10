@@ -419,6 +419,9 @@ public class FXUIPlayer implements Player {
 			return null;
 		}
 		else{
+			for (Card card : cardsToTurnIn.values()) {
+				rsp.addCard(card);
+			}
 			return rsp;
 		}
 	}
