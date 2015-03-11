@@ -32,11 +32,7 @@ public class Seth implements Player {
 	protected boolean conqueringRun;
 	
 	public Seth() {
-		this.name = "Seth";
-		this.lastCountryReinforced = null;
-		this.lastCardCount = 0;
-		this.hasGottenCard = false;
-		this.conqueringRun = false;
+		this("Seth");
 	}
 	
 	public Seth(String nameIn) {
@@ -58,7 +54,7 @@ public class Seth implements Player {
 			reinforcements -= rsp.reinforce(country, 1);
 		}
 		//now, add remaining reinforcements as they would be allocated normally
-		for (Entry<Country, Integer> entry : reinforce(map, null, null, reinforcements).getAllocation().entrySet()) {
+		for (Entry<Country, Integer> entry : reinforce(map, new ArrayList<Card>(), new HashMap<String, Integer>(), reinforcements).getAllocation().entrySet()) {
 			rsp.reinforce(entry.getKey(), entry.getValue());
 		}
 		
@@ -79,7 +75,7 @@ public class Seth implements Player {
 	/**
 	 * Finds a set of cards that can be turned in, or null if none exists.
 	 */
-	private CardTurnInResponse turnInCards(RiskMap map, Collection<Card> myCards) {
+	protected CardTurnInResponse turnInCards(RiskMap map, Collection<Card> myCards) {
 		Deque<Card> wildCards = new LinkedList<Card>();
 		//find all wilds
 		for (Card card : myCards) {
@@ -112,7 +108,7 @@ public class Seth implements Player {
 	/**
 	 * Finds a Three-of-a-Kind set of cards that can be turned in, or null if none exists.
 	 */
-	private Collection<Card> threeOfAKind(Collection<Card> myCards, Deque<Card> wildCards) {
+	protected Collection<Card> threeOfAKind(Collection<Card> myCards, Deque<Card> wildCards) {
 		Collection<Card> cardSet = new ArrayList<Card>();
 		for (String type : RiskConstants.REG_CARD_TYPES) {
 			for (Card card : myCards) {
@@ -139,7 +135,7 @@ public class Seth implements Player {
 	/**
 	 * Finds a One-of-Each set of cards that can be turned in, or null if none exists.
 	 */
-	private Collection<Card> oneOfEach(Collection<Card> myCards, Deque<Card> wildCards) {
+	protected Collection<Card> oneOfEach(Collection<Card> myCards, Deque<Card> wildCards) {
 		Collection<Card> cardSet = new ArrayList<Card>();
 		boolean found;
 		for (String type : RiskConstants.REG_CARD_TYPES) {
@@ -190,7 +186,7 @@ public class Seth implements Player {
 	/**
 	 * Reinforces the external boundary countries of all owned continents.
 	 */
-	private int reinforceOwnedContinents(RiskMap map, ReinforcementResponse rsp, int reinforcements) {
+	protected int reinforceOwnedContinents(RiskMap map, ReinforcementResponse rsp, int reinforcements) {
 		int remaining = reinforcements;
 		for (Continent continent : RiskUtils.getPlayerContinents(map, this.name)) {
 			for (Country country : continent.getCountries()) {
@@ -222,7 +218,7 @@ public class Seth implements Player {
 	/**
 	 * Reinforces countries in or around the target continent, if any.
 	 */
-	private int reinforceTargetContinent(RiskMap map, ReinforcementResponse rsp, Continent targetContinent, int reinforcements) {
+	protected int reinforceTargetContinent(RiskMap map, ReinforcementResponse rsp, Continent targetContinent, int reinforcements) {
 		int remaining = reinforcements;
 		boolean found = false;
 		do {
@@ -267,7 +263,7 @@ public class Seth implements Player {
 	/**
 	 * Reinforces throughout the entire set of owned countries, giving precedence to attainable continents.
 	 */
-	private int reinforceAll(RiskMap map, ReinforcementResponse rsp, int reinforcements, Map<Continent, Integer> continentAttainability) {
+	protected int reinforceAll(RiskMap map, ReinforcementResponse rsp, int reinforcements, Map<Continent, Integer> continentAttainability) {
 		int remaining = reinforcements;
 		
 		boolean hopeless = maxScoreContinent(continentAttainability) == null;
@@ -330,7 +326,7 @@ public class Seth implements Player {
 		return rsp;
 	}
 	
-	private AttackResponse decide(RiskMap map, boolean tryIdealAttack) {
+	protected AttackResponse decide(RiskMap map, boolean tryIdealAttack) {
 		AttackDecider decider = new AttackDecider(this.name);
 		decider.useCombinedAttackStrength = true;
 		decider.useFirstValidOption = false;
@@ -466,7 +462,7 @@ public class Seth implements Player {
 	/**
 	 * Searches all connected country sets for the most effective interior-exterior fortification move.
 	 */
-	private FortifyResponse fortifyInternalExternal(RiskMap map, Collection<Set<Country>> allConnectedSets, Map<Continent, Integer> continentBaseScores, Continent targetContinent) {
+	protected FortifyResponse fortifyInternalExternal(RiskMap map, Collection<Set<Country>> allConnectedSets, Map<Continent, Integer> continentBaseScores, Continent targetContinent) {
 		Country strongestFrom = null, weakestTo = null;
 		int bestEnemyStr = 0, bestTargetEnemyStr = 0;
 		Country borderFortifyFrom = null, borderFortifyTo = null;
@@ -554,7 +550,7 @@ public class Seth implements Player {
 	 * This is (generally) less desirable than an interior-exterior fortification, as no trapped armies
 	 * are being brought back into immediate play.
 	 */
-	private FortifyResponse fortifyExteriorExterior(RiskMap map, Collection<Set<Country>> allConnectedSets, Continent targetContinent) {
+	protected FortifyResponse fortifyExteriorExterior(RiskMap map, Collection<Set<Country>> allConnectedSets, Continent targetContinent) {
 		Country strongestFrom = null, weakestTo = null;
 		int bestEnemyStr = 0, bestTargetEnemyStr = 0;
 		for (Set<Country> connectedSet : allConnectedSets) {
@@ -616,7 +612,7 @@ public class Seth implements Player {
 	/**
 	 * Finds the most attainable continent that is not already owned by this player.
 	 */
-	private Continent getTargetContinent(RiskMap map, int additionalArmies) {
+	protected Continent getTargetContinent(RiskMap map, int additionalArmies) {
 		int bestScore = MIN_SCORE;
 		Continent bestContinent = null;
 		for (Entry<Continent, Integer> entry : getallAttainabilities(map, additionalArmies).entrySet()) {
@@ -631,7 +627,7 @@ public class Seth implements Player {
 	/**
 	 * Finds the continent with the highest score from an existing map.
 	 */
-	private Continent maxScoreContinent(Map<Continent, Integer> scores) {
+	protected Continent maxScoreContinent(Map<Continent, Integer> scores) {
 		int best = MIN_SCORE;
 		Continent bestContinent = null;
 		for (Entry<Continent, Integer> entry : scores.entrySet()) {
@@ -646,12 +642,53 @@ public class Seth implements Player {
 	/**
 	 * Get attainability scores for all continents.
 	 */
-	private Map<Continent, Integer> getallAttainabilities(RiskMap map, int additionalArmies) {
+	protected Map<Continent, Integer> getallAttainabilities(RiskMap map, int additionalArmies) {
 		Map<Continent, Integer> scores = new HashMap<Continent, Integer>();
 		for (Continent continent : Continent.values()) {
 			scores.put(continent, getContinentAttainability(map, continent, additionalArmies));
 		}
 		return scores;
+	}
+	
+	protected int getTrueContinentAttainability(RiskMap map, Continent continent, int additionalArmies) {
+		int myCountries = 0;
+		int enemyCountries = 0;
+		int myArmies = additionalArmies;
+		int enemyArmies = 0;
+		int borderCountries = 0;
+		Set<Country> checked = new HashSet<Country>();
+		
+		for (Country country : continent.getCountries()) {
+			if (map.getCountryOwner(country).equals(this.name)) {
+				myCountries++;
+				myArmies += map.getCountryArmies(country);
+			}
+			else {
+				enemyCountries++;
+				enemyArmies += map.getCountryArmies(country);
+			}
+			boolean isBorder = false;
+			for (Country neighbor : country.getNeighbors()) {
+				if (neighbor.getContinent() != continent) {
+					isBorder = true;
+					if (!checked.contains(neighbor)) {
+						checked.add(neighbor);
+						//only add armies, not countries, as the countries are not in the target continent, but the armies could eventually be
+						if (map.getCountryOwner(neighbor).equals(this.name)) {
+							myArmies += map.getCountryArmies(neighbor) - 1;
+						}
+						else {
+							enemyArmies += map.getCountryArmies(neighbor) - 1;
+						}
+					}
+				}
+			}
+			if (isBorder) {
+				borderCountries++;
+			}
+		}
+		
+		return myArmies + myCountries - enemyArmies - enemyCountries - borderCountries;
 	}
 	
 	/**
@@ -660,7 +697,7 @@ public class Seth implements Player {
 	 *     number of countries owned vs un-owned
 	 *     number of armies owned vs un-owned
 	 */
-	private int getContinentAttainability(RiskMap map, Continent continent, int additionalArmies) {
+	protected int getContinentAttainability(RiskMap map, Continent continent, int additionalArmies) {
 		int myCountries = 0;
 		int enemyCountries = 0;
 		int myArmies = additionalArmies;
