@@ -1,0 +1,3 @@
+cd /Users/sethdenn/Documents/workspace/Risk/bin/
+jar -cvfm ../Risk.jar Manifest.mf *
+cd ../

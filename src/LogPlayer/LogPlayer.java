@@ -18,29 +18,18 @@ import java.lang.InterruptedException;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.HPos;
-import javafx.geometry.VPos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.ScrollPane.ScrollBarPolicy;
-import javafx.scene.control.TextArea;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.RowConstraints;
-import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
-import javafx.util.Duration;
 
 
 public class LogPlayer extends Application {
@@ -440,7 +429,7 @@ public class LogPlayer extends Application {
     		default:
     			if (this.currentButton == PAUSE || busyRoutines == 0){routinesRequestingPriority--; return;}
     			inREWIND = false;
-    			this.currentSimpleStatus = "||/☐";
+    			this.currentSimpleStatus = "||/â˜�";
     			break;
     	}
     	routinesRequestingPriority--;
@@ -626,7 +615,7 @@ public class LogPlayer extends Application {
     private void setStatus(boolean isEndOfTask)
     {
     	if (isEndOfTask)
-    		currentPlayStatus.setText("||/☐");
+    		currentPlayStatus.setText("||/â˜�");
     	else 
     		currentPlayStatus.setText(this.currentSimpleStatus);
     }
@@ -634,13 +623,13 @@ public class LogPlayer extends Application {
     private void animateStatus(boolean isEndOfTask)
     {
     	if (isEndOfTask)
-    		currentPlayStatus.setText("||/☐");
+    		currentPlayStatus.setText("||/â˜�");
     	else if(iRoN % 2==0)
     		currentPlayStatus.setText(this.currentSimpleStatus);
     	else if (iRoN + 2 >= iRoNMAX)
     		currentPlayStatus.setText(this.currentSimpleStatus);
     	else
-    		currentPlayStatus.setText("————");
+    		currentPlayStatus.setText("â€”â€”â€”â€”");
     	iRoN++;
     }
     
@@ -659,10 +648,10 @@ public class LogPlayer extends Application {
 						 currentPlayStatus.setText("STOP");;
 						 break;
 					 case 2:
-						 currentPlayStatus.setText("————");
+						 currentPlayStatus.setText("â€”â€”â€”â€”");
 						 break;
 					 case 3:
-						 currentPlayStatus.setText("————");
+						 currentPlayStatus.setText("â€”â€”â€”â€”");
 						 break;
 				 }
 		    	} 
