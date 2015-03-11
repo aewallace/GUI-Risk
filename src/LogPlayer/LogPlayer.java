@@ -10,19 +10,11 @@ import java.util.Scanner;
 import javafx.application.Application;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.HPos;
-import javafx.geometry.VPos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.ScrollPane.ScrollBarPolicy;
-import javafx.scene.control.TextArea;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.RowConstraints;
-import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -34,6 +26,7 @@ public class LogPlayer extends Application {
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final String LOG_FILE = "LOG.txt";
+    private static final String MAP_PIC = "RiskBoard.jpg";
 	private static final String EVENT_DELIM = "...";
     private ScrollPane scrollPane;
     private Scene scene;
@@ -55,7 +48,7 @@ public class LogPlayer extends Application {
 			this.nextToken = null;
 	        pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
-	        pane.setStyle("-fx-background-image: url(\"RiskBoard.jpg\")");
+	        pane.setStyle("-fx-background-image: url(\"" + MAP_PIC + "\")");
 	        
 	        loadTextNodes("TextNodes.txt");
 	        loadPlayers();

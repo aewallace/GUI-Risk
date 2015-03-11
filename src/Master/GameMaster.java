@@ -300,8 +300,9 @@ public class GameMaster {
 			}
 		}
 		catch (PlayerEliminatedException defenderException) {
-			//this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call.
-			if (allowReinforce && this.players.size() > 1) {
+			//this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call or the game ended.
+			//also, player can only reinforce after eliminating another player if (s)he is forced to turn in cards
+			if (allowReinforce && this.playerCardMap.get(attacker.getName()).size() >= RiskConstants.FORCE_TURN_IN && this.players.size() > 1) {
 				reinforce(attacker, false);//note that if the current player fails to reinforce, the player can be eliminated here and an exception thrown back up to begin()
 			}
 		}
