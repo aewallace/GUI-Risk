@@ -11,12 +11,14 @@ public class PlayerFactory {
 	private static int numNormal = 0;
 	private static int numHard = 0;
 	private static int numSeth = 0;
+	private static int numFXUI = 0;
 	private static int numConsole = 0;
 
 	public static final String EASY = "Easy";
 	public static final String NORMAL = "Normal";
 	public static final String HARD = "Hard";
 	public static final String SETH = "Seth";
+	public static final String FXUI = "FXUI";
 	public static final String CONSOLE = "Console";
 	
 	/**
@@ -36,6 +38,9 @@ public class PlayerFactory {
 		}
 		else if (SETH.equals(type)) {
 			return new Seth(SETH + " " + numSeth++);
+		}
+		else if (FXUI.equals(type)) {
+			return new FXUIPlayer(FXUI + " " + numFXUI++);
 		}
 		else if (CONSOLE.equals(type)) {
 			return new CommandConsole(CONSOLE + " " + numConsole++);
@@ -67,6 +72,7 @@ public class PlayerFactory {
 		numNormal = 0;
 		numHard = 0;
 		numSeth = 0;
+		numFXUI = 0;
 		numConsole = 0;
 	}
 }

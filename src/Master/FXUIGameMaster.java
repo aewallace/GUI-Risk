@@ -541,6 +541,7 @@ public class FXUIGameMaster extends Application {
 	public String begin() {
 		//This is only here temporarily, until I can figure out the control flow of this application.
 		((FXUIPlayer) this.playerMap.get("FXUIPlayer")).setOwnerWindow(this.pane.getScene().getWindow());
+		
 		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
 			initiationGood = initializeForces();
@@ -1144,32 +1145,13 @@ public class FXUIGameMaster extends Application {
 		}
 		
 		List<Player> playerList = PlayerFactory.getPlayersFromString(players);
-		
-		boolean doUIGamer = true;
-		boolean doSethGamer = true;
-		
-		int maxPlayersToAdd = RiskConstants.MAX_PLAYERS;
-		
-		if(doUIGamer){
-			this.playerMap.put("FXUIPlayer", new FXUIPlayer("FXUIPlayer"));
-			FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
-			maxPlayersToAdd--;
-		}
-		
-		if(doSethGamer){
-			this.playerMap.put("Seth", new Seth("Seth"));
-			maxPlayersToAdd--;
-		}
+
+		FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
 		
 		for (Player player : playerList) {
-			if (maxPlayersToAdd > 0){
-				this.playerMap.put(player.getName(), player);
-				maxPlayersToAdd--;
-			}
-			
+			this.playerMap.put(player.getName(), player);
 		}
 		
-		//this.players = new ArrayList<String>(this.allPlayers);
 		this.players = new ArrayList<String>(this.playerMap.keySet());
 		this.allPlayers = new ArrayList<String>(this.playerMap.keySet());
 		
@@ -1358,7 +1340,7 @@ public class FXUIGameMaster extends Application {
 			for (int i = 0; i < this.numGames; i++) {
 				RiskConstants.resetTurnIn();
 				PlayerFactory.resetPlayerCounts();
-				initializeFXGMClass("Countries.txt", null, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
 				
 				System.out.print((i + 1) + " - ");
 				
@@ -1522,7 +1504,7 @@ public class FXUIGameMaster extends Application {
         
         //...which will happen here:
         //populate the countries and players, and find out if there was an error doing either activity
-        initializeFXGMClass("Countries.txt", null, LOGGING_ON);
+        initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, LOGGING_ON);
         loadTextNodesForUI("TextNodes.txt");
         representPlayersOnUI();
         //now display elements -- status and buttons -- according to whether there was an error!
