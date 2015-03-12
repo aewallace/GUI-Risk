@@ -1,4 +1,4 @@
-//Current build Albert Wallace, Version 009, Stamp y2015.mdB11.hm1921.sMNT
+//Current build Albert Wallace, Version 00x0Bh, Stamp y2015.m03.d12.hm1921, Type: Beta(02)
 //Base build by Seth Denney, Sept 10 2014 
 
 //todo:switch use of keyset to entryset, where possible
@@ -429,7 +429,7 @@ public class LogPlayer extends Application {
     		default:
     			if (this.currentButton == PAUSE || busyRoutines == 0){routinesRequestingPriority--; return;}
     			inREWIND = false;
-    			this.currentSimpleStatus = "||/â˜�";
+    			this.currentSimpleStatus = "||";
     			break;
     	}
     	routinesRequestingPriority--;
@@ -615,7 +615,7 @@ public class LogPlayer extends Application {
     private void setStatus(boolean isEndOfTask)
     {
     	if (isEndOfTask)
-    		currentPlayStatus.setText("||/â˜�");
+    		currentPlayStatus.setText("||");
     	else 
     		currentPlayStatus.setText(this.currentSimpleStatus);
     }
@@ -623,13 +623,13 @@ public class LogPlayer extends Application {
     private void animateStatus(boolean isEndOfTask)
     {
     	if (isEndOfTask)
-    		currentPlayStatus.setText("||/â˜�");
+    		currentPlayStatus.setText("||");
     	else if(iRoN % 2==0)
     		currentPlayStatus.setText(this.currentSimpleStatus);
     	else if (iRoN + 2 >= iRoNMAX)
     		currentPlayStatus.setText(this.currentSimpleStatus);
     	else
-    		currentPlayStatus.setText("â€”â€”â€”â€”");
+    		currentPlayStatus.setText("- - -");
     	iRoN++;
     }
     
@@ -648,10 +648,8 @@ public class LogPlayer extends Application {
 						 currentPlayStatus.setText("STOP");;
 						 break;
 					 case 2:
-						 currentPlayStatus.setText("â€”â€”â€”â€”");
-						 break;
 					 case 3:
-						 currentPlayStatus.setText("â€”â€”â€”â€”");
+						 currentPlayStatus.setText("- - -");
 						 break;
 				 }
 		    	} 
