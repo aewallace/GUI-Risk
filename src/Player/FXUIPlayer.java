@@ -22,7 +22,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -42,7 +41,6 @@ import Response.FortifyResponse;
 import Response.ReinforcementResponse;
 import Util.Card;
 import Util.FXUI_Crossbar;
-import Util.OSExitException;
 import Util.RiskConstants;
 import Util.RiskUtils;
 
@@ -63,7 +61,7 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Dh\nStamp Y2015.M03.D09.HM2315\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Fh\nStamp 2015.03.12, 22:50\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar;
@@ -73,10 +71,13 @@ public class FXUIPlayer implements Player {
 	private boolean passTurn = false;
 	private boolean turningInNoCards = true;
 	private String attackTarget = "-----", attackSource = "------";
-	private Window owner;
+	private static Window owner = null;
 
 	
-	//to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
+	/**
+	 * to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
+	 * @author wallace162x11
+	 */
 	class doWeExit{
 		private boolean systemExitUsed = true;
 		
@@ -96,13 +97,11 @@ public class FXUIPlayer implements Player {
 	}
 	private final doWeExit exitDecider = new doWeExit();
 	
-	/*
-	 * Have some class! ...methods. Class methods.
-	 */
 	
 	/**
 	 * Note: there is an artificial limitation (imposed by this class) where only one user may be a human player.
-	 * If/when provisions are made to allow naming of characters, the limitation can be safely removed with no loss of functionality.
+	 * If/when provisions are made to allow naming of characters, the limitation can be safely removed with no loss of functionality...
+	 * ...except for where the crossbar is concerned. It treats any/all human players as one.
 	 */
 	public FXUIPlayer() {
 		if (instanceAlreadyCreated)
@@ -124,8 +123,8 @@ public class FXUIPlayer implements Player {
 		}
 	}
 	
-	public void setOwnerWindow(Window ownerIn) {
-		this.owner = ownerIn;
+	public static void setOwnerWindow(Window ownerIn) {
+		FXUIPlayer.owner = ownerIn;
 	}
 	
 	public void setAsCrossbar(FXUI_Crossbar crossbar)
@@ -142,11 +141,11 @@ public class FXUIPlayer implements Player {
 	 */
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
 		
-		crossbar.setPlayerName(getName());
+		crossbar.setCurrentHumanName(getName());
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -154,7 +153,7 @@ public class FXUIPlayer implements Player {
 		
 	    final Stage dialog = new Stage();
 	    dialog.setTitle("Initial Troop Allocation!");
-	    //dialog.initOwner(owner);
+	    dialog.initOwner(FXUIPlayer.owner);
 	    //dialog.initStyle(StageStyle.UTILITY);
 	    //dialog.initModality(Modality.WINDOW_MODAL);
 	    //dialog.setX(owner.getX());
@@ -201,7 +200,7 @@ public class FXUIPlayer implements Player {
 							reinforcementsApplied++;
 							countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)+1);
 						}
-						updateReinforcementCountGIA(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+						updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 			  	}
 			});
 			//button to decrement reinforcement count for selected country
@@ -213,14 +212,14 @@ public class FXUIPlayer implements Player {
 			  			reinforcementsApplied--;
 			  			countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)-1);
 			  		}
-			  		updateReinforcementCountGIA(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+			  		updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 				}
 			});
 			singleCountryDisp.getChildren().addAll(plus, minus);
 			layout.getChildren().add(singleCountryDisp);						
 		}
 	    
-	    updateReinforcementCountGIA(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+	    updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	  
 	    //button to attempt to accept final reinforcement allocation
 	    Button acceptIt = new Button ("Accept/OK");
@@ -235,7 +234,7 @@ public class FXUIPlayer implements Player {
 	  			dialog.close();
 	  		}
 	  		else{
-	  			updateReinforcementCountGIA(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+	  			updateReinforcementCountRIF(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	  		}
 	  	  }
 	    });
@@ -256,20 +255,6 @@ public class FXUIPlayer implements Player {
 		return rsp;
 	}
 	
-	private void updateReinforcementCountGIA(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource, Text statusText, int reinforcements){
-		statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
-		for(String countryToUpdate : textElements.keySet()){
-			textElements.get(countryToUpdate).setText(countryToUpdate + " ::: " + dataSource.get(countryToUpdate));
-			if (isError){
-				textElements.get(countryToUpdate).setFill(Color.RED);
-				statusText.setFill(Color.RED);
-			}
-			else{
-				textElements.get(countryToUpdate).setFill(Color.BLACK);
-				statusText.setFill(Color.BLACK);
-			}
-		}
-	}
 	
 	/**
 	 * Propose a subset of the player's cards that can be redeemed for additional reinforcements.
@@ -284,10 +269,11 @@ public class FXUIPlayer implements Player {
 	@Override
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired) {
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-				
+		
+		crossbar.setCurrentHumanName(getName());
 		final CardTurnInResponse rsp = new CardTurnInResponse();  
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
 		final HashMap<Integer, Text> cardStatusMapping = new HashMap<Integer, Text>();
@@ -297,7 +283,7 @@ public class FXUIPlayer implements Player {
 	    final String selected = "*SELECTED*";
 	    final String deselected = "not selected";
 	    dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
-	    //dialog.initOwner(owner);
+	    dialog.initOwner(FXUIPlayer.owner);
 	    
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
@@ -438,11 +424,13 @@ public class FXUIPlayer implements Player {
 	 */
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
 		
 		//else, continue setting up the dialog...
+		
+		crossbar.setCurrentHumanName(getName());
 		//some helpful data structures.
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
@@ -452,7 +440,7 @@ public class FXUIPlayer implements Player {
 		
 	    final Stage dialog = new Stage();
 	    dialog.setTitle("Reinforcement with new troops!");
-	    //dialog.initOwner(owner);
+	    dialog.initOwner(FXUIPlayer.owner);
 	    //dialog.initStyle(StageStyle.UTILITY);
 	    //dialog.initModality(Modality.WINDOW_MODAL);
 	    //dialog.setX(owner.getX());
@@ -596,20 +584,21 @@ public class FXUIPlayer implements Player {
 	 */
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-		final AttackResponse rsp = new AttackResponse();
 		
+		crossbar.setCurrentHumanName(getName());
+		final AttackResponse rsp = new AttackResponse();
 		ScrollPane spane = new ScrollPane();
 	    final Stage dialog = new Stage();
 	    dialog.setTitle("Attack? [optional]");
-	    //dialog.initOwner(owner);
+	    dialog.initOwner(FXUIPlayer.owner);
 	    
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
-	    dialog.setWidth(500);
-	    dialog.setHeight(650); // TODO ugly hardcoding of window size needs fixing
+	    //dialog.setWidth(500);
+	    //dialog.setHeight(730); // TODO ugly hardcoding of window size needs fixing
 	    
 	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
@@ -623,7 +612,7 @@ public class FXUIPlayer implements Player {
 	    
 	    //status text: total reinforcements available, reinf used, reinf available.
 	    final Text statusText = new Text();
-	    statusText.setText("Current selection: [No Selection]");
+	    statusText.setText("Current selection: Attacking\n[no selection???]\nfrom\n[no selection???].");
 	    statusText.setTextAlignment(TextAlignment.CENTER);
 	    
 	    final VBox sourceCountriesVBox = new VBox(10);
@@ -634,6 +623,15 @@ public class FXUIPlayer implements Player {
 
 		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 		
+		//pre-setup for dice selection
+
+	    Text diceCountStatus = new Text("Dice Count:\n- - -");
+	    diceCountStatus.setTextAlignment(TextAlignment.CENTER);
+	    final Button diceCountInc = new Button ("Dice++");
+	    final Button diceCountDec = new Button ("Dice--");
+	    diceCountInc.setDisable(true);
+	    diceCountDec.setDisable(true);
+		
 	    //buttons for countries you own, and text to display *additional* units to deploy to each country
 	    for (Country source : sources)
 			{
@@ -642,9 +640,35 @@ public class FXUIPlayer implements Player {
 				ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
 					@Override public void handle(ActionEvent t){
 						rsp.setAtkCountry(source);
+						int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+					    rsp.setNumDice(maxDiceAvailable);
+					    updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+					    diceCountInc.setOnAction(new EventHandler<ActionEvent>(){
+						  	  @Override public void handle(ActionEvent t){
+						  		if (rsp.getNumDice() < maxDiceAvailable)
+						  		{
+						  			rsp.setNumDice(rsp.getNumDice()+1);
+						  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+						  		}
+						  		
+						  	  }
+						    });
+						    
+						    diceCountDec.setOnAction(new EventHandler<ActionEvent>(){
+						  	  @Override public void handle(ActionEvent t){
+						  		if (rsp.getNumDice() > 1)
+						  		{
+						  			rsp.setNumDice(rsp.getNumDice()-1);
+						  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+						  		}
+						  		
+						  	  }
+						    });
+						    
 			  			attackSource = source.getName();
 			  			attackTarget = "-----"; /* TODO represent as variable*/
 			  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+			  			statusText.setFill(Color.BLACK);
 				  		targetCountriesVBox.getChildren().clear();
 				  		targetCountriesVBox.getChildren().add(new Text("Target:"));
 				  		for (Country target : source.getNeighbors())
@@ -685,6 +709,13 @@ public class FXUIPlayer implements Player {
 	    bothCountryGroups.getChildren().addAll(spaneLeft, spaneRight);
 	    bothCountryGroups.setAlignment(Pos.CENTER);
 	  
+	    //select number of dice
+	    
+	    
+	    
+	    final HBox diceDisplay = new HBox(10);
+	    diceDisplay.getChildren().addAll(diceCountDec, diceCountStatus, diceCountInc);
+	    diceDisplay.setAlignment(Pos.CENTER);
 	    
 	    //button to attempt to accept final reinforcement allocation
 	    Button acceptIt = new Button ("Accept/OK");
@@ -692,11 +723,11 @@ public class FXUIPlayer implements Player {
 	  	  @Override public void handle(ActionEvent t){
 	  		if (rsp.getAtkCountry() != null && rsp.getDfdCountry() != null)
 	  		{
-	  			int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
-	  			rsp.setNumDice(maxDiceAvailable);
+	  			//rsp.setNumDice(maxDiceAvailable);
   				if(!AttackResponse.isValidResponse(rsp, map, getName()))
   				{
   					statusText.setText("Not a valid response; try another combo.");
+  					statusText.setFill(Color.RED);
   				}
   				else{
   					passTurn = false;
@@ -706,7 +737,8 @@ public class FXUIPlayer implements Player {
 	  		}
 	  		else
 	  		{
-	  			statusText.setText("Not a valid response; \nmake sure you select a target and source!.");
+	  			statusText.setText("Not a valid response; \nmake sure you select a target and source!!");
+	  			statusText.setFill(Color.RED);
 	  		}
 	  		
 	  	  }
@@ -721,10 +753,14 @@ public class FXUIPlayer implements Player {
 	  	  }
 	    });
 	    
+	    HBox acceptanceBtns = new HBox(10);
+	    acceptanceBtns.getChildren().addAll(acceptIt, skipIt);
+	    acceptanceBtns.setAlignment(Pos.CENTER);
+	    
 	    //add status and buttons to layout
 	    Text buttonBuffer = new Text("***********");
 	    buttonBuffer.setTextAlignment(TextAlignment.CENTER);
-	    layout.getChildren().addAll(statusText, bothCountryGroups, buttonBuffer, acceptIt, skipIt);
+	    layout.getChildren().addAll(statusText, bothCountryGroups, buttonBuffer, diceDisplay, acceptanceBtns);
 	    layout.setAlignment(Pos.CENTER);
 	    
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
@@ -747,6 +783,24 @@ public class FXUIPlayer implements Player {
 		return rsp;
 	}
 	
+	private void updateDiceDisplay(Text diceDisplay, int currentDiceCount, int maxDiceCount, Button decBtn, Button incBtn){
+		if (currentDiceCount == 1){
+			diceDisplay.setText("Rolling 1 die.\n(" + maxDiceCount + " allowed)");
+			decBtn.setDisable(true);
+		}
+		else{
+			diceDisplay.setText("Rolling " + currentDiceCount + " dice.\n(" + maxDiceCount + " allowed)");
+			decBtn.setDisable(false);
+		}
+		
+		if(maxDiceCount > currentDiceCount){
+			incBtn.setDisable(false);
+		}
+		else{
+			incBtn.setDisable(true);
+		}
+	}
+	
 	/**
 	 * Specify the number of armies that should be advanced into a conquered territory.
 	 * RESPONSE REQUIRED
@@ -760,9 +814,11 @@ public class FXUIPlayer implements Player {
 	 */
 	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int minAdv){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
+		
+		crossbar.setCurrentHumanName(getName());
 		final int sourceArmies = map.getCountryArmies(fromCountry);
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
 		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
@@ -770,7 +826,7 @@ public class FXUIPlayer implements Player {
 		
 		final Stage dialog = new Stage();
 	    dialog.setTitle("Advance armies into conquests");
-	    //dialog.initOwner(owner);
+	    dialog.initOwner(FXUIPlayer.owner);
 	    
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
@@ -902,11 +958,12 @@ public class FXUIPlayer implements Player {
 	 */
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-		final FortifyResponse rsp = new FortifyResponse();
 		
+		crossbar.setCurrentHumanName(getName());
+		final FortifyResponse rsp = new FortifyResponse();
 		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 		Map<Country, Set<Country>> destMap = new HashMap<Country, Set<Country>>();
@@ -933,7 +990,7 @@ public class FXUIPlayer implements Player {
 		ScrollPane spane = new ScrollPane();
 		final Stage dialog = new Stage();
 		dialog.setTitle("Fortify? [optional]");
-		//dialog.initOwner(owner);
+		dialog.initOwner(FXUIPlayer.owner);
 		
 		//dialog.setX(owner.getX());
 		//dialog.setY(owner.getY());
@@ -1117,7 +1174,7 @@ public class FXUIPlayer implements Player {
 	 */
 	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country atkCountry, Country dfdCountry, int numAtkDice){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isPlayerEndingGame(this)){
+		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
 		DefendResponse rsp = new DefendResponse();

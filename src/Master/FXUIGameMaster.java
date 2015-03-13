@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Eh\nStamp Y2015.M03.D09.HM2314\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Eh\nStamp 2015.03.12, 23:00\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -312,7 +312,7 @@ public class FXUIGameMaster extends Application {
     		loadSucceeded = loadSucceeded && restorePreviousLogInfo(loadedSave);
     		if(!loadSucceeded){System.out.println("load failure P2");}
         	representPlayersOnUI();
-        	updateDisplay();
+        	refreshUIElements();
     	}
     	catch(Exception e){
     		System.out.println("Load failed. ::: " + e);
@@ -486,10 +486,12 @@ public class FXUIGameMaster extends Application {
 	    	buttonCache.get(0).setDisable(false); //we can start a new game
 	    	buttonCache.get(1).setDisable(false); //we can load a previous game
 	    	buttonCache.get(2).setDisable(true); //we cannot use the save button
+	    	currentPlayStatus.setText("I D L E"); //set the status to "IDLE"
 		}
 		else {
 			buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
 	    	buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
+			currentPlayStatus.setText("in play."); //set the status to "in play"; will be overwritten with an error if need be
 		}
 	}
     		
@@ -540,7 +542,7 @@ public class FXUIGameMaster extends Application {
 	 */
 	public String begin() {
 		//This is only here temporarily, until I can figure out the control flow of this application.
-		((FXUIPlayer) this.playerMap.get("FXUIPlayer")).setOwnerWindow(this.pane.getScene().getWindow());
+		FXUIPlayer.setOwnerWindow(this.pane.getScene().getWindow()); //applies to all human player(s), so now made static.
 		
 		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
@@ -557,7 +559,6 @@ public class FXUIGameMaster extends Application {
 		}
 		if (initiationGood) {
 			crossbar.resetEndGameSignal();
-			currentPlayStatus.setText("in play.");
 			//play round-robin until there is only one player left
 			int turn = 0;
 			while (this.players.size() > 1 && !gameQuit) {
@@ -576,30 +577,29 @@ public class FXUIGameMaster extends Application {
 				{
 					prepareSave();
 					performSave();
-					
 				}
 				try {
-					updateDisplay();
+					refreshUIElements();
 					reinforce(currentPlayer, true);
-					if(gameQuit){
+					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
 						break;
 					}
 					
-					updateDisplay();
+					refreshUIElements();
 					attack(currentPlayer);
-					if(gameQuit){
+					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
 						break;
 					}
 					
-					updateDisplay();
+					refreshUIElements();
 					fortify(currentPlayer);
-					if(gameQuit){
+					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
 						break;
 					}
 					
-					updateDisplay();
+					refreshUIElements();
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
-					if(gameQuit){
+					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
 						break;
 					}
 				}
@@ -680,9 +680,9 @@ public class FXUIGameMaster extends Application {
 				}*/
 			}
 			
-			updateDisplay();
+			refreshUIElements();
 			
-			if (!valid || (crossbar.isPlayerEndingGame(player) && player.getName() == crossbar.getPlayerName())) {
+			if (!valid || crossbar.isHumanEndingGame(player)) {
 				try {
 					if(!valid){
 					eliminate(player, null, "You failed to provide a valid initial army allocation.");
@@ -753,7 +753,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
 		}
-		else if(crossbar.isPlayerEndingGame(currentPlayer)) {
+		else if(crossbar.isHumanEndingGame(currentPlayer)) {
 			eliminate(currentPlayer, null, "Player decided to leave. Come back any time, friend!");
 		}
 		writeLogLn(true, EVENT_DELIM);
@@ -764,7 +764,7 @@ public class FXUIGameMaster extends Application {
 		boolean resetTurn;
 		boolean hasGottenCard = false;
 		while (attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
-			updateDisplay();
+			refreshUIElements();
 			attempts++;
 			resetTurn = false;
 			/*try{*/
@@ -778,7 +778,7 @@ public class FXUIGameMaster extends Application {
 								+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 								+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 						attempts = 0;
-						updateDisplay();
+						refreshUIElements();
 						Player defender = getOwnerObject(atkRsp.getDfdCountry());
 						DefendResponse dfdRsp = null;
 						try {
@@ -823,7 +823,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(defender, null, "You failed to provide a valid defense response.");
 		}
-		else if(crossbar.isPlayerEndingGame(defender))
+		else if(crossbar.isHumanEndingGame(defender))
 		{
 			eliminate(defender, null, "This defender wants a break. Go ahead, friend. You deserve it.");
 		}
@@ -878,7 +878,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid) {
 			eliminate(attacker, null, "You failed to provide a valid advance response.");
 		}
-		else if (crossbar.isPlayerEndingGame(attacker) && crossbar.getPlayerName() == attacker.getName()) // TODO you never reach this. try again?
+		else if (crossbar.isHumanEndingGame(attacker)) // TODO you never reach this. try again?
 		{
 			eliminate(attacker, null, "The advancer decided to take a break. 'S OK. Get some cookies. Or hot cocoa.");
 		}
@@ -969,7 +969,8 @@ public class FXUIGameMaster extends Application {
 			return rsp;
 		}
 		catch (RuntimeException|PlayerEliminatedException e) {
-			//e.printStackTrace();
+			e.printStackTrace();
+			System.out.println(e);
 			return null;
 		}
 	}
@@ -1075,7 +1076,7 @@ public class FXUIGameMaster extends Application {
 		if (!valid && turnInRequired) {
 			eliminate(currentPlayer, null, "You were required to turn in cards this turn, and you failed to do so.");
 		}
-		else if(crossbar.isPlayerEndingGame(currentPlayer) && currentPlayer.getName() == crossbar.getPlayerName()){
+		else if(crossbar.isHumanEndingGame(currentPlayer)){
 			eliminate(currentPlayer, null, "The player is opting out of the game altogether. Have a good day, buddy.");
 		}
 		return cardBonus;
@@ -1454,16 +1455,64 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
-	public void updateDisplay()
+	//and so begins the complex setup to create a stepping refresh cycle that updates elements one by one
+	//it's to be on a clock, so an exterior thread is to be used, and you must then have that thread refer back to the JavaFX thread
+	// with code in the appropriate places in a given for loop...
+	// so sorry 'bout it.
+	
+	/**
+	 * Main entry method to prompt a refresh of the countries and their counts in the main FXUI window.
+	 * Has no bearing on the secondary dialogs.
+	 */
+	public void refreshUIElements()
+	{
+		Runnable clockedUIRefreshTask = new Runnable(){
+			@Override public void run(){
+				createClockedRefreshCycle(30);
+			}
+		};
+		Thread clockedUIRefreshThread = new Thread(clockedUIRefreshTask);
+		clockedUIRefreshThread.setDaemon(true);
+		clockedUIRefreshThread.start();
+	}
+	
+	/**
+	 * Creates a clocked refresh cycle -- that is, automatically updates each country's status in the main window
+	 * one after the other, separated by a pause of some time (passed in as a parameter to the method).
+	 * @param timeToWaitBetweenElements the time -- in ns -- to pause between the update of any two elements.
+	 */
+	private void createClockedRefreshCycle(int timeToWaitBetweenElements)
 	{
 		for (Player player : playerMap.values())
 		{
 			for (Country country : RiskUtils.getPlayerCountries(this.map, player.getName()))
 			{
-				this.textNodeMap.get(country.getName()).setFill(this.playerColorMap.get(this.map.getCountryOwner(country)));
-				this.textNodeMap.get(country.getName()).setText(country.getName() + "\n" + this.map.getCountryArmies(country));
+				//the setup to actually update the status of the current country for the current aplayer
+				final Country countryOut = country;
+				Platform.runLater(new Runnable()
+				{
+					  @Override public void run(){
+						  performStepOfRefreshProcess(countryOut);
+					  } 
+				});
+				//and the sleep to create the pause between updates...
+				try {
+					Thread.sleep(timeToWaitBetweenElements);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 		}
+	}
+	
+	/**
+	 * As part of the clocked refresh cycle, updates the visual state of a singular country, passed in as a param.
+	 * @param country the country whose data is to be refreshed on the main map.
+	 */
+	private void performStepOfRefreshProcess(Country country){
+		this.textNodeMap.get(country.getName()).setFill(this.playerColorMap.get(this.map.getCountryOwner(country)));
+		this.textNodeMap.get(country.getName()).setText(country.getName() + "\n" + this.map.getCountryArmies(country));
 	}
 	
 	

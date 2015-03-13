@@ -56,7 +56,7 @@ public class FXUI_Crossbar {
 		return playerName;
 	}
 	
-	public void setPlayerName(String nameOfPlayer){
+	public void setCurrentHumanName(String nameOfPlayer){
 		playerName = nameOfPlayer;
 	}
 	
@@ -70,8 +70,13 @@ public class FXUI_Crossbar {
 		fxPlayerQuit = false;
 	}
 	
-	public boolean isPlayerEndingGame(Player currentPlayer){
-		return fxPlayerQuit && currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
+	/**
+	 * Asks if the human(s) have elected to end the game. (It only takes one human to agree,
+	 * 		 as this flag is carried in one crossbar across all human player objects).
+	 * @return returns "true" if any human has elected to end the game, "false" otherwise.
+	 */
+	public boolean isHumanEndingGame(Player currentPlayer){
+		return fxPlayerQuit && currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()) && currentPlayer.getName() == getPlayerName();
 	}
 
 }
