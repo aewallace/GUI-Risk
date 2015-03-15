@@ -61,7 +61,7 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x0Fh\nStamp 2015.03.12, 22:50\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x10h\nStamp 2015.03.15, 16:50\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar;
@@ -127,9 +127,28 @@ public class FXUIPlayer implements Player {
 		FXUIPlayer.owner = ownerIn;
 	}
 	
-	public void setAsCrossbar(FXUI_Crossbar crossbar)
-	{
-		FXUIPlayer.setCrossbar(crossbar);
+	/**
+	 * Getter for the player name. Ideally, the name is only set once, so no separate "setter" exists.
+	 * @return name
+	 */
+	public String getName(){
+		return this.name;
+	}
+
+	/**
+	 * Getter for the FXUI GameMaster-Player Crossbar
+	 * @return crossbar, the desired crossbar, static across all instances.
+	 */
+	public static FXUI_Crossbar getCrossbar() {
+		return crossbar;
+	}
+
+	/**
+	 * Setter for the FXUI GameMaster-Player Crossbar
+	 * @param crossbar, the crossbar to use, static across all instances.
+	 */
+	public static void setCrossbar(FXUI_Crossbar crossbar) {
+		FXUIPlayer.crossbar = crossbar;
 	}
 	
 	/**
@@ -145,33 +164,32 @@ public class FXUIPlayer implements Player {
 	    	return null;
 	    }
 		
+		//else...initial memory/variable allocation & early setup
 		crossbar.setCurrentHumanName(getName());
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
-		
 	    final Stage dialog = new Stage();
+	    final VBox layout = new VBox(10);
+	    Text guideText = new Text(); //generic instructions for initial allocation
+	    final Text statusText = new Text(); //status: total reinforcements available, reinf used, reinf available.
+	    
+	    
+	    //and now let us continue with window/element setup
 	    dialog.setTitle("Initial Troop Allocation!");
 	    dialog.initOwner(FXUIPlayer.owner);
-	    //dialog.initStyle(StageStyle.UTILITY);
-	    //dialog.initModality(Modality.WINDOW_MODAL);
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
 	    
-	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
 	    layout.setStyle("-fx-padding: 20;");
 	    
-	    //generic instructions for initial allocation
-	    Text guideText = new Text();
 	    guideText.setText("You have been assigned initial countries\nand " + reinforcements + " initial troops;"
 	  		+ "\nplease allocate those troops now.\nOne troop per country minimum;\nMust use all available troops.");
 	    guideText.setTextAlignment(TextAlignment.CENTER);
 	    layout.getChildren().add(guideText);
 	    
-	    //status: total reinforcements available, reinf used, reinf available.
-	    final Text statusText = new Text();
 	    statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 	    
 	    
@@ -200,7 +218,7 @@ public class FXUIPlayer implements Player {
 							reinforcementsApplied++;
 							countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)+1);
 						}
-						updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+						refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 			  	}
 			});
 			//button to decrement reinforcement count for selected country
@@ -212,14 +230,14 @@ public class FXUIPlayer implements Player {
 			  			reinforcementsApplied--;
 			  			countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)-1);
 			  		}
-			  		updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+			  		refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 				}
 			});
 			singleCountryDisp.getChildren().addAll(plus, minus);
 			layout.getChildren().add(singleCountryDisp);						
 		}
 	    
-	    updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	  
 	    //button to attempt to accept final reinforcement allocation
 	    Button acceptIt = new Button ("Accept/OK");
@@ -234,7 +252,7 @@ public class FXUIPlayer implements Player {
 	  			dialog.close();
 	  		}
 	  		else{
-	  			updateReinforcementCountRIF(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+	  			refreshReinforcementDisplay(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	  		}
 	  	  }
 	    });
@@ -354,6 +372,7 @@ public class FXUIPlayer implements Player {
 	    Button acceptIt = new Button ("Accept/OK");
 	    acceptIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
+	  		boolean validSubmission = true;
 	  		if (cardsToTurnIn.size() == RiskConstants.NUM_CARD_TURN_IN){
 	  			for (Card cdOut : cardsToTurnIn.values()){
 	  				rsp.addCard(cdOut);
@@ -361,6 +380,9 @@ public class FXUIPlayer implements Player {
 	  			if (CardTurnInResponse.isValidResponse(rsp, myCards)){
 	  				exitDecider.setAsNonSystemClose();
 	  				dialog.close();
+	  			}
+	  			else{
+	  				validSubmission = false;
 	  			}
 	  		}
 	  		else if(!turnInRequired)
@@ -370,14 +392,16 @@ public class FXUIPlayer implements Player {
 	  			turningInNoCards = true;
 	  		}
 	  		else{
+	  			validSubmission = false;
+	  		}
+	  		if (!validSubmission){
 	  			statusText.setText("invalid selection.\n(cards not a valid set)");
-	  			//updateReinforcementCountGIA(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	  		}
 	  	  }
 	    });
 	    
 	    Button skipIt = new Button ("Skip Action");
-	    acceptIt.setOnAction(new EventHandler<ActionEvent>(){
+	    skipIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
 	  		exitDecider.setAsNonSystemClose();
 	  		dialog.close();
@@ -484,7 +508,7 @@ public class FXUIPlayer implements Player {
 			  			reinforcementsApplied++;
 			  			countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)+1);
 			  		}
-			  		updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+			  		refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 			  	}
 			});
 			//button to decrement reinforcement count for selected country
@@ -496,14 +520,14 @@ public class FXUIPlayer implements Player {
 			  			reinforcementsApplied--;
 			  			countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)-1);
 			  		}
-			  		updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+			  		refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 			  	}
 			});
 			singleCountryDisp.getChildren().addAll(plus, minus);
 			layout.getChildren().add(singleCountryDisp);						
 		}
 	    
-	    updateReinforcementCountRIF(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements); //TODO: move this up..or down. or comment
+	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements); //TODO: move this up..or down. or comment
 	  
 	    
 	    //button to attempt to accept final reinforcement allocation
@@ -520,7 +544,7 @@ public class FXUIPlayer implements Player {
 					dialog.close();
 				}
 				else{
-					updateReinforcementCountRIF(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
+					refreshReinforcementDisplay(true,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 				}
 	    	}
 		});//end eventhandler actionevent
@@ -559,7 +583,7 @@ public class FXUIPlayer implements Player {
 	 * @param statusText Secondary window content to be updated; the so-called status text created in the "Reinforce" method. Updated in-place.
 	 * @param reinforcements the total number of reinforcements available to the user during this turn/during this singular call to "Reinforce"
 	 */
-	private void updateReinforcementCountRIF(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource, Text statusText, int reinforcements){
+	private void refreshReinforcementDisplay(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource, Text statusText, int reinforcements){
 		statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 		for(String countryToUpdate : textElements.keySet()){
 			textElements.get(countryToUpdate).setText(countryToUpdate + " ::: " + dataSource.get(countryToUpdate));
@@ -1185,30 +1209,5 @@ public class FXUIPlayer implements Player {
 		rsp.setNumDice(numDice);
 		return rsp;
 		// TODO this stolen from seth's cpu. must find a way to jiggle & juggle these bits later if necessary.
-	}
-	
-	
-	/**
-	 * Getter for the player name.
-	 * @return name
-	 */
-	public String getName(){
-		return this.name;
-	}
-
-	/**
-	 * Getter for the FXUI GameMaster-Player Crossbar
-	 * @return crossbar, the desired crossbar, static across all instances.
-	 */
-	public static FXUI_Crossbar getCrossbar() {
-		return crossbar;
-	}
-
-	/**
-	 * Setter for the FXUI GameMaster-Player Crossbar
-	 * @param crossbar, the crossbar to use, static across all instances.
-	 */
-	public static void setCrossbar(FXUI_Crossbar crossbar) {
-		FXUIPlayer.crossbar = crossbar;
 	}
 }
