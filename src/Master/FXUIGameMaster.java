@@ -161,6 +161,7 @@ public class FXUIGameMaster extends Application {
     ArrayList<Button> buttonCache = new ArrayList<Button>();
     private static boolean quitGame = false;
     private static Player currentPlayer = null;
+    private boolean updateUI = false;
     
     
     
@@ -313,7 +314,7 @@ public class FXUIGameMaster extends Application {
     		loadSucceeded = loadSucceeded && restorePreviousLogInfo(loadedSave);
     		if(!loadSucceeded){System.out.println("load failure P2");}
         	representPlayersOnUI();
-        	refreshUIElements();
+        	refreshUIElements(true);
     	}
     	catch(Exception e){
     		System.out.println("Load failed. ::: " + e);
@@ -571,6 +572,7 @@ public class FXUIGameMaster extends Application {
 					}
 				}
 				currentPlayer = this.playerMap.get(this.players.get(turn));
+				this.updateUI = currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
 				writeLogLn(true, currentPlayer.getName() + " is starting their turn.");
 				writeStatsLn();
 				this.turnCount++;
@@ -580,12 +582,14 @@ public class FXUIGameMaster extends Application {
 					performSave();
 				}
 				try {
+					refreshUIElements(this.updateUI);
+					
 					reinforce(currentPlayer, true);
 					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
 						break;
 					}
 					else{
-						refreshUIElements();
+						refreshUIElements(this.updateUI);
 					}
 					
 					attack(currentPlayer);
@@ -593,7 +597,7 @@ public class FXUIGameMaster extends Application {
 						break;
 					}
 					else{
-						refreshUIElements();
+						refreshUIElements(this.updateUI);
 					}
 					
 					fortify(currentPlayer);
@@ -601,7 +605,7 @@ public class FXUIGameMaster extends Application {
 						break;
 					}
 					else{
-						refreshUIElements();
+						refreshUIElements(this.updateUI);
 					}
 					
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
@@ -609,7 +613,7 @@ public class FXUIGameMaster extends Application {
 						break;
 					}
 					else{
-						refreshUIElements();
+						refreshUIElements(this.updateUI);
 					}
 				}
 				catch (PlayerEliminatedException e) {
@@ -637,7 +641,7 @@ public class FXUIGameMaster extends Application {
 		}
 		catch (IOException e) {
 		}
-		refreshUIElements();
+		refreshUIElements(true);
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
 		quitGame = false;
@@ -689,8 +693,6 @@ public class FXUIGameMaster extends Application {
 					}
 				}*/
 			}
-			
-			refreshUIElements();
 			
 			if (!valid || crossbar.isHumanEndingGame(player)) {
 				try {
@@ -774,7 +776,7 @@ public class FXUIGameMaster extends Application {
 		boolean resetTurn;
 		boolean hasGottenCard = false;
 		while (attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
-			refreshUIElements();
+			refreshUIElements(this.updateUI);
 			attempts++;
 			resetTurn = false;
 			/*try{*/
@@ -788,7 +790,7 @@ public class FXUIGameMaster extends Application {
 								+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 								+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 						attempts = 0;
-						refreshUIElements();
+						refreshUIElements(this.updateUI);
 						Player defender = getOwnerObject(atkRsp.getDfdCountry());
 						DefendResponse dfdRsp = null;
 						try {
@@ -1475,10 +1477,17 @@ public class FXUIGameMaster extends Application {
 	 * Has no bearing on the secondary dialogs.
 	 * If the game is being "exited", or the current player is not a "human", the refresh is as instantaneous as possible.
 	 * Else, internal decision logic will request a slower refresh, to provide for more easily detected changes.
+	 * @param guaranteeRefresh if "true", will refresh (with a dynamic decision on if it's instant or staggered updating). If "false",
+	 * 		will skip updating altogether for the majority of the time.
 	 */
-	public void refreshUIElements()
-	{
-		if (FXUIGameMaster.quitGame || FXUIGameMaster.currentPlayer == null 
+	public void refreshUIElements(boolean guaranteeRefresh)
+	{	
+		if (!guaranteeRefresh && this.round % this.players.size() != 0){ //just...just don't update too often
+			return;
+		}
+		
+		//else, decide dynamically...
+		else if (FXUIGameMaster.quitGame || FXUIGameMaster.currentPlayer == null
 									|| !FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()))
 		{
 			createClockedRefreshCycle(0);
