@@ -60,7 +60,7 @@ public class FXUI_Crossbar {
 		playerName = nameOfPlayer;
 	}
 	
-	public void signalPlayerEndingGame()
+	public void signalHumanEndingGame()
 	{
 		fxPlayerQuit = true;
 	}

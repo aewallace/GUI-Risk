@@ -61,16 +61,17 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x10h\nStamp 2015.03.15, 16:50\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x11h\nStamp 2015.03.15, 19:10\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar;
 	
 	private String name;
 	private int reinforcementsApplied = 0;
+	private int maxDiceAvailable = 0;
 	private boolean passTurn = false;
-	private boolean turningInNoCards = true;
-	private String attackTarget = "-----", attackSource = "------";
+	private final String blankText = "-----";
+	private String attackTarget = blankText, attackSource = blankText;
 	private static Window owner = null;
 
 	
@@ -295,116 +296,108 @@ public class FXUIPlayer implements Player {
 		final CardTurnInResponse rsp = new CardTurnInResponse();  
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
 		final HashMap<Integer, Text> cardStatusMapping = new HashMap<Integer, Text>();
-		turningInNoCards = true;
 		
 	    final Stage dialog = new Stage();
 	    final String selected = "*SELECTED*";
 	    final String deselected = "not selected";
+	    
+	    Text guideText = new Text(); //guide text: generic instructions for turning in cards
+	    final String guideTextIfRequired = "As you have " + myCards.size() + " cards,\nplease turn in a selection of 3 cards:\n3x same type\nOR\n3x different type\nOR\nWild+Any combo\n"
+	    		+ "[This action is required for this round]";
+	    final String guideTextIfOptional = "Turn In Cards?\nIf you can form a set of cards with...\n3x same type\nOR\n3x different type\nOR\nWild+Any two\n"
+	    		+ "...You are allowed to do so at this point.\nOtherwise, you may review your cards for later use.";
+	    
+	    final VBox layout = new VBox(10);
+
+	    final HBox cardArrayDisplayRowA = new HBox(4);
+	    final HBox cardArrayDisplayRowB = new HBox(4);
+	    
+	    final Text statusText = new Text("--\n--"); //status text: used to indicate if an error occurred upon attempted submission
+	    Button acceptIt = new Button ("Accept/OK");
+	    Button skipIt = new Button ("Skip Action");
+	    
+	    
+	    //now...begin handling the layout details and such.
 	    dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
 	    dialog.initOwner(FXUIPlayer.owner);
 	    
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
 	    
-	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
 	    layout.setStyle("-fx-padding: 20;");
 	    
-	    //generic instructions for initial allocation
-	    Text guideText = new Text();
-	    guideText.setText(turnInRequired ? "As you have " + myCards.size() + " cards,\nplease turn in a selection of 3 cards:\n3x same type\nOR\n3x different type\nOR\nWild+Any combo\n"
-	    		+ "[This action is required for this round]" : "Turn In Cards?\nIf you can form a set of cards with...\n3x same type\nOR\n3x different type\nOR\nWild+Any two\n"
-	    		+ "...You are allowed to do so at this point.\nOtherwise, you may review your cards for later use.");
+	    //further set up the guide text, depending on whether you must turn in cards or not
+	    guideText.setText(turnInRequired ? guideTextIfRequired : guideTextIfOptional);
 	    guideText.setTextAlignment(TextAlignment.CENTER);
-	    layout.getChildren().add(guideText);
-	    
-	    
-	    
 	    
 	    //set up the player's Cards for display, if any Cards are available. (each Card is represented as a button)
-	    final HBox cardArrayDisplayRowA = new HBox(4);
-	    final HBox cardArrayDisplayRowB = new HBox(4);
 	    cardArrayDisplayRowA.setAlignment(Pos.CENTER);
 	    cardArrayDisplayRowB.setAlignment(Pos.CENTER);
 	    int indexInCards = 0;
-	    for (final Card cdIn : myCards) {
+	    
+	    for (final Card cdIn : myCards){
 	  	  	final int indexInCardsUM = indexInCards;
 	  	  	final VBox cardWithStatus = new VBox(4);
-	  	  	//cardsToTurnIn.put(indexInCards, cdIn);
 	  	  	Text subText = new Text(deselected);
+	  	  	
 	  	  	cardStatusMapping.put(indexInCards, subText);
-				//button to increment reinforcement count for selected country
 	  	  	String ctySrced = cdIn.getType().equals(RiskConstants.WILD_CARD) ? "wild" : cdIn.getCountry().getName();
-			  Button card = new Button ("******\n[type]\n" + cdIn.getType().toLowerCase() + "\n*****\n" + ctySrced.toLowerCase() + "\n[country]\n******");
-			  card.setAlignment(Pos.CENTER);
-			  card.setTextAlignment(TextAlignment.CENTER);
-			  
-			  card.setOnAction(new EventHandler<ActionEvent>(){
-			  	  @Override public void handle(ActionEvent t){
-			  		turningInNoCards =  false;
+			Button card = new Button ("******\n[type]\n" + cdIn.getType().toLowerCase() + "\n*****\n" + ctySrced.toLowerCase() + "\n[country]\n******");
+			card.setAlignment(Pos.CENTER);
+			card.setTextAlignment(TextAlignment.CENTER);
+			card.setOnAction(new EventHandler<ActionEvent>(){
+			  	@Override public void handle(ActionEvent t){
+			  		passTurn = false;
 			  		final Integer cardAffected = (Integer)indexInCardsUM;
-			  		if (cardsToTurnIn.containsKey(cardAffected)){
+			  		if (cardsToTurnIn.containsKey(cardAffected)) {
 			  			cardsToTurnIn.remove(cardAffected); 
 			  			cardStatusMapping.get(cardAffected).setText(deselected);
 			  			cardStatusMapping.get(cardAffected).setFont(Font.getDefault());
 			  		}
-			  		else
-			  		{
+			  		else {
 			  			cardsToTurnIn.put(cardAffected, cdIn);
 			  			cardStatusMapping.get(cardAffected).setText(selected);
 			  			cardStatusMapping.get(cardAffected).setFont(Font.font(null, FontWeight.BOLD, -1));
 			  		}
-			  	  }
-			  	  
-			  }
-			  );
-			  indexInCards++;
-			  cardWithStatus.getChildren().addAll(card, subText);
-			  if(indexInCards > 2){cardArrayDisplayRowB.getChildren().add(cardWithStatus);} else {cardArrayDisplayRowA.getChildren().add(cardWithStatus);}
-									
-			}
-
-	    layout.getChildren().addAll(cardArrayDisplayRowA, cardArrayDisplayRowB);	
+			  	}
+			});
+			indexInCards++;
+			cardWithStatus.getChildren().addAll(card, subText);
+			if(indexInCards > 2){cardArrayDisplayRowB.getChildren().add(cardWithStatus);}
+			else {cardArrayDisplayRowA.getChildren().add(cardWithStatus);}						
+	    }
 	    
-	  //status text: used to indicate if an error occurred upon attempted submission
-	    final Text statusText = new Text("----");
-	    
-	    Button acceptIt = new Button ("Accept/OK");
 	    acceptIt.setOnAction(new EventHandler<ActionEvent>(){
-	  	  @Override public void handle(ActionEvent t){
-	  		boolean validSubmission = true;
-	  		if (cardsToTurnIn.size() == RiskConstants.NUM_CARD_TURN_IN){
-	  			for (Card cdOut : cardsToTurnIn.values()){
-	  				rsp.addCard(cdOut);
-	  			}
-	  			if (CardTurnInResponse.isValidResponse(rsp, myCards)){
-	  				exitDecider.setAsNonSystemClose();
-	  				dialog.close();
-	  			}
-	  			else{
-	  				validSubmission = false;
-	  			}
-	  		}
-	  		else if(!turnInRequired)
-	  		{
-	  			exitDecider.setAsNonSystemClose();
-	  			dialog.close();
-	  			turningInNoCards = true;
-	  		}
-	  		else{
-	  			validSubmission = false;
-	  		}
-	  		if (!validSubmission){
-	  			statusText.setText("invalid selection.\n(cards not a valid set)");
-	  		}
-	  	  }
+	    	@Override public void handle(ActionEvent t){
+		  		if (cardsToTurnIn.size() == RiskConstants.NUM_CARD_TURN_IN){
+		  			for (Card cdOut : cardsToTurnIn.values()){
+		  				rsp.addCard(cdOut);
+		  			}
+		  			if (CardTurnInResponse.isValidResponse(rsp, myCards)){
+		  				exitDecider.setAsNonSystemClose();
+		  				dialog.close();
+		  			}
+		  			else{
+		  				statusText.setText("invalid selection.\n(cards not a valid set)");
+		  			}
+		  		}
+		  		else if(!turnInRequired){
+		  			exitDecider.setAsNonSystemClose();
+		  			dialog.close();
+		  			passTurn = true;
+		  		}
+		  		else{
+		  			statusText.setText("invalid selection.\n(invalid card count. " + RiskConstants.NUM_CARD_TURN_IN +" required)");
+		  		}
+	    	}
 	    });
 	    
-	    Button skipIt = new Button ("Skip Action");
 	    skipIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
-	  		exitDecider.setAsNonSystemClose();
-	  		dialog.close();
+		  		exitDecider.setAsNonSystemClose();
+		  		dialog.close();
+		  		passTurn = true;
 	  	  }
 	    });
 	    
@@ -414,7 +407,7 @@ public class FXUIPlayer implements Player {
 	    }
 	    
 	    //add status and buttons to layout
-	    layout.getChildren().addAll(statusText, acceptIt);
+	    layout.getChildren().addAll(guideText, cardArrayDisplayRowA, cardArrayDisplayRowB, statusText, acceptIt);
 	    
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 	    dialog.setScene(new Scene(layout));
@@ -424,8 +417,11 @@ public class FXUIPlayer implements Player {
 	    {
 	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
 	    }
+	    
+	    //final cleanup and return if everything completed successfully
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-		if(turningInNoCards){
+		if(passTurn){
+			passTurn = !passTurn;
 			return null;
 		}
 		else{
@@ -453,37 +449,33 @@ public class FXUIPlayer implements Player {
 	    }
 		
 		//else, continue setting up the dialog...
-		
-		crossbar.setCurrentHumanName(getName());
 		//some helpful data structures.
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
-		
-		
 	    final Stage dialog = new Stage();
+	    final VBox layout = new VBox(10);
+	    ScrollPane spane = new ScrollPane();
+	    Text guideText = new Text();
+	    final Text statusText = new Text();
+	    Button acceptIt = new Button ("Accept/OK");
+	    
+	    //updating the elements with their contents &/or styles...
 	    dialog.setTitle("Reinforcement with new troops!");
 	    dialog.initOwner(FXUIPlayer.owner);
-	    //dialog.initStyle(StageStyle.UTILITY);
-	    //dialog.initModality(Modality.WINDOW_MODAL);
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
-	    
-	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
 	    layout.setStyle("-fx-padding: 20;");
 	    
 	    
 	    //Generic instructions for reinforcement
-	    Text guideText = new Text();
 	    guideText.setText("Please place your reinforcements\nin the countries you own.");
 	    guideText.setTextAlignment(TextAlignment.CENTER);
 	    layout.getChildren().add(guideText);
 	    
-	    
 	    //status text: total reinforcements available, reinf used, reinf available.
-	    final Text statusText = new Text();
 	    statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 	    
 	    
@@ -492,15 +484,17 @@ public class FXUIPlayer implements Player {
 	    //Each country (& its controls) is given its own row, and is added to the layout as it is generated here.
 	    //This button/text generation only happens once and is updated in-place.
 	    for (final Country ctIn : myCountries)
-			{
+		{
 	  	  	final HBox singleCountryDisp = new HBox(4);
+	  	  	Button plus = new Button ("+");
+	  	  	Button minus = new Button ("-");
 	  	  	singleCountryDisp.setAlignment(Pos.CENTER);
-				map.getCountryArmies(ctIn);
-				countryUsedReinforcementCount.put(ctIn.getName(), 0);
-				countryTextCache.put(ctIn.getName(), new Text(ctIn.getName() + " + 0"));
-				singleCountryDisp.getChildren().add(countryTextCache.get(ctIn.getName()));
-			//button to increment reinforcement count for selected country
-			Button plus = new Button ("+");
+			map.getCountryArmies(ctIn);
+			countryUsedReinforcementCount.put(ctIn.getName(), 0);
+			countryTextCache.put(ctIn.getName(), new Text(ctIn.getName() + " + 0")); //"place" the country and its current reinf count
+			singleCountryDisp.getChildren().add(countryTextCache.get(ctIn.getName()));
+			
+			//set what "plus" button does (increment reinforcement count for selected country)
 			plus.setOnAction(new EventHandler<ActionEvent>(){
 			  	@Override public void handle(ActionEvent t){
 			  		final String countryAffected = ctIn.getName();
@@ -511,8 +505,8 @@ public class FXUIPlayer implements Player {
 			  		refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 			  	}
 			});
-			//button to decrement reinforcement count for selected country
-			Button minus = new Button ("-");
+			
+			//set what "minus" button does (decrement reinforcement count for selected country)
 			minus.setOnAction(new EventHandler<ActionEvent>(){
 			  	@Override public void handle(ActionEvent t){
 			  		final String countryAffected = ctIn.getName();
@@ -527,11 +521,7 @@ public class FXUIPlayer implements Player {
 			layout.getChildren().add(singleCountryDisp);						
 		}
 	    
-	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements); //TODO: move this up..or down. or comment
-	  
-	    
 	    //button to attempt to accept final reinforcement allocation
-	    Button acceptIt = new Button ("Accept/OK");
 	    acceptIt.setOnAction(new EventHandler<ActionEvent>() {
 	  	  @Override
 	    	public void handle(ActionEvent event){
@@ -552,11 +542,12 @@ public class FXUIPlayer implements Player {
 	    //add status info Text and acceptance Button to layout. (Note: this method does not ever allow the player to "skip")
 	    layout.getChildren().addAll(statusText, acceptIt);
 	    
-	    ScrollPane spane = new ScrollPane();
-	    spane.setContent(layout);
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+	    spane.setContent(layout);
 	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
+	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
 	    dialog.showAndWait();
 	
 	    if (exitDecider.isSystemExit())
@@ -565,13 +556,8 @@ public class FXUIPlayer implements Player {
 	    }
 		reinforcementsApplied = 0;
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-		//return result;
 		return rsp;
 	}
-	
-	
-	// TODO the following is basically a duplicate of an earlier function of a similar name.
-	// Either determine a circumstance under which the two must be unique, or consolidate into one.
 	
 	/**
 	 * Helper method to refresh the display of the "Reinforce" dialog.
@@ -612,137 +598,123 @@ public class FXUIPlayer implements Player {
 	    	return null;
 	    }
 		
-		crossbar.setCurrentHumanName(getName());
 		final AttackResponse rsp = new AttackResponse();
 		ScrollPane spane = new ScrollPane();
 	    final Stage dialog = new Stage();
-	    dialog.setTitle("Attack? [optional]");
-	    dialog.initOwner(FXUIPlayer.owner);
-	    
-	    //dialog.setX(owner.getX());
-	    //dialog.setY(owner.getY());
-	    //dialog.setWidth(500);
-	    //dialog.setHeight(730); // TODO ugly hardcoding of window size needs fixing
-	    
 	    final VBox layout = new VBox(10);
-	    layout.setAlignment(Pos.CENTER);
-	    layout.setStyle("-fx-padding: 20;");
 	    
-	    //Generic instructions for reinforcement
 	    Text guideText = new Text();
-	    guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
-	    guideText.setTextAlignment(TextAlignment.CENTER);
-	    layout.getChildren().add(guideText);
-	    
-	    //status text: total reinforcements available, reinf used, reinf available.
 	    final Text statusText = new Text();
-	    statusText.setText("Current selection: Attacking\n[no selection???]\nfrom\n[no selection???].");
-	    statusText.setTextAlignment(TextAlignment.CENTER);
 	    
 	    final VBox sourceCountriesVBox = new VBox(10);
 	    final VBox targetCountriesVBox = new VBox(10);
+	    
+	    Text diceCountStatus = new Text("Dice Count:\n- - -");
+	    final Button diceCountDec = new Button ("Dice--");
+	    final Button diceCountInc = new Button ("Dice++");
+	    final HBox diceDisplay = new HBox(10);
+	    
+	    ScrollPane spaneLeft = new ScrollPane();
+		ScrollPane spaneRight = new ScrollPane();
+	    final HBox bothCountryGroups = new HBox(10);
+	    
+	    Button acceptIt = new Button ("Accept/OK");
+	    Button skipIt = new Button ("[skip/pass]");
+
+	    HBox acceptanceBtns = new HBox(10);
+	    Text buttonDivider = new Text("***********");
+	    
+	    //now that things have been placed in memory, let's set it all up...
+	    
+	    dialog.setTitle("Attack? [optional]");
+	    dialog.initOwner(FXUIPlayer.owner);
+	    
+	    
+	    layout.setAlignment(Pos.CENTER);
+	    layout.setStyle("-fx-padding: 20;");
+	    //dialog.setX(owner.getX());
+	    //dialog.setY(owner.getY());
+	    
+	    //Generic instructions for attacking (the act of which is always optional, technically)
+	    guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
+	    guideText.setTextAlignment(TextAlignment.CENTER);
+	    
+	    //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
+	    statusText.setText("Current selection: Attacking\n[no selection???]\nfrom\n[no selection???].");
+	    statusText.setTextAlignment(TextAlignment.CENTER);
+	    
 	    sourceCountriesVBox.setAlignment(Pos.CENTER);
 	    targetCountriesVBox.setAlignment(Pos.CENTER);
 	    sourceCountriesVBox.getChildren().add(new Text("Source:"));
 
 		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 		
-		//pre-setup for dice selection
-
-	    Text diceCountStatus = new Text("Dice Count:\n- - -");
+		//pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
 	    diceCountStatus.setTextAlignment(TextAlignment.CENTER);
-	    final Button diceCountInc = new Button ("Dice++");
-	    final Button diceCountDec = new Button ("Dice--");
 	    diceCountInc.setDisable(true);
 	    diceCountDec.setDisable(true);
-		
-	    //buttons for countries you own, and text to display *additional* units to deploy to each country
-	    for (Country source : sources)
-			{
-				final Button ctSrcBtn = new Button(source.getName());
-				//button to increment reinforcement count for selected country
-				ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
-					@Override public void handle(ActionEvent t){
-						rsp.setAtkCountry(source);
-						int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
-					    rsp.setNumDice(maxDiceAvailable);
-					    updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
-					    diceCountInc.setOnAction(new EventHandler<ActionEvent>(){
-						  	  @Override public void handle(ActionEvent t){
-						  		if (rsp.getNumDice() < maxDiceAvailable)
-						  		{
-						  			rsp.setNumDice(rsp.getNumDice()+1);
-						  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
-						  		}
-						  		
-						  	  }
-						    });
-						    
-						    diceCountDec.setOnAction(new EventHandler<ActionEvent>(){
-						  	  @Override public void handle(ActionEvent t){
-						  		if (rsp.getNumDice() > 1)
-						  		{
-						  			rsp.setNumDice(rsp.getNumDice()-1);
-						  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
-						  		}
-						  		
-						  	  }
-						    });
-						    
-			  			attackSource = source.getName();
-			  			attackTarget = "-----"; /* TODO represent as variable*/
-			  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
-			  			statusText.setFill(Color.BLACK);
-				  		targetCountriesVBox.getChildren().clear();
-				  		targetCountriesVBox.getChildren().add(new Text("Target:"));
-				  		for (Country target : source.getNeighbors())
-				  		{
-				  			if (!map.getCountryOwner(target).equals(getName())) {
-					  			final Button ctTgtBtn = new Button(target.getName());
-									ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
-										@Override public void handle(ActionEvent t){
-									  		  rsp.setDfdCountry(target);
-									  		  attackTarget = target.getName();
-									  		  statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
-									  	  }
-									});
-									targetCountriesVBox.getChildren().add(ctTgtBtn);
-				  			}
-				  		}
-			  	  }
-			  }
-			  );
-			  //button to decrement reinforcement count for selected country
-			  sourceCountriesVBox.getChildren().add(ctSrcBtn);
-			}
-	    
-	    //includes double ScrollPane -- one for leftmost (source) contents, one for for rightmore (destination) contents
-	    ScrollPane spaneLeft = new ScrollPane();
-		spaneLeft.setPrefHeight(400);
-		spaneLeft.setPrefWidth(200);
-		ScrollPane spaneRight = new ScrollPane();
-		spaneRight.setPrefHeight(400);
-		spaneRight.setPrefWidth(200);
-		
-		spaneLeft.setContent(sourceCountriesVBox);
-		spaneRight.setContent(targetCountriesVBox);
-		
-	    
-	    
-	    final HBox bothCountryGroups = new HBox(10);
-	    bothCountryGroups.getChildren().addAll(spaneLeft, spaneRight);
-	    bothCountryGroups.setAlignment(Pos.CENTER);
-	  
-	    //select number of dice
-	    
-	    
-	    
-	    final HBox diceDisplay = new HBox(10);
 	    diceDisplay.getChildren().addAll(diceCountDec, diceCountStatus, diceCountInc);
 	    diceDisplay.setAlignment(Pos.CENTER);
+	    //the actions for the increment and decrement buttons, when buttons are available
+	    diceCountInc.setOnAction(new EventHandler<ActionEvent>(){
+			@Override public void handle(ActionEvent t){
+		  		if (rsp.getNumDice() < maxDiceAvailable)
+		  		{
+		  			rsp.setNumDice(rsp.getNumDice()+1);
+		  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+		  		}
+			}
+		});
+		    
+		diceCountDec.setOnAction(new EventHandler<ActionEvent>(){
+			@Override public void handle(ActionEvent t){
+		  		if (rsp.getNumDice() > 1)
+		  		{
+		  			rsp.setNumDice(rsp.getNumDice()-1);
+		  			updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+		  		}
+			}
+		});
+		
+	    /* Buttons representing your countries (source countries) from which you can attack, which -- when pressed -- will unveil the destination
+	     * countries (targets countries) at which your attack can be focused
+	     * */
+	    for (Country source : sources)
+		{
+			final Button ctSrcBtn = new Button(source.getName());
+			ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
+				@Override public void handle(ActionEvent t){
+					rsp.setAtkCountry(source);
+					int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+				    rsp.setNumDice(maxDiceAvailable); //default to the max dice available for an attack
+				    updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+		  			attackSource = source.getName();
+		  			attackTarget = blankText;
+		  			statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+		  			statusText.setFill(Color.BLACK);
+			  		targetCountriesVBox.getChildren().clear();
+			  		targetCountriesVBox.getChildren().add(new Text("Target:"));
+			  		for (Country target : source.getNeighbors())
+			  		{
+			  			if (!map.getCountryOwner(target).equals(getName())) {
+				  			final Button ctTgtBtn = new Button(target.getName());
+							ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
+								@Override public void handle(ActionEvent t){
+									rsp.setDfdCountry(target);
+									attackTarget = target.getName();
+									statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+								}
+							});
+							targetCountriesVBox.getChildren().add(ctTgtBtn);
+			  			}
+			  		}
+				}
+			});
+			//finally add this source button for this singular country
+			sourceCountriesVBox.getChildren().add(ctSrcBtn);
+		}
 	    
 	    //button to attempt to accept final reinforcement allocation
-	    Button acceptIt = new Button ("Accept/OK");
 	    acceptIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
 	  		if (rsp.getAtkCountry() != null && rsp.getDfdCountry() != null)
@@ -768,7 +740,7 @@ public class FXUIPlayer implements Player {
 	  	  }
 	    });
 	    
-	    Button skipIt = new Button ("[skip/pass]");
+	    //if you want to pass on this action for this turn...
 	    skipIt.setOnAction(new EventHandler<ActionEvent>(){
 	  	  @Override public void handle(ActionEvent t){
 	  		passTurn = true;
@@ -777,28 +749,42 @@ public class FXUIPlayer implements Player {
 	  	  }
 	    });
 	    
-	    HBox acceptanceBtns = new HBox(10);
+	    //finish setting up rest of layout...
+	    //includes double ScrollPane -- one for leftmost (source) contents, one for for rightmost (destination) contents
+  		spaneLeft.setPrefHeight(400);
+  		spaneLeft.setPrefWidth(200);
+  		spaneRight.setPrefHeight(400);
+  		spaneRight.setPrefWidth(200);
+  		
+  		spaneLeft.setContent(sourceCountriesVBox);
+  		spaneRight.setContent(targetCountriesVBox);
+  		
+  	    bothCountryGroups.getChildren().addAll(spaneLeft, spaneRight);
+  	    bothCountryGroups.setAlignment(Pos.CENTER);
+	    
 	    acceptanceBtns.getChildren().addAll(acceptIt, skipIt);
 	    acceptanceBtns.setAlignment(Pos.CENTER);
 	    
 	    //add status and buttons to layout
-	    Text buttonBuffer = new Text("***********");
-	    buttonBuffer.setTextAlignment(TextAlignment.CENTER);
-	    layout.getChildren().addAll(statusText, bothCountryGroups, buttonBuffer, diceDisplay, acceptanceBtns);
+	    buttonDivider.setTextAlignment(TextAlignment.CENTER);
+	    layout.getChildren().addAll(guideText, statusText, bothCountryGroups, buttonDivider, diceDisplay, acceptanceBtns);
 	    layout.setAlignment(Pos.CENTER);
 	    
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 	    spane.setContent(layout);
 	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 	    dialog.showAndWait();
+	    
 	    if (exitDecider.isSystemExit())
 	    {
 	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
 	    }
 		
-		attackSource = "-----";
-		attackTarget = "-----";
+	    //if we have completed all business within the dialog, cleanup and return as required.
+		attackSource = blankText;
+		attackTarget = blankText;
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		if(passTurn){
 			passTurn = !passTurn;
@@ -807,13 +793,21 @@ public class FXUIPlayer implements Player {
 		return rsp;
 	}
 	
-	private void updateDiceDisplay(Text diceDisplay, int currentDiceCount, int maxDiceCount, Button decBtn, Button incBtn){
+	/**
+	 * Used with the attack dialog to update the status of the dice -- count used, available buttons, etc
+	 * @param diceStatusDisplay the Text field indicating the status of the dice 
+	 * @param currentDiceCount the current number of dice to be applied/rolled when the attack commences
+	 * @param maxDiceCount the max number of dice available to roll given available troops
+	 * @param decBtn the button to decrement the dice count (disabled under select circumstances, re-enabled otherwise)
+	 * @param incBtn the button to increment the dice count (disabled under select circumstances, re-enabled otherwise)
+	 */
+	private void updateDiceDisplay(Text diceStatusDisplay, int currentDiceCount, int maxDiceCount, Button decBtn, Button incBtn){
 		if (currentDiceCount == 1){
-			diceDisplay.setText("Rolling 1 die.\n(" + maxDiceCount + " allowed)");
+			diceStatusDisplay.setText("Rolling 1 die.\n(" + maxDiceCount + " allowed)");
 			decBtn.setDisable(true);
 		}
 		else{
-			diceDisplay.setText("Rolling " + currentDiceCount + " dice.\n(" + maxDiceCount + " allowed)");
+			diceStatusDisplay.setText("Rolling " + currentDiceCount + " dice.\n(" + maxDiceCount + " allowed)");
 			decBtn.setDisable(false);
 		}
 		
@@ -845,60 +839,67 @@ public class FXUIPlayer implements Player {
 		crossbar.setCurrentHumanName(getName());
 		final int sourceArmies = map.getCountryArmies(fromCountry);
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
-		//current advancement allocation can be found with rsp.getNumArmies(). effectively "int destArmies"
-		//...well, sort of.
 		
 		final Stage dialog = new Stage();
+	    final VBox layout = new VBox(10);
+		
+	    final Text sourceCount = new Text();
+	    final Text destCount = new Text();
+	    HBox countryCounts = new HBox(4);
+	    
+	    final Button plusle = new Button("Add/+");
+	    final Button minun = new Button("Recall/-");
+	    final HBox allocationButtons = new HBox(4);
+	    
+	    final Button acceptance = new Button("Submit/OK");
+	    final Text acceptanceStatus = new Text("Minimum to advance: " + minAdv);
+	    
 	    dialog.setTitle("Advance armies into conquests");
 	    dialog.initOwner(FXUIPlayer.owner);
 	    
 	    //dialog.setX(owner.getX());
 	    //dialog.setY(owner.getY());
-	    final Text sourceCount = new Text();
-	    final Text destCount = new Text();
 	    sourceCount.setTextAlignment(TextAlignment.CENTER);
 	    destCount.setTextAlignment(TextAlignment.CENTER);
-	    final Text acceptanceStatus = new Text("Minimum to advance: " + minAdv);
 	    acceptanceStatus.setTextAlignment(TextAlignment.CENTER);
+	    
 	    final class UpdateStatus{
-	  	  boolean doubleCheck = false;
-	  	  UpdateStatus(){
-	  	  }
-	  	  public void refreshStatus(){
-				sourceCount.setText(fromCountry.getName() + "\n:::::\n" + (sourceArmies - rsp.getNumArmies()));
-				destCount.setText(toCountry.getName() + "\n:::::\n" + rsp.getNumArmies());
-				doubleCheck = false;
-	  	  }
-	  	  public void resetAcceptance()
-	  	  {
-	  		acceptanceStatus.setText("Minimum to advance: " + minAdv);
-	  		doubleCheck = false;
-	  	  }
-	  	  public boolean verifyAcceptance()
-	  	  {
-	  		if (sourceArmies - rsp.getNumArmies() != 0 && rsp.getNumArmies() != 0)
-	  		{
-	  			return true;
-	  		}
-	  		else if (!doubleCheck){
-	  			acceptanceStatus.setText("You cannot leave 0 army members in " + (rsp.getNumArmies() == 0 ? toCountry.getName():fromCountry.getName()) + "?");
-	  			//doubleCheck = true;
-	  			return false;
-	  		}
-	  		else{
-	  			
-	  			return true;
-	  		}
-	  	  }
+		  	  boolean doubleCheck = false;
+		  	  UpdateStatus(){
+		  	  }
+		  	  public void refreshStatus(){
+					sourceCount.setText(fromCountry.getName() + "\n:::::\n" + (sourceArmies - rsp.getNumArmies()));
+					destCount.setText(toCountry.getName() + "\n:::::\n" + rsp.getNumArmies());
+					doubleCheck = false;
+		  	  }
+		  	  public void resetAcceptance()
+		  	  {
+		  		acceptanceStatus.setText("Minimum to advance: " + minAdv);
+		  		doubleCheck = false;
+		  	  }
+		  	  public boolean verifyAcceptance()
+		  	  {
+		  		if (sourceArmies - rsp.getNumArmies() != 0 && rsp.getNumArmies() != 0)
+		  		{
+		  			return true;
+		  		}
+		  		else if (!doubleCheck){
+		  			acceptanceStatus.setText("You cannot leave 0 army members in " + (rsp.getNumArmies() == 0 ? toCountry.getName():fromCountry.getName()) + "?");
+		  			return false;
+		  		}
+		  		else{
+		  			
+		  			return true;
+		  		}
+		  	  }
 	    }
-	    HBox countryCounts = new HBox(4);
+	    
 	    countryCounts.setAlignment(Pos.CENTER);
 	    countryCounts.getChildren().addAll(sourceCount, destCount);
+	    
 	    final UpdateStatus updater = new UpdateStatus();
 	    updater.refreshStatus();
 	    
-	    
-	    final Button plusle = new Button("Add/+");
 	    plusle.setOnAction(new EventHandler<ActionEvent>() {
 	  	  @Override
 	    	public void handle(ActionEvent event){
@@ -912,9 +913,7 @@ public class FXUIPlayer implements Player {
 					updater.refreshStatus();
 				}
 	  	  }
-			});
-	    
-	    final Button minun = new Button("Recall/-");
+		});
 	    minun.setOnAction(new EventHandler<ActionEvent>() {
 	  	  @Override
 	    	public void handle(ActionEvent event){
@@ -930,8 +929,6 @@ public class FXUIPlayer implements Player {
 	  	  }
 	    });
 	    
-	    final Button acceptance = new Button("Submit/OK");
-	    //acceptance.setDefaultButton(true);
 	    acceptance.setOnAction(new EventHandler<ActionEvent>() {
 	  	  @Override
 	    	public void handle(ActionEvent event){
@@ -946,16 +943,13 @@ public class FXUIPlayer implements Player {
 	  	  }
 	    });
 	    
-	    final HBox allocationButtons = new HBox(4);
 	    allocationButtons.setAlignment(Pos.CENTER);
 	    allocationButtons.getChildren().addAll(minun,plusle);
 	    
-	    
-	    final VBox layout = new VBox(10);
 	    layout.setAlignment(Pos.CENTER);
 	    layout.setStyle("-fx-padding: 20;");
 	    layout.getChildren().setAll(
-	    countryCounts, allocationButtons,acceptanceStatus, acceptance
+	    		countryCounts, allocationButtons,acceptanceStatus, acceptance
 	    );
 
 	    dialog.setScene(new Scene(layout));
@@ -1160,11 +1154,11 @@ public class FXUIPlayer implements Player {
 		
 		
 		//add status and buttons to layout
-		Text buttonBufferTop = new Text("***********");
-		buttonBufferTop.setTextAlignment(TextAlignment.CENTER);
-		Text buttonBufferBottom = new Text("***********");
-		buttonBufferBottom.setTextAlignment(TextAlignment.CENTER);
-		layout.getChildren().addAll(statusText, bothCountryGroups, buttonBufferTop, plusMinusBtns, buttonBufferBottom, acceptIt, skipIt);
+		Text buttonDividerTop = new Text("***********");
+		buttonDividerTop.setTextAlignment(TextAlignment.CENTER);
+		Text buttonDividerBottom = new Text("***********");
+		buttonDividerBottom.setTextAlignment(TextAlignment.CENTER);
+		layout.getChildren().addAll(statusText, bothCountryGroups, buttonDividerTop, plusMinusBtns, buttonDividerBottom, acceptIt, skipIt);
 		layout.setAlignment(Pos.CENTER);
 		
 		//formally add linear layout to scene, and wait for the user to be done (click the OK button)

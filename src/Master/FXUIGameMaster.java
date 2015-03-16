@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Eh\nStamp 2015.03.12, 23:00\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Fh\nStamp 2015.03.15, 18:30\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -159,7 +159,8 @@ public class FXUIGameMaster extends Application {
     private SavePoint loadedSaveIn = null;
     private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
     ArrayList<Button> buttonCache = new ArrayList<Button>();
-    private static boolean gameQuit = false;
+    private static boolean quitGame = false;
+    private static Player currentPlayer = null;
     
     
     
@@ -189,11 +190,11 @@ public class FXUIGameMaster extends Application {
 	      final Button yeah = new Button("Yes");
 	      yeah.setOnAction(new EventHandler<ActionEvent>() {
 		        @Override public void handle(ActionEvent t) {
-		        	crossbar.signalPlayerEndingGame();
+		        	crossbar.signalHumanEndingGame();
 					proceedWithExit = true;
 					if(!mainWindowExit)
 					{
-						gameQuit = true;
+						quitGame = true;
 						currentPlayStatus.setText("I D L E");
 					}
 					crossbar.tryCloseCurrentPlayerDialog();
@@ -561,7 +562,7 @@ public class FXUIGameMaster extends Application {
 			crossbar.resetEndGameSignal();
 			//play round-robin until there is only one player left
 			int turn = 0;
-			while (this.players.size() > 1 && !gameQuit) {
+			while (this.players.size() > 1 && !quitGame) {
 				if (turn == 0) {
 					this.round++;
 					writeLogLn(true, "Beginning Round " + round + "!");
@@ -569,7 +570,7 @@ public class FXUIGameMaster extends Application {
 						return "Stalemate!";
 					}
 				}
-				Player currentPlayer = this.playerMap.get(this.players.get(turn));
+				currentPlayer = this.playerMap.get(this.players.get(turn));
 				writeLogLn(true, currentPlayer.getName() + " is starting their turn.");
 				writeStatsLn();
 				this.turnCount++;
@@ -579,28 +580,36 @@ public class FXUIGameMaster extends Application {
 					performSave();
 				}
 				try {
-					refreshUIElements();
 					reinforce(currentPlayer, true);
-					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
+					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
 						break;
 					}
+					else{
+						refreshUIElements();
+					}
 					
-					refreshUIElements();
 					attack(currentPlayer);
-					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
+					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
 						break;
 					}
+					else{
+						refreshUIElements();
+					}
 					
-					refreshUIElements();
 					fortify(currentPlayer);
-					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
+					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
 						break;
 					}
+					else{
+						refreshUIElements();
+					}
 					
-					refreshUIElements();
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
-					if(gameQuit = crossbar.isHumanEndingGame(currentPlayer) || gameQuit){
+					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
 						break;
+					}
+					else{
+						refreshUIElements();
 					}
 				}
 				catch (PlayerEliminatedException e) {
@@ -609,7 +618,7 @@ public class FXUIGameMaster extends Application {
 					turn %= this.players.size();
 				}
 			}
-			if(!mainWindowExit && !gameQuit && this.players.size() > 0){
+			if(!mainWindowExit && !quitGame && this.players.size() > 0){
 				writeStatsLn();
 				System.out.println(this.players.get(0) + " is the victor!");
 				writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -628,9 +637,10 @@ public class FXUIGameMaster extends Application {
 		}
 		catch (IOException e) {
 		}
+		refreshUIElements();
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
-		gameQuit = false;
+		quitGame = false;
 		crossbar.resetEndGameSignal();
 		if(this.players.size() > 0)
 		{
@@ -675,7 +685,7 @@ public class FXUIGameMaster extends Application {
 					crossbar.tryCloseCurrentPlayerDialog();
 					attempts = doYouWantToMakeAnExit(attempts);
 					if (attempts==RiskConstants.MAX_ATTEMPTS){
-						gameQuit = true;
+						quitGame = true;
 					}
 				}*/
 			}
@@ -711,7 +721,7 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean valid = false;
 		reinforcements += getCardTurnIn(currentPlayer, getPlayerCardCounts());
-		if(gameQuit){
+		if(quitGame){
 			return;
 		}
 		Map<String, Integer> oppCards = getPlayerCardCounts();
@@ -724,7 +734,7 @@ public class FXUIGameMaster extends Application {
 			/*try{*/
 				attempts++;
 				ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
-				if(gameQuit){
+				if(quitGame){
 					return;
 				}
 				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
@@ -743,9 +753,9 @@ public class FXUIGameMaster extends Application {
 				}
 				attempts = doYouWantToMakeAnExit(attempts);
 				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					gameQuit = true;
+					quitGame = true;
 				}
-				if(gameQuit){
+				if(quitGame){
 					return;
 				}
 			}*/
@@ -804,7 +814,7 @@ public class FXUIGameMaster extends Application {
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
 				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					gameQuit = true;
+					quitGame = true;
 				}
 			}*/
 			
@@ -1463,39 +1473,46 @@ public class FXUIGameMaster extends Application {
 	/**
 	 * Main entry method to prompt a refresh of the countries and their counts in the main FXUI window.
 	 * Has no bearing on the secondary dialogs.
+	 * If the game is being "exited", or the current player is not a "human", the refresh is as instantaneous as possible.
+	 * Else, internal decision logic will request a slower refresh, to provide for more easily detected changes.
 	 */
 	public void refreshUIElements()
 	{
-		Runnable clockedUIRefreshTask = new Runnable(){
-			@Override public void run(){
-				createClockedRefreshCycle(30);
-			}
-		};
-		Thread clockedUIRefreshThread = new Thread(clockedUIRefreshTask);
-		clockedUIRefreshThread.setDaemon(true);
-		clockedUIRefreshThread.start();
+		if (FXUIGameMaster.quitGame || FXUIGameMaster.currentPlayer == null 
+									|| !FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()))
+		{
+			createClockedRefreshCycle(0);
+		}
+		else
+		{
+			Runnable clockedUIRefreshTask = new Runnable()
+			{
+				@Override public void run(){ createClockedRefreshCycle(30); }
+			};
+			Thread clockedUIRefreshThread = new Thread(clockedUIRefreshTask);
+			clockedUIRefreshThread.setDaemon(true);
+			clockedUIRefreshThread.start();
+		}
 	}
 	
 	/**
 	 * Creates a clocked refresh cycle -- that is, automatically updates each country's status in the main window
 	 * one after the other, separated by a pause of some time (passed in as a parameter to the method).
-	 * @param timeToWaitBetweenElements the time -- in ns -- to pause between the update of any two elements.
+	 * @param timeToWaitBetweenElements the time -- in ns -- to pause between the update of any two elements. (only effective > 0)
 	 */
 	private void createClockedRefreshCycle(int timeToWaitBetweenElements)
 	{
-		for (Player player : playerMap.values())
+		for (Country country : Country.values())
 		{
-			for (Country country : RiskUtils.getPlayerCountries(this.map, player.getName()))
+			//the setup to actually update the status of the current country for the current player
+			Platform.runLater(new Runnable()
 			{
-				//the setup to actually update the status of the current country for the current aplayer
-				final Country countryOut = country;
-				Platform.runLater(new Runnable()
-				{
-					  @Override public void run(){
-						  performStepOfRefreshProcess(countryOut);
-					  } 
-				});
-				//and the sleep to create the pause between updates...
+				  @Override public void run(){
+					  performStepOfRefreshProcess(country);
+				  } 
+			});
+			//and the sleep to create the pause between updates...
+			if(timeToWaitBetweenElements > 0){
 				try {
 					Thread.sleep(timeToWaitBetweenElements);
 				} catch (InterruptedException e) {
@@ -1591,9 +1608,9 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-							crossbar.signalPlayerEndingGame();
+							crossbar.signalHumanEndingGame();
 							crossbar.tryCloseCurrentPlayerDialog();
-							gameQuit = true; // TODO note duplication of telling code we want to end the game. fix it!
+							quitGame = true; // TODO note duplication of telling code we want to end the game. fix it!
 						}
 		        	});
 	    	  }
