@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
@@ -29,10 +28,13 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 import Map.Country;
 import Map.RiskMap;
+import Master.FXUIGameMaster;
 import Response.AdvanceResponse;
 import Response.AttackResponse;
 import Response.CardTurnInResponse;
@@ -61,7 +63,7 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x12h\nStamp 2015.03.15, 21:10\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x13h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -151,6 +153,56 @@ public class FXUIPlayer implements Player {
 	public static void setCrossbar(FXUI_Crossbar crossbar) {
 		FXUIPlayer.crossbar = crossbar;
 	}
+	
+	/**
+	 * As an alternative to the "showAndWait" method natively available to the Stages
+	 * (each dialog window is based upon showing a new stage) which allows extra verification if the user
+	 * attempts to end a given game (completely different from exiting the entire application!).
+	 * 
+	 * This method will display the dialog, and (so long as the buttons in the associated dialog methods
+	 * verify that the window is closed properly) will allow the rest of the dialog's logic to complete, with
+	 * the appropriate return.
+	 * 
+	 * Should the user click a button to close the window, the internal logic of each dialog will not trigger the required flag,
+	 * and this logic will request the user to verify whether the window should close/the game should end.
+	 * (The logic to show that query is elsewhere, in exitDecider as "doYouWantToMakeAnExit".)
+	 * Should the user decide to continue as normal, the appropriate secondary flag is set to redisplay the dialog window.
+	 * Should the user decide to exit, the dialog is allowed to close without being redisplayed, and the game is ended.
+	 * 
+	 * @param dialog the Stage which represents the standard dialog that's to be displayed for every response requested by the GameMaster.
+	 */
+	private void showWaitAndCheck(Stage dialog){
+		boolean stopRunning = false;
+		
+		/*dialog.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
+	    	  @Override
+	    	  public void handle(WindowEvent t)
+	    	  {
+	    		  System.out.println("system exit attempted");
+	    	  }
+	    });
+		
+		FXUIPlayer.owner.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
+	    	  @Override
+	    	  public void handle(WindowEvent t)
+	    	  {
+	    		  System.out.println("system exit attempted");
+	    	  }
+	    });*/
+	    
+		do{
+	    	dialog.showAndWait();
+	    	if(exitDecider.isSystemExit()){
+	    		//ask if the user actually wants the game to end
+	    		stopRunning = FXUIGameMaster.doYouWantToMakeAnExit(0) > 0 ? true : false;
+	    	}
+	    	else{
+	    		stopRunning = false;
+	    	}
+	    }
+	    while(!stopRunning);
+	}
+	
 	
 	/**
 	 * Specify an allocation of the player's initial reinforcements.
@@ -262,12 +314,11 @@ public class FXUIPlayer implements Player {
 	    
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 	    dialog.setScene(new Scene(layout));
+	    
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    dialog.showAndWait();
-	    if (exitDecider.isSystemExit())
-	    {
-	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-	    } 
+	    
+	    showWaitAndCheck(dialog);
+	    
 	    reinforcementsApplied = 0;
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		//return result;
@@ -412,11 +463,8 @@ public class FXUIPlayer implements Player {
 	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
 	    dialog.setScene(new Scene(layout));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    dialog.showAndWait();
-	    if (exitDecider.isSystemExit())
-	    {
-	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-	    }
+	    
+	    showWaitAndCheck(dialog);
 	    
 	    //final cleanup and return if everything completed successfully
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -548,12 +596,9 @@ public class FXUIPlayer implements Player {
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
-	    dialog.showAndWait();
-	
-	    if (exitDecider.isSystemExit())
-	    {
-	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-	    }
+	    
+	    showWaitAndCheck(dialog);
+	    
 		reinforcementsApplied = 0;
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		return rsp;
@@ -775,12 +820,8 @@ public class FXUIPlayer implements Player {
 	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
-	    dialog.showAndWait();
 	    
-	    if (exitDecider.isSystemExit())
-	    {
-	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-	    }
+	    showWaitAndCheck(dialog);
 		
 	    //if we have completed all business within the dialog, cleanup and return as required.
 		attackSource = blankText;
@@ -954,12 +995,9 @@ public class FXUIPlayer implements Player {
 
 	    dialog.setScene(new Scene(layout));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    dialog.showAndWait();
 
-	    if (exitDecider.isSystemExit())
-	    {
-	    	//throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-	    }
+	    showWaitAndCheck(dialog);
+	    
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		System.out.println("return adv rsp " + rsp.getNumArmies());
 		return rsp;
@@ -1166,11 +1204,9 @@ public class FXUIPlayer implements Player {
 		dialog.setScene(new Scene(spane));
 		//dialog.setScene(new Scene(layout));
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-		dialog.showAndWait();
-		if (exitDecider.isSystemExit())
-		{
-			 //throw new OSExitException("User pressed an OS-provided button to close a window or exit the program!");
-		}  
+		
+		showWaitAndCheck(dialog);
+		
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		if(passTurn){
 			passTurn = !passTurn;

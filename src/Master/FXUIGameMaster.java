@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x0Fh\nStamp 2015.03.15, 18:30\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x10h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -142,24 +142,24 @@ public class FXUIGameMaster extends Application {
 	
 	//private ScrollPane scrollPane;
     private Scene scene;
-    private Pane pane;
+    private static Pane pane;
     private Text errorDisplay;
-    private Text currentPlayStatus;
+    private static Text currentPlayStatus;
     private String errorText;
     private boolean errorDisplayBit;
     private ArrayList<Text> playerDisplayCache = null;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
     private int numGames = 1;
-    private boolean proceedWithExit = false;
-    private boolean mainWindowExit = false;
+    private static boolean proceedWithExit = false;
+    private static boolean fullAppExit = false;
     
     //to handle recovering a prior session
     private SavePoint savePoint = new SavePoint();
     private SavePoint loadedSaveIn = null;
     private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
     ArrayList<Button> buttonCache = new ArrayList<Button>();
-    private static boolean quitGame = false;
+    private static boolean endGame = false;
     private static Player currentPlayer = null;
     private boolean updateUI = false;
     
@@ -169,7 +169,7 @@ public class FXUIGameMaster extends Application {
      * If the app detects a call from the system to exit the program, 
      * and it's from a dialog window, handle the call by...asking if we really want to exit.
      */
-    public int doYouWantToMakeAnExit(int currentAttempts){
+    public static int doYouWantToMakeAnExit(int currentAttempts){
 		proceedWithExit = false;
 		Window owner = pane.getScene().getWindow();
 			
@@ -181,10 +181,10 @@ public class FXUIGameMaster extends Application {
 	      dialog.setX(owner.getX());
 	      dialog.setY(owner.getY());
 	      
-	      final Text queryText = new Text("Did you want to end the game?\n(Your progress will NOT be saved!)");
+	      final Text queryText = new Text("Did you want to end the game?\n[If enabled, your most recent\ncheckpoint will be saved]");
 	      queryText.setTextAlignment(TextAlignment.CENTER);
 	      
-	      if(mainWindowExit)
+	      if(FXUIGameMaster.fullAppExit)
 	      {
 	    	  queryText.setText("Application fully exiting;\nShall we go?");
 	      }
@@ -193,9 +193,9 @@ public class FXUIGameMaster extends Application {
 		        @Override public void handle(ActionEvent t) {
 		        	crossbar.signalHumanEndingGame();
 					proceedWithExit = true;
-					if(!mainWindowExit)
+					if(!FXUIGameMaster.fullAppExit)
 					{
-						quitGame = true;
+						FXUIGameMaster.endGame = true;
 						currentPlayStatus.setText("I D L E");
 					}
 					crossbar.tryCloseCurrentPlayerDialog();
@@ -212,7 +212,7 @@ public class FXUIGameMaster extends Application {
 	        }
 	      });
 	      
-	      if(mainWindowExit)
+	      if(FXUIGameMaster.fullAppExit)
 	      {
 	    	  nah.setDisable(true);
 	      }
@@ -563,7 +563,7 @@ public class FXUIGameMaster extends Application {
 			crossbar.resetEndGameSignal();
 			//play round-robin until there is only one player left
 			int turn = 0;
-			while (this.players.size() > 1 && !quitGame) {
+			while (this.players.size() > 1 && !FXUIGameMaster.endGame) {
 				if (turn == 0) {
 					this.round++;
 					writeLogLn(true, "Beginning Round " + round + "!");
@@ -585,7 +585,7 @@ public class FXUIGameMaster extends Application {
 					refreshUIElements(this.updateUI);
 					
 					reinforce(currentPlayer, true);
-					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
+					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 						break;
 					}
 					else{
@@ -593,7 +593,7 @@ public class FXUIGameMaster extends Application {
 					}
 					
 					attack(currentPlayer);
-					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
+					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 						break;
 					}
 					else{
@@ -601,7 +601,7 @@ public class FXUIGameMaster extends Application {
 					}
 					
 					fortify(currentPlayer);
-					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
+					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 						break;
 					}
 					else{
@@ -609,7 +609,7 @@ public class FXUIGameMaster extends Application {
 					}
 					
 					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
-					if(quitGame = crossbar.isHumanEndingGame(currentPlayer) || quitGame){
+					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 						break;
 					}
 					else{
@@ -622,7 +622,7 @@ public class FXUIGameMaster extends Application {
 					turn %= this.players.size();
 				}
 			}
-			if(!mainWindowExit && !quitGame && this.players.size() > 0){
+			if(!FXUIGameMaster.fullAppExit && !FXUIGameMaster.endGame && this.players.size() > 0){
 				writeStatsLn();
 				System.out.println(this.players.get(0) + " is the victor!");
 				writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -644,7 +644,7 @@ public class FXUIGameMaster extends Application {
 		refreshUIElements(true);
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
-		quitGame = false;
+		FXUIGameMaster.endGame = false;
 		crossbar.resetEndGameSignal();
 		if(this.players.size() > 0)
 		{
@@ -673,7 +673,7 @@ public class FXUIGameMaster extends Application {
 			int reinforcements;
 			valid = false;
 			attempts = 0;
-			while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !mainWindowExit) {
+			while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !FXUIGameMaster.fullAppExit) {
 				/*try{*/
 					attempts++;
 					reinforcements = RiskConstants.INIT_ARMIES / this.players.size();
@@ -689,7 +689,7 @@ public class FXUIGameMaster extends Application {
 					crossbar.tryCloseCurrentPlayerDialog();
 					attempts = doYouWantToMakeAnExit(attempts);
 					if (attempts==RiskConstants.MAX_ATTEMPTS){
-						quitGame = true;
+						FXUIGameMaster.endGame = true;
 					}
 				}*/
 			}
@@ -723,7 +723,7 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean valid = false;
 		reinforcements += getCardTurnIn(currentPlayer, getPlayerCardCounts());
-		if(quitGame){
+		if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 			return;
 		}
 		Map<String, Integer> oppCards = getPlayerCardCounts();
@@ -732,11 +732,11 @@ public class FXUIGameMaster extends Application {
 			reinforcements += RiskUtils.calculateReinforcements(this.map, currentPlayer.getName());
 		}
 		writeLogLn(true, currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
-		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !mainWindowExit) {
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !FXUIGameMaster.fullAppExit) {
 			/*try{*/
 				attempts++;
 				ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
-				if(quitGame){
+				if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
 					return;
 				}
 				if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
@@ -755,9 +755,9 @@ public class FXUIGameMaster extends Application {
 				}
 				attempts = doYouWantToMakeAnExit(attempts);
 				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					quitGame = true;
+					FXUIGameMaster.endGame = true;
 				}
-				if(quitGame){
+				if(FXUIGameMaster.endGame){
 					return;
 				}
 			}*/
@@ -775,7 +775,7 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean resetTurn;
 		boolean hasGottenCard = false;
-		while (attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
+		while (attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
 			refreshUIElements(this.updateUI);
 			attempts++;
 			resetTurn = false;
@@ -816,7 +816,7 @@ public class FXUIGameMaster extends Application {
 			{
 				attempts = doYouWantToMakeAnExit(attempts);
 				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					quitGame = true;
+					FXUIGameMaster.endGame = true;
 				}
 			}*/
 			
@@ -827,7 +827,7 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean valid = false;
 		DefendResponse rsp = null;
-		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
 			attempts++;
 			rsp = tryDefend(defender, createCardSetCopy(defender.getName()), oppCards, new AttackResponse(atkRsp));
 			valid = DefendResponse.isValidResponse(rsp, this.map, atkRsp.getDfdCountry());
@@ -878,7 +878,7 @@ public class FXUIGameMaster extends Application {
 	protected void advanceArmies(Player attacker, AttackResponse atkRsp) throws PlayerEliminatedException {
 		int attempts = 0;
 		boolean valid = false;
-		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
 			attempts++;
 			AdvanceResponse advRsp = tryAdvance(attacker, createCardSetCopy(attacker.getName()), getPlayerCardCounts(), atkRsp);
 			if (valid = AdvanceResponse.isValidResponse(advRsp, atkRsp, this.map)) {
@@ -921,7 +921,7 @@ public class FXUIGameMaster extends Application {
 	protected void fortify(Player currentPlayer) {
 		int attempts = 0;
 		boolean valid = false;
-		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
 			attempts++;
 			FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 			if (rsp != null) {
@@ -1062,7 +1062,7 @@ public class FXUIGameMaster extends Application {
 		int attempts = 0;
 		boolean valid = false;
 		boolean turnInRequired = oppCards.get(currentPlayer.getName()) >= RiskConstants.FORCE_TURN_IN;
-		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !mainWindowExit) {
+		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
 			CardTurnInResponse rsp = tryTurnIn(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, turnInRequired);
 			if (rsp != null) {
 				if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerCardMap.get(currentPlayer.getName()))) {
@@ -1368,7 +1368,7 @@ public class FXUIGameMaster extends Application {
 					winLog.put(victor, winLog.get(victor) + 1);
 				}
 			}
-			if(!mainWindowExit){
+			if(!FXUIGameMaster.fullAppExit){
 				for (Map.Entry<String, Integer> entry : winLog.entrySet()) {
 					System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / this.numGames + "%");
 				}
@@ -1487,7 +1487,7 @@ public class FXUIGameMaster extends Application {
 		}
 		
 		//else, decide dynamically...
-		else if (FXUIGameMaster.quitGame || FXUIGameMaster.currentPlayer == null
+		else if (FXUIGameMaster.endGame || FXUIGameMaster.currentPlayer == null
 									|| !FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()))
 		{
 			createClockedRefreshCycle(0);
@@ -1598,6 +1598,8 @@ public class FXUIGameMaster extends Application {
         
         //The vertical box to contain the major buttons and status.
         VBox primaryStatusButtonPanel = new VBox(10);
+        HBox lowerButtonPanel = new HBox(15);
+        
         primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
         primaryStatusButtonPanel.setLayoutX(29);
         primaryStatusButtonPanel.setLayoutY(525);
@@ -1610,8 +1612,8 @@ public class FXUIGameMaster extends Application {
         
         
         //End the current game, but don't close the program.
-        Button endGame = new Button("Bow out.\n(End current game)");
-        endGame.setOnAction(new EventHandler<ActionEvent>(){
+        Button stopGameBtn = new Button("Bow out.\n(End current game)");
+        stopGameBtn.setOnAction(new EventHandler<ActionEvent>(){
 	    	  @Override public void handle(ActionEvent t){
 		        	Platform.runLater(new Runnable()
 		        	{
@@ -1619,7 +1621,7 @@ public class FXUIGameMaster extends Application {
 						public void run() {
 							crossbar.signalHumanEndingGame();
 							crossbar.tryCloseCurrentPlayerDialog();
-							quitGame = true; // TODO note duplication of telling code we want to end the game. fix it!
+							FXUIGameMaster.endGame = true;
 						}
 		        	});
 	    	  }
@@ -1629,19 +1631,18 @@ public class FXUIGameMaster extends Application {
         Button startBtn = new Button("Let's go!!\n(Start new game)");
         startBtn.setOnAction(new EventHandler<ActionEvent>(){
 	    	  @Override public void handle(ActionEvent t){
-		        	Platform.runLater(new Runnable()
-		        	{
-						@Override
-						public void run() {
+		        	//Platform.runLater(new Runnable()
+		        	//{
+						//@Override
+						//public void run() {
 							beginWithStartButton();
-						}
-		        	});
+						//}
+		        	//});
 	    	  }
 		  
 		});
         
         //your standard About buttons...
-        HBox talkToMe = new HBox(15);
         Button tellMe = new Button("About");
         tellMe.setOnAction(new EventHandler<ActionEvent>(){
 	    	  @Override public void handle(ActionEvent t){
@@ -1697,12 +1698,11 @@ public class FXUIGameMaster extends Application {
 	    	  }
         });
         
-        
         buttonCache.add(startBtn);
         buttonCache.add(restoreMe);
         buttonCache.add(saveMe);
         
-        talkToMe.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
+        lowerButtonPanel.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
         
         //Exit the application entirely
         Button exitApp = new Button("Lights out!\n(Exit to desktop)");
@@ -1713,7 +1713,7 @@ public class FXUIGameMaster extends Application {
 						@Override
 						public void run() {
 							primaryStage.close();
-							mainWindowExit = true;
+							FXUIGameMaster.fullAppExit = true;
 						}
 						
 					});
@@ -1724,7 +1724,7 @@ public class FXUIGameMaster extends Application {
         if(errorDisplayBit){
         	currentPlayStatus.setText("------");
         	startBtn.setDisable(true);
-        	endGame.setDisable(true);
+        	stopGameBtn.setDisable(true);
         }
         else{
 			pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
@@ -1741,7 +1741,7 @@ public class FXUIGameMaster extends Application {
 		    });
         }
         
-        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,endGame,exitApp,talkToMe);
+        primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,stopGameBtn,exitApp,lowerButtonPanel);
         //****layout of text & buttons displayed upon launch ends here.***
         
         pane.getChildren().add(primaryStatusButtonPanel);
@@ -1781,7 +1781,7 @@ public class FXUIGameMaster extends Application {
 	    	  @Override
 	    	  public void handle(WindowEvent t)
 	    	  {
-	    		  mainWindowExit = true;
+	    		  FXUIGameMaster.fullAppExit = true;
 	    		  doYouWantToMakeAnExit(0);
 	    	  }
 	    	 });
