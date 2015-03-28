@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x10h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x11h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -143,10 +143,10 @@ public class FXUIGameMaster extends Application {
 	//private ScrollPane scrollPane;
     private Scene scene;
     private static Pane pane;
-    private Text errorDisplay;
+    private Text errorTextElement;
     private static Text currentPlayStatus;
-    private String errorText;
-    private boolean errorDisplayBit;
+    private String errorTextContents;
+    private boolean errorHasOccurred;
     private ArrayList<Text> playerDisplayCache = null;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
@@ -287,7 +287,7 @@ public class FXUIGameMaster extends Application {
     	buttonCache.get(2).setDisable(false);
     	if(!succeeded)
     	{
-    		errorDisplay.setText("Save failed");
+    		errorTextElement.setText("Save failed");
     	}
     	return succeeded;
     }
@@ -366,7 +366,7 @@ public class FXUIGameMaster extends Application {
     	//clear the player list...just in case.
     	for (Text txtM : playerDisplayCache)
     	{
-    		this.pane.getChildren().remove(txtM);
+    		FXUIGameMaster.pane.getChildren().remove(txtM);
     	}
 		writeLogLn(true, "Loading players...");
 		this.playerMap.clear();
@@ -544,7 +544,7 @@ public class FXUIGameMaster extends Application {
 	 */
 	public String begin() {
 		//This is only here temporarily, until I can figure out the control flow of this application.
-		FXUIPlayer.setOwnerWindow(this.pane.getScene().getWindow()); //applies to all human player(s), so now made static.
+		FXUIPlayer.setOwnerWindow(FXUIGameMaster.pane.getScene().getWindow()); //applies to all human player(s), so now made static.
 		
 		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
@@ -1311,7 +1311,7 @@ public class FXUIGameMaster extends Application {
     		//clears the old display of players
     		if(this.playerDisplayCache != null && this.playerDisplayCache.size() > 0){
     			for (Text oldPlayer : this.playerDisplayCache){
-    				this.pane.getChildren().remove(oldPlayer);
+    				FXUIGameMaster.pane.getChildren().remove(oldPlayer);
     			}
     		}
     		
@@ -1332,7 +1332,7 @@ public class FXUIGameMaster extends Application {
 				Text txt = new Text(200 * (i) + 50, 20, "∎"+playerName.toLowerCase());
 				txt.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 				txt.setFill(colors.get((i) % colors.size()));
-				this.pane.getChildren().add(txt);
+				FXUIGameMaster.pane.getChildren().add(txt);
 				this.playerDisplayCache.add(txt);
 			}
 		}
@@ -1354,7 +1354,8 @@ public class FXUIGameMaster extends Application {
 				RiskConstants.resetTurnIn();
 				PlayerFactory.resetPlayerCounts();
 				initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
-				
+		        representPlayersOnUI();
+		        
 				System.out.print((i + 1) + " - ");
 				
 				String victor = begin();
@@ -1440,7 +1441,7 @@ public class FXUIGameMaster extends Application {
 						Text txt = new Text(nextX, nextY, nextCountry + "\n0");
 				        txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 				        this.textNodeMap.put(nextCountry, txt);
-				        this.pane.getChildren().add(txt);
+				        FXUIGameMaster.pane.getChildren().add(txt);
 					}
 					reader.close();
 				}
@@ -1453,14 +1454,14 @@ public class FXUIGameMaster extends Application {
 						Text txt = new Text(nextX, nextY, nextCountry + "\n0");
 				        txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
 				        this.textNodeMap.put(nextCountry, txt);
-				        this.pane.getChildren().add(txt);
+				        FXUIGameMaster.pane.getChildren().add(txt);
 					}
 					reader.close();
 				}
 			}
 		}
 		catch (RuntimeException e) {
-			//errorDisplay.setText(e.getMessage());
+			//errorTextElement.setText(e.getMessage());
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -1568,8 +1569,8 @@ public class FXUIGameMaster extends Application {
         * If there was an error, it'll be changed later.*/
        
         //Facilitate checking for errors...
-        errorDisplayBit = false;
-        errorText = "Status...";
+        errorHasOccurred = false;
+        errorTextContents = "Status...";
         
         //pre-load the error background, just in case...
         Image imageE = new Image("RiskBoardAE.jpg",true);
@@ -1579,19 +1580,20 @@ public class FXUIGameMaster extends Application {
         
         //...which will happen here:
         //populate the countries and players, and find out if there was an error doing either activity
+        //assumes a "default" activity of starting a new game
         initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, LOGGING_ON);
         loadTextNodesForUI("TextNodes.txt");
         representPlayersOnUI();
         //now display elements -- status and buttons -- according to whether there was an error!
-        errorDisplay = new Text(errorText);
-        errorDisplay.setFont(Font.font("Verdana", FontWeight.THIN, 20));
-        if(errorDisplayBit)
+        errorTextElement = new Text(errorTextContents);
+        errorTextElement.setFont(Font.font("Verdana", FontWeight.THIN, 20));
+        if(errorHasOccurred)
         {
-        	errorDisplay.setFill(Color.RED);
+        	errorTextElement.setFill(Color.RED);
         }
         else
         {
-        	errorDisplay.setFill(Color.WHITE);
+        	errorTextElement.setFill(Color.WHITE);
         	Image imageOK = new Image("RiskBoard.jpg", true);
             im0.setImage(imageOK);
         }
@@ -1603,7 +1605,7 @@ public class FXUIGameMaster extends Application {
         primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
         primaryStatusButtonPanel.setLayoutX(29);
         primaryStatusButtonPanel.setLayoutY(525);
-        primaryStatusButtonPanel.getChildren().add(errorDisplay);
+        primaryStatusButtonPanel.getChildren().add(errorTextElement);
         
     	
         currentPlayStatus = new Text("H E L L O");
@@ -1721,7 +1723,7 @@ public class FXUIGameMaster extends Application {
         });
         
         //tweaks to perform if there was an error...
-        if(errorDisplayBit){
+        if(errorHasOccurred){
         	currentPlayStatus.setText("------");
         	startBtn.setDisable(true);
         	stopGameBtn.setDisable(true);
@@ -1784,8 +1786,7 @@ public class FXUIGameMaster extends Application {
 	    		  FXUIGameMaster.fullAppExit = true;
 	    		  doYouWantToMakeAnExit(0);
 	    	  }
-	    	 });
-		
+	    });
 	}
 	
 	private void resize(Stage stageIn)

@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
@@ -63,7 +64,7 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x13h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x14h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -197,7 +198,7 @@ public class FXUIPlayer implements Player {
 	    		stopRunning = FXUIGameMaster.doYouWantToMakeAnExit(0) > 0 ? true : false;
 	    	}
 	    	else{
-	    		stopRunning = false;
+	    		stopRunning = true;
 	    	}
 	    }
 	    while(!stopRunning);
