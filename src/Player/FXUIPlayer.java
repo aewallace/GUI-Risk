@@ -64,7 +64,7 @@ import Util.RiskUtils;
  *
  */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x14h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x15h\nStamp 2015.03.30, 16:30\nType:Modifiable/MNT(00)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -166,42 +166,47 @@ public class FXUIPlayer implements Player {
 	 * 
 	 * Should the user click a button to close the window, the internal logic of each dialog will not trigger the required flag,
 	 * and this logic will request the user to verify whether the window should close/the game should end.
-	 * (The logic to show that query is elsewhere, in exitDecider as "doYouWantToMakeAnExit".)
 	 * Should the user decide to continue as normal, the appropriate secondary flag is set to redisplay the dialog window.
 	 * Should the user decide to exit, the dialog is allowed to close without being redisplayed, and the game is ended.
 	 * 
 	 * @param dialog the Stage which represents the standard dialog that's to be displayed for every response requested by the GameMaster.
 	 */
 	private void showWaitAndCheck(Stage dialog){
-		boolean stopRunning = false;
 		
-		/*dialog.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
+		dialog.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
 	    	  @Override
 	    	  public void handle(WindowEvent t)
 	    	  {
 	    		  System.out.println("system exit attempted");
 	    	  }
 	    });
-		
-		FXUIPlayer.owner.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
-	    	  @Override
-	    	  public void handle(WindowEvent t)
-	    	  {
-	    		  System.out.println("system exit attempted");
-	    	  }
-	    });*/
-	    
+		boolean stopRunning = false;
 		do{
-	    	dialog.showAndWait();
-	    	if(exitDecider.isSystemExit()){
+		   Platform.runLater(new Runnable(){
+		    	@Override public void run(){
+			    	dialog.show();
+		    	}
+		   });
+		   do{
+			   try {
+					Thread.sleep(100);
+			   } catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+			   }
+		   }
+		   while(dialog.isShowing());
+		   if(exitDecider.isSystemExit()){
 	    		//ask if the user actually wants the game to end
 	    		stopRunning = FXUIGameMaster.doYouWantToMakeAnExit(0) > 0 ? true : false;
-	    	}
-	    	else{
+		   }
+		   else{
 	    		stopRunning = true;
-	    	}
+		   }
 	    }
 	    while(!stopRunning);
+	    
+	   
 	}
 	
 	
@@ -217,20 +222,29 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-		
+
+	    
 		//else...initial memory/variable allocation & early setup
-		crossbar.setCurrentHumanName(getName());
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
-	    final Stage dialog = new Stage();
-	    final VBox layout = new VBox(10);
-	    Text guideText = new Text(); //generic instructions for initial allocation
+		
+		final VBox layout = new VBox(10);
+	    final Text guideText = new Text(); //generic instructions for initial allocation
 	    final Text statusText = new Text(); //status: total reinforcements available, reinf used, reinf available.
 	    
+		
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
+	    	
+	    final Stage dialog = new Stage();
 	    
-	    //and now let us continue with window/element setup
+	    //now let us continue with window/element setup
 	    dialog.setTitle("Initial Troop Allocation!");
 	    dialog.initOwner(FXUIPlayer.owner);
 	    //dialog.setX(owner.getX());
@@ -312,17 +326,29 @@ public class FXUIPlayer implements Player {
 	    });
 	    
 	    layout.getChildren().addAll(statusText, acceptIt);
-	    
-	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+	    //formally add linear layout to scene, and display the dialog
 	    dialog.setScene(new Scene(layout));
-	    
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    
-	    showWaitAndCheck(dialog);
-	    
+	    dialog.show();
+	    }
+		});
+		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately following this, pause to wait for FX dialog to be closed!
+		 */
+		do{
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 	    reinforcementsApplied = 0;
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-		//return result;
 		return rsp;
 	}
 	
@@ -343,11 +369,16 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-		
-		crossbar.setCurrentHumanName(getName());
 		final CardTurnInResponse rsp = new CardTurnInResponse();  
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<Integer, Card>();
 		final HashMap<Integer, Text> cardStatusMapping = new HashMap<Integer, Text>();
+		
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
 		
 	    final Stage dialog = new Stage();
 	    final String selected = "*SELECTED*";
@@ -461,14 +492,29 @@ public class FXUIPlayer implements Player {
 	    //add status and buttons to layout
 	    layout.getChildren().addAll(guideText, cardArrayDisplayRowA, cardArrayDisplayRowB, statusText, acceptIt);
 	    
-	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+	    //formally add linear layout to scene, and display the dialog
 	    dialog.setScene(new Scene(layout));
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-	    
-	    showWaitAndCheck(dialog);
-	    
-	    //final cleanup and return if everything completed successfully
+	    dialog.show();
+	    }
+		});
+		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!	
+		 */
+		do{
+		   try {
+				Thread.sleep(100);
+		   } catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+		   }
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+		
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -503,7 +549,14 @@ public class FXUIPlayer implements Player {
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 		final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 		final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
-	    final Stage dialog = new Stage();
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
+		
+		final Stage dialog = new Stage();
 	    final VBox layout = new VBox(10);
 	    ScrollPane spane = new ScrollPane();
 	    Text guideText = new Text();
@@ -591,17 +644,31 @@ public class FXUIPlayer implements Player {
 	    //add status info Text and acceptance Button to layout. (Note: this method does not ever allow the player to "skip")
 	    layout.getChildren().addAll(statusText, acceptIt);
 	    
-	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+	    //formally add linear layout to scene, and display the dialog
 	    spane.setContent(layout);
 	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 	    refreshReinforcementDisplay(false,countryTextCache,countryUsedReinforcementCount, statusText, reinforcements);
-	    
-	    showWaitAndCheck(dialog);
-	    
-		reinforcementsApplied = 0;
+	    dialog.show();
+	    }
+		});
+		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
+		 */
+		do{ //wait on the dialog to go away
+		   try {
+				Thread.sleep(100);
+		   } catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+		   }
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+		reinforcementsApplied = 0;
 		return rsp;
 	}
 	
@@ -645,6 +712,15 @@ public class FXUIPlayer implements Player {
 	    }
 		
 		final AttackResponse rsp = new AttackResponse();
+		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
+		
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
+		
 		ScrollPane spane = new ScrollPane();
 	    final Stage dialog = new Stage();
 	    final VBox layout = new VBox(10);
@@ -692,8 +768,6 @@ public class FXUIPlayer implements Player {
 	    sourceCountriesVBox.setAlignment(Pos.CENTER);
 	    targetCountriesVBox.setAlignment(Pos.CENTER);
 	    sourceCountriesVBox.getChildren().add(new Text("Source:"));
-
-		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 		
 		//pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
 	    diceCountStatus.setTextAlignment(TextAlignment.CENTER);
@@ -816,18 +890,32 @@ public class FXUIPlayer implements Player {
 	    layout.getChildren().addAll(guideText, statusText, bothCountryGroups, buttonDivider, diceDisplay, acceptanceBtns);
 	    layout.setAlignment(Pos.CENTER);
 	    
-	    //formally add linear layout to scene, and wait for the user to be done (click the OK button)
+	    //formally add linear layout to scene through the use of a scroll pane, and display the dialog
 	    spane.setContent(layout);
 	    dialog.setScene(new Scene(spane));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
-	    
-	    showWaitAndCheck(dialog);
+	    dialog.show();
+	    }
+		});
 		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
+		 */
+		do{
+		   try {
+				Thread.sleep(100);
+		   } catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+		   }
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 	    //if we have completed all business within the dialog, cleanup and return as required.
 		attackSource = blankText;
 		attackTarget = blankText;
-		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -877,10 +965,15 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame(this)){
 	    	return null;
 	    }
-		
-		crossbar.setCurrentHumanName(getName());
 		final int sourceArmies = map.getCountryArmies(fromCountry);
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
+		
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
 		
 		final Stage dialog = new Stage();
 	    final VBox layout = new VBox(10);
@@ -993,12 +1086,28 @@ public class FXUIPlayer implements Player {
 	    layout.getChildren().setAll(
 	    		countryCounts, allocationButtons,acceptanceStatus, acceptance
 	    );
-
+	    
+	    //finally place the layout into the new dialog window, and display the dialog.
 	    dialog.setScene(new Scene(layout));
 	    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-
-	    showWaitAndCheck(dialog);
-	    
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
+	    dialog.show();
+	    }
+		});
+		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
+		 */
+		do{
+		   try {
+				Thread.sleep(100);
+		   } catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+		   }
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		System.out.println("return adv rsp " + rsp.getNumArmies());
 		return rsp;
@@ -1019,7 +1128,6 @@ public class FXUIPlayer implements Player {
 	    	return null;
 	    }
 		
-		crossbar.setCurrentHumanName(getName());
 		final FortifyResponse rsp = new FortifyResponse();
 		Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 		Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
@@ -1044,6 +1152,14 @@ public class FXUIPlayer implements Player {
 			}
 		}
 		
+		
+		Platform.runLater(new Runnable(){
+	    	@Override public void run(){
+	    		
+	   /***********
+	    * Begin mandatory processing on FX thread. (Required for Stage objects.)
+	    */
+		
 		ScrollPane spane = new ScrollPane();
 		final Stage dialog = new Stage();
 		dialog.setTitle("Fortify? [optional]");
@@ -1051,10 +1167,6 @@ public class FXUIPlayer implements Player {
 		
 		//dialog.setX(owner.getX());
 		//dialog.setY(owner.getY());
-		
-		//if autosizing of windows fails, revert to ugly hardcoding of window sizes.
-		//dialog.setWidth(500);
-		//dialog.setHeight(690);
 		
 		final VBox layout = new VBox(10);
 		layout.setAlignment(Pos.CENTER);
@@ -1134,12 +1246,12 @@ public class FXUIPlayer implements Player {
 		plusle.setOnAction(new EventHandler<ActionEvent>() {
 			@Override
 		  	public void handle(ActionEvent event){
-					int curArmies = rsp.getNumArmies();
-						if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()) - 1)
-						{
-							rsp.setNumArmies(rsp.getNumArmies() + 1);
-					  	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
-						}
+				int curArmies = rsp.getNumArmies();
+				if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()) - 1)
+				{
+					rsp.setNumArmies(rsp.getNumArmies() + 1);
+			  	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
+				}
 			}
 		});
 		
@@ -1148,12 +1260,12 @@ public class FXUIPlayer implements Player {
 		minun.setOnAction(new EventHandler<ActionEvent>() {
 			@Override
 		  	public void handle(ActionEvent event){
-					int curArmies = rsp.getNumArmies();
-				    if (rsp.getToCountry() != null && curArmies > 0)
-				    {
-				  	  rsp.setNumArmies(rsp.getNumArmies() - 1);
-				  	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
-				    }
+				int curArmies = rsp.getNumArmies();
+			    if (rsp.getToCountry() != null && curArmies > 0)
+			    {
+			  	  rsp.setNumArmies(rsp.getNumArmies() - 1);
+			  	  statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
+			    }
 			}
 		});
 		
@@ -1161,22 +1273,22 @@ public class FXUIPlayer implements Player {
 		plusMinusBtns.setAlignment(Pos.CENTER);
 		plusMinusBtns.getChildren().addAll(minun,plusle);
 		
-		final String playaName = this.getName();
+		final String playaName = getName();
 		//button to attempt to accept final reinforcement allocation
 		Button acceptIt = new Button ("Accept/OK");
 		acceptIt.setOnAction(new EventHandler<ActionEvent>() {
 			@Override
 		  	public void handle(ActionEvent event){
-					if (FortifyResponse.isValidResponse(rsp, map, playaName))
-					{
-						exitDecider.setAsNonSystemClose();
-						passTurn = false;
-						dialog.close();
-					}
-					else
-					{
-						statusText.setText("Not a valid response; \nmake sure you select a target and source!.");
-					}
+				if (FortifyResponse.isValidResponse(rsp, map, playaName))
+				{
+					exitDecider.setAsNonSystemClose();
+					passTurn = false;
+					dialog.close();
+				}
+				else
+				{
+					statusText.setText("Not a valid response; \nmake sure you select a target and source!.");
+				}
 			}
 			
 		});
@@ -1200,14 +1312,28 @@ public class FXUIPlayer implements Player {
 		layout.getChildren().addAll(statusText, bothCountryGroups, buttonDividerTop, plusMinusBtns, buttonDividerBottom, acceptIt, skipIt);
 		layout.setAlignment(Pos.CENTER);
 		
-		//formally add linear layout to scene, and wait for the user to be done (click the OK button)
+		//formally add linear layout to scene through use of scrollpane, then display the dialog
 		spane.setContent(layout);
 		dialog.setScene(new Scene(spane));
-		//dialog.setScene(new Scene(layout));
+	    FXUIPlayer.crossbar.setCurrentHumanName(getName());
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+		dialog.show();
+		}
+		});
 		
-		showWaitAndCheck(dialog);
-		
+		/**
+		 * End mandatory FX thread processing.
+		 * Immediately following this, pause to wait for FX dialog to be closed!
+		 */
+		do{
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 		FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		if(passTurn){
 			passTurn = !passTurn;

@@ -113,7 +113,7 @@ import Util.TextNodes;
  *
  */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x11h\nStamp 2015.03.24, 21:16\nType:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x12h\nStamp 2015.03.30, 14:00\nType:Modifiable/MNT(00)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -159,11 +159,10 @@ public class FXUIGameMaster extends Application {
     private SavePoint loadedSaveIn = null;
     private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
     ArrayList<Button> buttonCache = new ArrayList<Button>();
+    private static boolean initiationGood = false;
     private static boolean endGame = false;
     private static Player currentPlayer = null;
     private boolean updateUI = false;
-    
-    
     
     /**
      * If the app detects a call from the system to exit the program, 
@@ -483,58 +482,46 @@ public class FXUIGameMaster extends Application {
      * TODO include what happens when the user starts the game by pressing a key on the keyboard.
      */
 	public void setButtonAvailability(){
-	    if(workingMode == IDLE_MODE)
+		Platform.runLater(new Runnable()
 		{
-	    	buttonCache.get(0).setDisable(false); //we can start a new game
-	    	buttonCache.get(1).setDisable(false); //we can load a previous game
-	    	buttonCache.get(2).setDisable(true); //we cannot use the save button
-	    	currentPlayStatus.setText("I D L E"); //set the status to "IDLE"
+		@Override public void run(){
+		    if(workingMode == IDLE_MODE)
+			{
+		    	buttonCache.get(0).setDisable(false); //we can start a new game
+		    	buttonCache.get(1).setDisable(false); //we can load a previous game
+		    	buttonCache.get(2).setDisable(true); //we cannot use the save button
+		    	currentPlayStatus.setText("I D L E"); //set the status to "IDLE"
+			}
+			else {
+				buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
+		    	buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
+				currentPlayStatus.setText("in play."); //set the status to "in play"; will be overwritten with an error if need be
+			}
 		}
-		else {
-			buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
-	    	buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
-			currentPlayStatus.setText("in play."); //set the status to "in play"; will be overwritten with an error if need be
-		}
+		});
 	}
     		
 	/**
-	 * Start up a new game using the new game/start button [title varies with different revisions]
+	 * Creates a secondary thread to run game logic (to allow blocking without blocking the UI
 	 * Prevents starting a new game if a game is already in progress, albeit does so silently...
 	 * Ideally, the user will never have this option.
 	 * @return false if a game was already in progress, or true if the game could be started and reach a state of completion
 	 */
-	public boolean beginWithStartButton(){
-		if(workingMode != IDLE_MODE)
-		{
-			return false;
-		}
-		else{
-			workingMode = NEW_GAME_MODE;
-		}
+	public boolean runGameFromButton(){
+		
 		setButtonAvailability();
-		pseudoMain();
+		Runnable gameCode = new Runnable()
+		{
+			@Override public void run(){
+				initiateGameLogic();
+			}
+		};
+		Thread gameThread = new Thread(gameCode);
+		gameThread.setDaemon(true);
+		gameThread.start();
 		return true;
 	}
 	
-	/**
-	 * Starts a game based on information from a previous save. Called into play using the "load" button.
-	 * Prevents loading a prior game if a game is already in progress, albeit does so silently...
-	 * Ideally, the user will never have this option, but eh.
-	 * @return false if another game was active, true if the game manages to reach completion (or a comparable state of
-	 * physical idleness not necessarily equal to IDLE_MODE is reached)
-	 */
-	public boolean beginWithLoadButton(){
-		if(workingMode != IDLE_MODE)
-		{
-			return false;
-		}
-		else {
-			workingMode = LOADED_GAME_MODE;
-		}
-		setButtonAvailability();
-		pseudoMain();
-		return true;
-	}
 	
 	/**
 	 * Once button logic has been handled, and it is verified that no other game has been started,
@@ -546,17 +533,17 @@ public class FXUIGameMaster extends Application {
 		//This is only here temporarily, until I can figure out the control flow of this application.
 		FXUIPlayer.setOwnerWindow(FXUIGameMaster.pane.getScene().getWindow()); //applies to all human player(s), so now made static.
 		
-		boolean initiationGood = false;
+		
 		if (workingMode == NEW_GAME_MODE){
 			initiationGood = initializeForces();
 			if(!initiationGood){
-				  currentPlayStatus.setText("creation of new game failed");
+				  //currentPlayStatus.setText("creation of new game failed"); // TODO restore use
 			}
 		}
 		else if (workingMode == LOADED_GAME_MODE){
 			initiationGood = loadFromSave();
 			if(!initiationGood){
-				  currentPlayStatus.setText("load failed!!");
+				  //currentPlayStatus.setText("load failed!!"); // TODO restore use
 			}
 		}
 		if (initiationGood) {
@@ -641,6 +628,7 @@ public class FXUIGameMaster extends Application {
 		}
 		catch (IOException e) {
 		}
+		
 		refreshUIElements(true);
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
@@ -684,14 +672,6 @@ public class FXUIGameMaster extends Application {
 						playerIndex++;
 						writeLogLn(true, "Troops successfully allocated for " + player.getName() + "...");
 					}
-				/*}
-				catch(OSExitException e){
-					crossbar.tryCloseCurrentPlayerDialog();
-					attempts = doYouWantToMakeAnExit(attempts);
-					if (attempts==RiskConstants.MAX_ATTEMPTS){
-						FXUIGameMaster.endGame = true;
-					}
-				}*/
 			}
 			
 			if (!valid || crossbar.isHumanEndingGame(player)) {
@@ -745,22 +725,6 @@ public class FXUIGameMaster extends Application {
 						writeLogLn(true, entry.getValue() + " " + entry.getKey().getName());
 					}
 				}
-			/*}
-			catch(OSExitException e)
-			{
-				if(crossbar.playerDialogIsActive())
-				{
-					crossbar.getCurrentPlayerDialog().close();
-					crossbar.setCurrentPlayerDialog(null);
-				}
-				attempts = doYouWantToMakeAnExit(attempts);
-				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					FXUIGameMaster.endGame = true;
-				}
-				if(FXUIGameMaster.endGame){
-					return;
-				}
-			}*/
 		}
 		if (!valid) {
 			eliminate(currentPlayer, null, "You failed to provide a valid reinforcement allocation.");
@@ -811,15 +775,6 @@ public class FXUIGameMaster extends Application {
 					//because an attack is not required, a null response is taken to mean that the player declines the opportunity
 					attempts = RiskConstants.MAX_ATTEMPTS;
 				}
-			/*}
-			catch (OSExitException e)
-			{
-				attempts = doYouWantToMakeAnExit(attempts);
-				if (attempts==RiskConstants.MAX_ATTEMPTS){
-					FXUIGameMaster.endGame = true;
-				}
-			}*/
-			
 		}
 	}
 	
@@ -1306,8 +1261,16 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	private void representPlayersOnUI() {
-		//requires loadPlayers to have been run
-    	try {
+		Platform.runLater(new Runnable()
+		{
+		@Override public void run(){
+			representPlayersSubroutine();
+		}
+		});
+    }
+	
+	private void representPlayersSubroutine(){
+		try {
     		//clears the old display of players
     		if(this.playerDisplayCache != null && this.playerDisplayCache.size() > 0){
     			for (Text oldPlayer : this.playerDisplayCache){
@@ -1338,16 +1301,16 @@ public class FXUIGameMaster extends Application {
 		}
 		catch (RuntimeException e) {
 		}
-    }
+	}
 	
 	
 	public static void main(String[] args) throws IOException {
 		launch(FXUIGameMaster.class, args);
 	}
 	
-	public void pseudoMain(){
-	try {
-		// TODO add support for selecting types of players
+	public void initiateGameLogic(){
+		try {
+			// TODO add support for selecting types of players
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
 			RiskConstants.SEED = 1;
 			for (int i = 0; i < this.numGames; i++) {
@@ -1382,6 +1345,7 @@ public class FXUIGameMaster extends Application {
 			//TODO determine if this particular catch statement is even needed?
 			e.printStackTrace();
 		}
+		
 	}
 	
 	/**
@@ -1633,13 +1597,11 @@ public class FXUIGameMaster extends Application {
         Button startBtn = new Button("Let's go!!\n(Start new game)");
         startBtn.setOnAction(new EventHandler<ActionEvent>(){
 	    	  @Override public void handle(ActionEvent t){
-		        	//Platform.runLater(new Runnable()
-		        	//{
-						//@Override
-						//public void run() {
-							beginWithStartButton();
-						//}
-		        	//});
+	    		  if(workingMode == IDLE_MODE)
+					{
+						workingMode = FXUIGameMaster.NEW_GAME_MODE;
+						runGameFromButton();
+					}
 	    	  }
 		  
 		});
@@ -1680,7 +1642,7 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-								performSave();
+							performSave();
 						}
 		        	});
 	    	  }
@@ -1694,7 +1656,11 @@ public class FXUIGameMaster extends Application {
 		        	{
 						@Override
 						public void run() {
-							beginWithLoadButton();
+							if(workingMode == IDLE_MODE)
+							{
+								workingMode = LOADED_GAME_MODE;
+								runGameFromButton();
+							}
 						}
 		        	});
 	    	  }
@@ -1735,7 +1701,7 @@ public class FXUIGameMaster extends Application {
 			        	{
 							@Override
 							public void run() {
-								beginWithStartButton();
+								runGameFromButton();
 							}
 			        	});
 		    	  }
@@ -1784,7 +1750,7 @@ public class FXUIGameMaster extends Application {
 	    	  public void handle(WindowEvent t)
 	    	  {
 	    		  FXUIGameMaster.fullAppExit = true;
-	    		  doYouWantToMakeAnExit(0);
+	    		  Platform.exit();
 	    	  }
 	    });
 	}
