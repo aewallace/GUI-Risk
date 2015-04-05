@@ -5,8 +5,6 @@
 *Base build from original GameMaster class implementation, by Seth Denney, Feb 20 2015 
 */
 
-// TODO see about backing up the responses--or the results of the responses
-
 
 package Master;
 
@@ -35,6 +33,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
@@ -113,7 +112,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x13h\nStamp 2015.04.01, 23:05\nType:Modifiable/MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x14h\nStamp 2015.04.05, 12:30\nType:Modifiable/MNT(00)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -143,9 +142,9 @@ public class FXUIGameMaster extends Application {
 	//private ScrollPane scrollPane;
 	private Scene scene;
 	private static Pane pane;
-	private Text errorTextElement;
+	private static Text errorTextElement;
 	private static Text currentPlayStatus;
-	private String errorTextContents;
+	private String errorTextInitialContents;
 	private boolean errorHasOccurred;
 	private ArrayList<Text> playerDisplayCache = null;
 	private HashMap<String, Text> textNodeMap;
@@ -161,8 +160,22 @@ public class FXUIGameMaster extends Application {
 	ArrayList<Button> buttonCache = new ArrayList<Button>();
 	private static boolean initiationGood = false;
 	private static boolean endGame = false;
+	private boolean loadSucceeded = true;
+	private boolean finishedLoading = false;
 	private static Player currentPlayer = null;
 	private boolean updateUI = false;
+	
+	/**
+	 * Allows easy access to the Thread.sleep() function without continuous trying/catching.
+	 * @param mullisecs the length of time, in milliseconds, to sleep the thread. Similar to Thread.sleep(), value is a long.
+	 */
+	static void sleep(long millisecs){
+		try {
+			Thread.sleep(millisecs);
+		} catch (InterruptedException e) {
+			//We never care about what caused the interruption so long as we're using this method.
+		}
+	}
 	
 	/**
 	* If the app detects a call from the system to exit the program, 
@@ -185,7 +198,7 @@ public class FXUIGameMaster extends Application {
 					dialog.setX(owner.getX());
 					dialog.setY(owner.getY());
 					
-					final Text queryText = new Text("Did you want to end the game?\n[If enabled, your most recent\ncheckpoint will be saved]");
+					final Text queryText = new Text("     Did you want to end the game?     \n[If enabled, your most recent\ncheckpoint will be saved]");
 					queryText.setTextAlignment(TextAlignment.CENTER);
 					
 					final Text querySymbol = new Text("end game?");
@@ -207,7 +220,6 @@ public class FXUIGameMaster extends Application {
 						}
 					});
 					
-					
 					nah.setDefaultButton(true);
 					nah.setOnAction(new EventHandler<ActionEvent>() {
 						@Override public void handle(ActionEvent t) {
@@ -219,17 +231,18 @@ public class FXUIGameMaster extends Application {
 					
 					if(shutAppDownOnAccept)
 					{
-						queryText.setText("Application fully exiting;\nShall we go?");
+						queryText.setText("     Application fully exiting;     \nShall we go?");
 						querySymbol.setText("exiting!");
 						nah.setDisable(true);
 					}
+					Text spaceBuffer = new Text("-+-+-+-+-");
 					
 					final VBox layout = new VBox(10);
 					layout.setAlignment(Pos.CENTER);
-					layout.setStyle("-fx-padding: 10;");
+					//layout.setStyle("-fx-padding: 20;");
 					layout.setStyle("-fx-background-color: pink");
 					layout.getChildren().setAll(
-					querySymbol, queryText, nah, yeah
+					querySymbol, queryText, nah, yeah, spaceBuffer
 					);
 					
 					dialog.setScene(new Scene(layout));
@@ -244,14 +257,9 @@ public class FXUIGameMaster extends Application {
 		* End mandatory FX thread processing.
 		* Immediately following this, pause to wait for FX dialog to be closed!
 		*/
-		if(!Platform.isFxApplicationThread()){ //if this isn't the FX thread, we can lock it up with a sleep or wait
+		if(!Platform.isFxApplicationThread()){ //if this isn't the FX thread, we can pause logic with a call to sleep()
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				FXUIGameMaster.sleep(100);
 			}
 			while(!yeah.isDisabled());
 		}
@@ -271,6 +279,7 @@ public class FXUIGameMaster extends Application {
 	*   Doesn't guarantee perfect state save, but helps.
 	*/
 	private void prepareSave(){
+		disableSaveButton();
 		if(loadedSaveIn != null){ //updating an old save
 			savePoint.updateSaveIdentificationInfo(loadedSaveIn.getOriginalSaveDate(), new Date(), this.round);
 		}
@@ -285,7 +294,7 @@ public class FXUIGameMaster extends Application {
 			savePoint.prepCardsForGivenPlayer(player, createCardSetCopy(player));
 		}
 		System.out.println("Checkpoint reached.");
-		buttonCache.get(2).setDisable(false);
+		enableSaveButton();
 	}
 	
 	/**
@@ -297,7 +306,7 @@ public class FXUIGameMaster extends Application {
 	* @return returns true on successful save, or false when a show-stopping exception was thrown.
 	*/
 	private boolean performSave(){
-		buttonCache.get(2).setDisable(true);
+		disableSaveButton();
 		boolean succeeded = false;
 		try{
 			OutputStream file = new FileOutputStream("fxuigm_save.ser");
@@ -311,30 +320,61 @@ public class FXUIGameMaster extends Application {
 			System.out.println("Save failed. ::: " + e);
 			
 		}
-		buttonCache.get(2).setDisable(false);
+		enableSaveButton();
 		if(!succeeded)
 		{
-			errorTextElement.setText("Save failed");
+			setErrorStatus("Save failed");
 		}
 		return succeeded;
 	}
 	
 	/**
-	* Triggers the chain of events to fully load a checkpoint from a previous save,
-	* and reconstruct the scene as best as possible, using slightly more specific info than a new game.
-	* Also stores the SavePoint object within the class for future reference.
+	* Starts the process of loading a game from a previous save, as the method you should directly use.
+	* Ensures the loading process occurs on the JavaFX thread, and attempts to prevent the game logic
+	* from unintentionally running before the environment is reconstructed.
 	* @return returns true if the load succeeded, or false if a show-stopping exception was encountered
 	*/
 	private boolean loadFromSave(){
-		boolean loadSucceeded = true;
+		Platform.runLater(new Runnable(){
+			@Override public void run(){
+				runLoadingScript();
+			}
+		});
+
+		if(!Platform.isFxApplicationThread()){
+			while(!finishedLoading)
+				{ FXUIGameMaster.sleep(100); }
+		}
+		else{
+			runLoadingScript();
+		}
+		
+		return loadSucceeded;
+	}
+	
+	/**
+	 * Acts as the heavy lifter when it comes to the loading process. An integral
+	 * part of the loadFromSave() method.
+	 * Separated into its own method to avoid redundant code due to alternative ways we
+	 * must ensure this portion of code runs on the JavaFX thread.
+	 * 
+	 * Reconstructs old game as best as possible, using slightly more specific info than a new game.
+	 * Also stores the SavePoint object within the class for future reference.
+	 * Sets the flag to indicate the loading success or failure. Also sets a flag
+	 * which may be used by the caller to ensure (assuming a success loading process!)
+	 * that the program does not continue until complete.
+	 */
+	private void runLoadingScript()
+	{
 		try{
+			finishedLoading = false;
 			InputStream file = new FileInputStream("fxuigm_save.ser");
 			InputStream buffer = new BufferedInputStream(file);
 			ObjectInput input = new ObjectInputStream(buffer);
 			SavePoint loadedSave = (SavePoint)input.readObject();
 			input.close();
 			loadedSaveIn = loadedSave;
-			loadSucceeded = loadSucceeded && loadPlayersFromSave(loadedSave);
+			loadSucceeded = loadSucceeded || loadPlayersFromSave(loadedSave);
 			if(!loadSucceeded){System.out.println("load failure P0");} // TODO allow better diagnostics and recovery in the future
 			loadSucceeded = loadSucceeded && resetCountryInfo(loadedSave);
 			if(!loadSucceeded){System.out.println("load failure P1");}
@@ -342,17 +382,18 @@ public class FXUIGameMaster extends Application {
 			if(!loadSucceeded){System.out.println("load failure P2");}
 			representPlayersOnUI();
 			refreshUIElements(true);
+			finishedLoading = true;
 		}
 		catch(Exception e){
 			System.out.println("Load failed. ::: " + e);
 			loadSucceeded = false;
 		}
-		return loadSucceeded;
 	}
 	
 	
 	/**
 	* Loads the log from the prior game -- up to the checkpoint -- so we can update the actual physical log file properly.
+	* @return "False" if no log info could be found in the previous save, or "True" otherwise.
 	*/
 	private boolean restorePreviousLogInfo(SavePoint loadedSave)
 	{
@@ -371,12 +412,10 @@ public class FXUIGameMaster extends Application {
 			}
 			catch (IOException e) {
 			}
-			
 		}
 		
 		for (String cacheLine : internalLogCache)
 		{
-			
 			writeLogLn(false, cacheLine);
 		}
 		return loadedSave != null && loadedSave.getLogCache() != null;
@@ -503,13 +542,17 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	/**
-	* This method is used as a way to have the new game, load game and save game buttons disabled when in critical points, or when
-	* the option is not pertinent, and re-enable them when the game is not in any critical sections. Does not handle
-	* all fine-tuned disables/enables; only initial startup and game play. Based on states that might otherwise be easily
-	* compromised.
-	* TODO include what happens when the user starts the game by pressing a key on the keyboard.
+	* This method is used as a way to have the 
+	* 	new game, load game and save game buttons disabled at
+	* 	select critical points/when the option is not pertinent,
+	* 	and re-enable them when the game is not in any critical sections.
+	* 	Does not handle all fine-tuned disables/enables; only initial startup and game play.
+	* 	Based on states that might otherwise be easily compromised.
 	*/
 	public void setButtonAvailability(){
+		if (buttonCache.size() < 4){
+			return;
+		}
 		Platform.runLater(new Runnable()
 		{
 			@Override public void run(){
@@ -517,37 +560,91 @@ public class FXUIGameMaster extends Application {
 				{
 					buttonCache.get(0).setDisable(false); //we can start a new game
 					buttonCache.get(1).setDisable(false); //we can load a previous game
-					buttonCache.get(2).setDisable(true); //we cannot use the save button
-					currentPlayStatus.setText("I D L E"); //set the status to "IDLE"
+					buttonCache.get(3).setDisable(true); //we cannot highlight the countries owner by a given player...
+					disableSaveButton(); //we cannot use the save button
+					setPlayStatus("I D L E"); //set the status to "IDLE"
 				}
 				else {
 					buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
 					buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
-					currentPlayStatus.setText("in play."); //set the status to "in play"; will be overwritten with an error if need be
+					buttonCache.get(3).setDisable(false); //we CAN highlight the countries owner by a given player.
+					//save button is set dynamically while the game is in play, so do not concern yourself with it
+					setPlayStatus("in play."); //set the status to "in play"; will be overwritten with an error if need be
 				}
 			}
 		});
 	}
 	
 	/**
-	* Creates a secondary thread to run game logic (to allow blocking without blocking the UI
-	* Prevents starting a new game if a game is already in progress, albeit does so silently...
-	* Ideally, the user will never have this option.
-	* @return false if a game was already in progress, or true if the game could be started and reach a state of completion
-	*/
-	public boolean runGameFromButton(){
-		
-		setButtonAvailability();
-		Runnable gameCode = new Runnable()
+	 * Companion method to disable the save button; ensures actions happen on FX thread
+	 */
+	public void disableSaveButton(){
+		Platform.runLater(new Runnable()
 		{
 			@Override public void run(){
-				initiateGameLogic();
+				buttonCache.get(2).setDisable(true); //disable the save button
 			}
-		};
-		Thread gameThread = new Thread(gameCode);
-		gameThread.setDaemon(true);
-		gameThread.start();
-		return true;
+		});
+	}
+	
+	/**
+	 * Companion method to enable the save button; ensures actions happen on FX thread
+	 */
+	public void enableSaveButton(){
+		Platform.runLater(new Runnable()
+		{
+			@Override public void run(){
+				buttonCache.get(2).setDisable(false); //enable the save button
+			}
+		});
+	}
+	
+	/**
+	 * Used to set the text of the "currentPlayStatus" UI element, even from unsafe threads (unsafe: "not the FX thread")
+	 *
+	 * @param status text to be displayed
+	 * @return "true" if called from the JavaFX thread, "false" otherwise
+	 */
+	private boolean setPlayStatus(String status){
+		if(Platform.isFxApplicationThread()) //if already on FX thread, can directly set
+		{
+			currentPlayStatus.setText(status);
+			return true;
+		}
+		else //place in event queue for running on the FX thread
+		{
+			Platform.runLater(new Runnable()
+			{
+				@Override public void run(){
+					currentPlayStatus.setText(status);
+				}
+			});
+			return false;
+		}
+	}
+	
+	/**
+	 * Used to set the text of the "errorTextElement" UI element, even from unsafe threads (unsafe: "not the FX thread")
+	 * TODO add the ability to push these messages to diagnostics dialog & secondary storage
+	 * @param error text to be displayed  (or default/alternative text, if no error occurred)
+	 * @return "true" if called from the JavaFX thread, "false" otherwise
+	 */
+	private boolean setErrorStatus(String status){
+		if(Platform.isFxApplicationThread()) //if already on FX thread, can directly set
+		{
+			errorTextElement.setText(status);
+			return true;
+		}
+		else //place in event queue for running on the FX thread
+		{
+			Platform.runLater(new Runnable()
+			{
+				@Override public void run(){
+					errorTextElement.setText(status);
+				}
+			});
+			return false;
+		}
 	}
 	
 	
@@ -557,7 +654,7 @@ public class FXUIGameMaster extends Application {
 	* check for any calls to exit the game prematurely that were not caught by internal exception handlers.
 	* @return name of the winner if the game has an ideal termination, null otherwise.
 	*/
-	public String begin() {
+	private String begin() {
 		//This is only here temporarily, until I can figure out the control flow of this application.
 		FXUIPlayer.setOwnerWindow(FXUIGameMaster.pane.getScene().getWindow()); //applies to all human player(s), so now made static.
 		
@@ -565,13 +662,13 @@ public class FXUIGameMaster extends Application {
 		if (workingMode == NEW_GAME_MODE){
 			initiationGood = initializeForces();
 			if(!initiationGood){
-				//currentPlayStatus.setText("creation of new game failed"); // TODO restore use
+				setPlayStatus("creation of new game failed");
 			}
 		}
 		else if (workingMode == LOADED_GAME_MODE){
 			initiationGood = loadFromSave();
 			if(!initiationGood){
-				//currentPlayStatus.setText("load failed!!"); // TODO restore use
+				setPlayStatus("load failed!!");
 			}
 		}
 		if (initiationGood) {
@@ -658,11 +755,13 @@ public class FXUIGameMaster extends Application {
 		}
 		
 		refreshUIElements(true);
+		currentPlayer = null;
 		workingMode = IDLE_MODE;
 		setButtonAvailability();
+		boolean didEndGame = FXUIGameMaster.endGame;
 		FXUIGameMaster.endGame = false;
 		crossbar.resetEndGameSignal();
-		if(this.players.size() > 0)
+		if(this.players.size() > 0 && !didEndGame)
 		{
 			return this.players.get(0);
 		}
@@ -690,7 +789,6 @@ public class FXUIGameMaster extends Application {
 			valid = false;
 			attempts = 0;
 			while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !FXUIGameMaster.fullAppExit) {
-				/*try{*/
 				attempts++;
 				reinforcements = RiskConstants.INIT_ARMIES / this.players.size();
 				ReinforcementResponse rsp = tryInitialAllocation(player, reinforcements);
@@ -741,7 +839,6 @@ public class FXUIGameMaster extends Application {
 		}
 		writeLogLn(true, currentPlayer.getName() + " reinforcing with " + reinforcements + " armies.");
 		while (!valid && attempts < RiskConstants.MAX_ATTEMPTS  && !FXUIGameMaster.fullAppExit) {
-			/*try{*/
 			attempts++;
 			ReinforcementResponse rsp = tryReinforce(currentPlayer, oppCards, reinforcements);
 			if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame(currentPlayer) || FXUIGameMaster.endGame){
@@ -771,7 +868,6 @@ public class FXUIGameMaster extends Application {
 			refreshUIElements(this.updateUI);
 			attempts++;
 			resetTurn = false;
-			/*try{*/
 			AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
 			if (atkRsp != null) {
 				if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
@@ -1288,6 +1384,10 @@ public class FXUIGameMaster extends Application {
 		}
 	}
 	
+	/**
+	 * Used to show list of players at top edge of UI.
+	 * Due to threading requirements, currently wraps up a secondary method to accomplish this task.
+	 */
 	private void representPlayersOnUI() {
 		Platform.runLater(new Runnable()
 		{
@@ -1297,6 +1397,9 @@ public class FXUIGameMaster extends Application {
 		});
 	}
 	
+	/**
+	 * Helper method for representPlayersOnUI.
+	 */
 	private void representPlayersSubroutine(){
 		try {
 			//clears the old display of players
@@ -1336,7 +1439,32 @@ public class FXUIGameMaster extends Application {
 		launch(FXUIGameMaster.class, args);
 	}
 	
-	public void initiateGameLogic(){
+	/**
+	* Creates a secondary thread to run game logic (to allow blocking without blocking the UI.
+	* Relies on the caller to detect if a game is already in progress.
+	* @return returns "true" so long as the game thread was started successfully; "false" otherwise.
+	*/
+	public boolean createGameLogicThread(){
+		
+		setButtonAvailability();
+		Runnable gameCode = new Runnable()
+		{
+			@Override public void run(){
+				runGameAndDisplayVictor();
+			}
+		};
+		Thread gameThread = new Thread(gameCode);
+		gameThread.setDaemon(true);
+		gameThread.start();
+		if (gameThread.isAlive()){
+			return true;
+		}
+		else{
+			return false;
+		}
+	}
+	
+	public void runGameAndDisplayVictor(){
 		try {
 			// TODO add support for selecting types of players
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
@@ -1354,6 +1482,7 @@ public class FXUIGameMaster extends Application {
 				System.out.println("Hi user!!! game execute was successfully!!!!"); //yes very successfully!!!!
 				if (victor != null)
 				{
+					setPlayStatus("Victor: " + victor);
 					if (!winLog.containsKey(victor)) {
 						winLog.put(victor, 0);
 					}
@@ -1414,9 +1543,12 @@ public class FXUIGameMaster extends Application {
 		}
 		
 		allocateMap();
-		
 	}
 	
+	/**
+	 * Populates the UI with the countries using predefined window locations.
+	 * @param nodeFile
+	 */
 	private void loadTextNodesForUI(String nodeFile) {
 		try {
 			if (nodeFile != null) { // TODO make better way to package app with original TextNodes.txt file
@@ -1453,16 +1585,16 @@ public class FXUIGameMaster extends Application {
 			}
 		}
 		catch (RuntimeException e) {
-			//errorTextElement.setText(e.getMessage());
+			setErrorStatus(e.getMessage());
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
+			setErrorStatus(e.getMessage());
 			e.printStackTrace();
 		}
 	}
 	
 	//and so begins the complex setup to create a stepping refresh cycle that updates elements one by one
 	//it's to be on a clock, so an exterior thread is to be used, and you must then have that thread refer back to the JavaFX thread
-	// with code in the appropriate places in a given for loop...
+	// with code in the appropriate places in a loop...
 	// so sorry 'bout it.
 	
 	/**
@@ -1515,12 +1647,7 @@ public class FXUIGameMaster extends Application {
 			});
 			//and the sleep to create the pause between updates...
 			if(timeToWaitBetweenElements > 0){
-				try {
-					Thread.sleep(timeToWaitBetweenElements);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				FXUIGameMaster.sleep(timeToWaitBetweenElements);
 			}
 		}
 	}
@@ -1534,7 +1661,44 @@ public class FXUIGameMaster extends Application {
 		this.textNodeMap.get(country.getName()).setText(country.getName() + "\n" + this.map.getCountryArmies(country));
 	}
 	
-	
+	/**
+	 * Used to help highlight a given player's countries on the main UI.
+	 * @param playerName the String representation of the player in question.
+	 */
+	private void flashPlayerCountries(String playerName){
+		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, playerName);
+		final long timeDeltaMS = 450;
+		Runnable clockedBlinkTask = new Runnable()
+		{
+			@Override public void run()
+			{
+				for (int i = 0; i < 5; i++)
+				{
+					FXUIGameMaster.sleep(timeDeltaMS);
+					for (Country country : myCountries){
+						Platform.runLater(new Runnable()
+						{
+							@Override public void run(){
+								textNodeMap.get(country.getName()).setOpacity(0.1d);
+							} 
+						});
+					}
+					FXUIGameMaster.sleep(timeDeltaMS);
+					for (Country country : myCountries){
+						Platform.runLater(new Runnable()
+						{
+							@Override public void run(){
+								textNodeMap.get(country.getName()).setOpacity(1.0d);
+							} 
+						});
+					}
+				}
+			}
+		};
+		Thread clockedBlinkThread = new Thread(clockedBlinkTask);
+		clockedBlinkThread.setDaemon(true);
+		clockedBlinkThread.start();
+	}
 	
 	
 	/**
@@ -1547,8 +1711,6 @@ public class FXUIGameMaster extends Application {
 	@Override
 	public void start(final Stage primaryStage) throws Exception {
 		final About nAbout = new About();
-		//myStage = primaryStage;
-		
 		
 		double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
 		double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
@@ -1562,13 +1724,13 @@ public class FXUIGameMaster extends Application {
 		
 		//Facilitate checking for errors...
 		errorHasOccurred = false;
-		errorTextContents = "Status...";
+		errorTextInitialContents = "Status...";
 		
 		//pre-load the error background, just in case...
 		Image imageE = new Image("RiskBoardAE.jpg",true);
-		ImageView im0 = new ImageView();
-		im0.setImage(imageE);
-		pane.getChildren().add(im0);
+		ImageView backgroundImg = new ImageView();
+		backgroundImg.setImage(imageE);
+		pane.getChildren().add(backgroundImg);
 		
 		//...which will happen here:
 		//populate the countries and players, and find out if there was an error doing either activity
@@ -1577,7 +1739,7 @@ public class FXUIGameMaster extends Application {
 		loadTextNodesForUI("TextNodes.txt");
 		representPlayersOnUI();
 		//now display elements -- status and buttons -- according to whether there was an error!
-		errorTextElement = new Text(errorTextContents);
+		errorTextElement = new Text(errorTextInitialContents);
 		errorTextElement.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 		if(errorHasOccurred)
 		{
@@ -1587,7 +1749,7 @@ public class FXUIGameMaster extends Application {
 		{
 			errorTextElement.setFill(Color.WHITE);
 			Image imageOK = new Image("RiskBoard.jpg", true);
-			im0.setImage(imageOK);
+			backgroundImg.setImage(imageOK);
 		}
 		
 		//The vertical box to contain the major buttons and status.
@@ -1628,7 +1790,7 @@ public class FXUIGameMaster extends Application {
 				if(workingMode == IDLE_MODE)
 				{
 					workingMode = FXUIGameMaster.NEW_GAME_MODE;
-					runGameFromButton();
+					createGameLogicThread();
 				}
 			}
 			
@@ -1687,16 +1849,12 @@ public class FXUIGameMaster extends Application {
 						if(workingMode == IDLE_MODE)
 						{
 							workingMode = LOADED_GAME_MODE;
-							runGameFromButton();
+							createGameLogicThread();
 						}
 					}
 				});
 			}
 		});
-		
-		buttonCache.add(startBtn);
-		buttonCache.add(restoreMe);
-		buttonCache.add(saveMe);
 		
 		lowerButtonPanel.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
 		
@@ -1716,6 +1874,24 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
+		Button flashCurrCountries = new Button("HIGHLIGHT current player's countries");
+		flashCurrCountries.setDisable(true);
+		flashCurrCountries.setLayoutX(25);
+		flashCurrCountries.setLayoutY(35);
+		flashCurrCountries.setOnAction(new EventHandler<ActionEvent>(){
+			@Override public void handle(ActionEvent t){
+				Platform.runLater(new Runnable()
+				{
+					@Override
+					public void run() {
+						if(currentPlayer!=null){
+							flashPlayerCountries(currentPlayer.getName());
+						}
+					}
+				});
+			}
+		});
+		
 		//tweaks to perform if there was an error...
 		if(errorHasOccurred){
 			currentPlayStatus.setText("------");
@@ -1729,18 +1905,22 @@ public class FXUIGameMaster extends Application {
 					{
 						@Override
 						public void run() {
-							runGameFromButton();
+							if(workingMode == IDLE_MODE)
+							{
+								workingMode = FXUIGameMaster.NEW_GAME_MODE;
+								createGameLogicThread();
+							}
 						}
 					});
 				}
-				
 			});
 		}
 		
-		primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,stopGameBtn,exitApp,lowerButtonPanel);
+		primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,
+								stopGameBtn,exitApp,lowerButtonPanel);
 		//****layout of text & buttons displayed upon launch ends here.***
 		
-		pane.getChildren().add(primaryStatusButtonPanel);
+		pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
 		
 
 		// DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
@@ -1761,11 +1941,18 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
+		//Add buttons to a secondary cache, to allow easy enable/disable depending on state.
+		buttonCache.add(startBtn);
+		buttonCache.add(restoreMe);
+		buttonCache.add(saveMe);
+		buttonCache.add(flashCurrCountries);
 		
+		//Get the primary window showin', already!
 		resize(primaryStage);
 		primaryStage.setTitle("RISK!");
 		primaryStage.setScene(scene);
 		primaryStage.show();
+		
 		
 		//go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
 		nAbout.launch(pane.getScene().getWindow(), true);
@@ -1783,6 +1970,14 @@ public class FXUIGameMaster extends Application {
 		});
 	}
 	
+	/**
+	 * Used to assist in resizing of the primary window at launch as well as after launch.
+	 * Attempts to keep the proper aspect ratio of the contents of the main window.
+	 * Has no effect on secondary dialogs.
+	 * (Note: use of this method after launch does not snap the OS window bounds to the contents
+	 * of the window when the aspect ratio is different).
+	 * @param stageIn Stage object which represents the contents of the window to be resized.
+	 */
 	private void resize(Stage stageIn)
 	{
 		double currLiveRatio = scene.getWidth()/scene.getHeight();
@@ -1890,20 +2085,13 @@ class About {
 		{
 			Runnable task = new Runnable() {
 				@Override public void run() {
-					try
+					FXUIGameMaster.sleep(5000);
+					Platform.runLater(new Runnable()
 					{
-						Thread.sleep(5000);
-						Platform.runLater(new Runnable()
-						{
-							@Override public void run(){
-								dialog.close();
-							} 
-						});
-					}//end try
-					catch(Exception e)
-					{
-						System.out.println("about.about:: " + e);
-					} //end catch	
+						@Override public void run(){
+							dialog.close();
+						} 
+					});
 				}
 			};
 			Thread th = new Thread(task);
