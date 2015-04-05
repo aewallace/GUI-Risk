@@ -112,7 +112,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x14h\nStamp 2015.04.05, 12:30\nType:Modifiable/MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 00x15h\nStamp 2015.04.05, 12:30\nType:Modifiable/MNT(00)";
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -164,6 +164,7 @@ public class FXUIGameMaster extends Application {
 	private boolean finishedLoading = false;
 	private static Player currentPlayer = null;
 	private boolean updateUI = false;
+	private static boolean exitDialogIsShowing = true;
 	
 	/**
 	 * Allows easy access to the Thread.sleep() function without continuous trying/catching.
@@ -181,87 +182,25 @@ public class FXUIGameMaster extends Application {
 	* If the app detects a call from the system to exit the program, 
 	* and it's from a dialog window, handle the call by...asking if we really want to exit.
 	*/
-	public static int doYouWantToMakeAnExit(boolean shutAppDownOnAccept, int currentAttempts){	
-		final Button yeah = new Button("Yes");
-		final Button nah = new Button("No");
-		Platform.runLater(new Runnable(){
-			@Override public void run(){
-				/**
-			*Begin working on FX thread (required for Stage object).
-			*/
-				Window owner = pane.getScene().getWindow();
-				
-				try{
-					final Stage dialog = new Stage();
-					dialog.setTitle("bye bye?");
-					dialog.initOwner(owner);
-					dialog.setX(owner.getX());
-					dialog.setY(owner.getY());
-					
-					final Text queryText = new Text("     Did you want to end the game?     \n[If enabled, your most recent\ncheckpoint will be saved]");
-					queryText.setTextAlignment(TextAlignment.CENTER);
-					
-					final Text querySymbol = new Text("end game?");
-					querySymbol.setTextAlignment(TextAlignment.CENTER);
-					querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-					
-					yeah.setOnAction(new EventHandler<ActionEvent>() {
-						@Override public void handle(ActionEvent t) {
-							crossbar.signalHumanEndingGame();
-							FXUIGameMaster.proceedWithExit = true;
-							if(!shutAppDownOnAccept)
-							{
-								FXUIGameMaster.endGame = true;
-								currentPlayStatus.setText("I D L E");
-							}
-							crossbar.tryCloseCurrentPlayerDialog();
-							dialog.close();
-							yeah.setDisable(true);
-						}
-					});
-					
-					nah.setDefaultButton(true);
-					nah.setOnAction(new EventHandler<ActionEvent>() {
-						@Override public void handle(ActionEvent t) {
-							FXUIGameMaster.proceedWithExit = false;
-							dialog.close();
-							yeah.setDisable(true);
-						}
-					});
-					
-					if(shutAppDownOnAccept)
-					{
-						queryText.setText("     Application fully exiting;     \nShall we go?");
-						querySymbol.setText("exiting!");
-						nah.setDisable(true);
-					}
-					Text spaceBuffer = new Text("-+-+-+-+-");
-					
-					final VBox layout = new VBox(10);
-					layout.setAlignment(Pos.CENTER);
-					//layout.setStyle("-fx-padding: 20;");
-					layout.setStyle("-fx-background-color: pink");
-					layout.getChildren().setAll(
-					querySymbol, queryText, nah, yeah, spaceBuffer
-					);
-					
-					dialog.setScene(new Scene(layout));
-					dialog.show();
-					
-				}
-				catch(Exception e){System.out.println("attempted exit failed:: " + e);}
-			}
-		});
+	public static int doYouWantToMakeAnExit(boolean shutAppDownOnAccept, int currentAttempts){
+		exitDialogIsShowing = true;
+		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
+			exitDialogHelper(shutAppDownOnAccept, true);
+		}
 		
-		/**
-		* End mandatory FX thread processing.
-		* Immediately following this, pause to wait for FX dialog to be closed!
-		*/
 		if(!Platform.isFxApplicationThread()){ //if this isn't the FX thread, we can pause logic with a call to sleep()
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					/**
+				*Begin working on FX thread (required for Stage object).
+				*/
+					exitDialogHelper(shutAppDownOnAccept, false);
+				}
+			});
 			do{
 				FXUIGameMaster.sleep(100);
 			}
-			while(!yeah.isDisabled());
+			while(exitDialogIsShowing); // TODO help here; check if the window is still open!
 		}
 		if(FXUIGameMaster.proceedWithExit)
 		{
@@ -271,6 +210,78 @@ public class FXUIGameMaster extends Application {
 		else{
 			return currentAttempts - 1;
 		}
+	}
+	
+	private static void exitDialogHelper(boolean shutAppDownOnAccept, boolean fxThread)
+	{
+		Window owner = pane.getScene().getWindow();
+		try{
+			final Button yeah = new Button("Yes");
+			final Button nah = new Button("No");
+			final Stage dialog = new Stage();
+			dialog.setTitle("bye bye?");
+			dialog.initOwner(owner);
+			dialog.setX(owner.getX());
+			dialog.setY(owner.getY());
+			
+			final Text queryText = new Text("     Did you want to end the game?     \n[If enabled, your most recent\ncheckpoint will be saved]");
+			queryText.setTextAlignment(TextAlignment.CENTER);
+			
+			final Text querySymbol = new Text("end game?");
+			querySymbol.setTextAlignment(TextAlignment.CENTER);
+			querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+			
+			yeah.setOnAction(new EventHandler<ActionEvent>() {
+				@Override public void handle(ActionEvent t) {
+					crossbar.signalHumanEndingGame();
+					FXUIGameMaster.proceedWithExit = true;
+					if(!shutAppDownOnAccept)
+					{
+						exitDialogIsShowing = false;
+						FXUIGameMaster.endGame = true;
+						currentPlayStatus.setText("I D L E");
+					}
+					crossbar.tryCloseCurrentPlayerDialog();
+					dialog.close();
+					yeah.setDisable(true);
+				}
+			});
+			
+			nah.setDefaultButton(true);
+			nah.setOnAction(new EventHandler<ActionEvent>() {
+				@Override public void handle(ActionEvent t) {
+					exitDialogIsShowing = false;
+					FXUIGameMaster.proceedWithExit = false;
+					dialog.close();
+					yeah.setDisable(true);
+				}
+			});
+			
+			if(shutAppDownOnAccept)
+			{
+				queryText.setText("     Application fully exiting;     \nShall we go?");
+				querySymbol.setText("exiting!");
+				nah.setDisable(true);
+			}
+			Text spaceBuffer = new Text("-+-+-+-+-");
+			
+			final VBox layout = new VBox(10);
+			layout.setAlignment(Pos.CENTER);
+			//layout.setStyle("-fx-padding: 20;");
+			layout.setStyle("-fx-background-color: pink");
+			layout.getChildren().setAll(
+			querySymbol, queryText, nah, yeah, spaceBuffer
+			);
+			
+			dialog.setScene(new Scene(layout));
+			if(fxThread){
+				dialog.showAndWait();}
+			else{
+				dialog.show();
+			}
+			
+		}
+		catch(Exception e){System.out.println("attempted exit failed:: " + e);}
 	}
 	
 	/**
