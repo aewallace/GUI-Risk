@@ -1,5 +1,5 @@
 //FXUI GameMaster-Player Crossbar Link
-//Albert Wallace, 2015. (Version 00x03h, Stamp 2015.03.24.2116, Type Final(FF).
+//Albert Wallace, 2015. (Version 00x04h, Stamp 2015.04.05.1930, Type Final(FF).
 //for Seth Denney's RISK, JavaFX UI-capable version
 
 package Util;
@@ -84,8 +84,8 @@ public class FXUI_Crossbar {
 	 * 		 as this flag is carried in one crossbar across all human player objects).
 	 * @return returns "true" if any human has elected to end the game, "false" otherwise.
 	 */
-	public boolean isHumanEndingGame(Player currentPlayer){ // TODO protect "signalHumanEndingGame" method with a similar parameter & internal check
-		return fxPlayerQuit && currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()) && currentPlayer.getName() == getPlayerName();
+	public boolean isHumanEndingGame(){
+		return fxPlayerQuit;
 	}
 
 }

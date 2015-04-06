@@ -64,7 +64,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x16h\nStamp 2015.04.01, 22:22\nType:Modifiable/MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x17h\nStamp 2015.04.05, 21:50\nType:Modifiable/MNT(00)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -98,6 +98,14 @@ public class FXUIPlayer implements Player {
 	private String attackTarget = blankText, attackSource = blankText;
 	private boolean keepRunning = false;
 	private final doWeExit exitDecider = new doWeExit();
+	
+	private void sleep(long millisecs){
+		try {
+			Thread.sleep(millisecs);
+		} catch (InterruptedException e) {
+			//We never care about what caused the interruption so long as we're using this method.
+		}
+	}
 	
 	
 	/**
@@ -134,60 +142,6 @@ public class FXUIPlayer implements Player {
 	}
 	
 	/**
-	* As an alternative to the "showAndWait" method natively available to the Stages
-	* (each dialog window is based upon showing a new stage) which allows extra verification if the user
-	* attempts to end a given game (completely different from exiting the entire application!).
-	*
-	* This method will display the dialog, and (so long as the buttons in the associated dialog methods
-	* verify that the window is closed properly) will allow the rest of the dialog's logic to complete, with
-	* the appropriate return.
-	*
-	* Should the user click a button to close the window, the internal logic of each dialog will not trigger the required flag,
-	* and this logic will request the user to verify whether the window should close/the game should end.
-	* Should the user decide to continue as normal, the appropriate secondary flag is set to redisplay the dialog window.
-	* Should the user decide to exit, the dialog is allowed to close without being redisplayed, and the game is ended.
-	*
-	* @param dialog the Stage which represents the standard dialog that's to be displayed for every response requested by the GameMaster.
-	*/
-	private void showWaitAndCheck(Stage dialog){
-		
-		dialog.getScene().getWindow().setOnCloseRequest(new EventHandler<WindowEvent>(){
-			@Override
-			public void handle(WindowEvent t)
-			{
-				System.out.println("system exit attempted");
-			}
-		});
-		boolean stopRunning = false;
-		do{
-			Platform.runLater(new Runnable(){
-				@Override public void run(){
-					dialog.show();
-				}
-			});
-			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-			while(dialog.isShowing());
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				stopRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? true : false;
-			}
-			else{
-				stopRunning = true;
-			}
-		}
-		while(!stopRunning);
-		
-		
-	}
-
-	/**
 		* Specify an allocation of the player's initial reinforcements.
 		* RESPONSE REQUIRED
 		* @param map
@@ -196,7 +150,7 @@ public class FXUIPlayer implements Player {
 		*/
 	public ReinforcementResponse getInitialAllocation(RiskMap map, int reinforcements) {
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		
@@ -274,7 +228,7 @@ public class FXUIPlayer implements Player {
 						minus.setOnAction(new EventHandler<ActionEvent>(){
 							@Override public void handle(ActionEvent t){
 								final String countryAffected = ctIn.getName();
-								if (reinforcementsApplied - 1 >= 0 && countryUsedReinforcementCount.get(countryAffected) - 1 >= 1/* TODO use variable here*/){
+								if (reinforcementsApplied - 1 >= 0 && countryUsedReinforcementCount.get(countryAffected) - 1 >= 1){
 									reinforcementsApplied--;
 									countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)-1);
 								}
@@ -318,13 +272,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately following this, pause to wait for FX dialog to be closed!
 			*/
+			sleep(1000);
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			reinforcementsApplied = 0;
@@ -332,7 +282,7 @@ public class FXUIPlayer implements Player {
 			
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? false : true;
+				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
 		while(keepRunning);
@@ -352,14 +302,13 @@ public class FXUIPlayer implements Player {
 	@Override
 	public CardTurnInResponse proposeTurnIn(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, boolean turnInRequired) {
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		final CardTurnInResponse rsp = new CardTurnInResponse();
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<>();
 		do{
 			keepRunning = false;
-			
 			
 			final HashMap<Integer, Text> cardStatusMapping = new HashMap<>();
 			
@@ -494,13 +443,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
+			sleep(1000);
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -534,7 +479,7 @@ public class FXUIPlayer implements Player {
 	*/
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		
@@ -572,7 +517,7 @@ public class FXUIPlayer implements Player {
 					
 					
 					//Generic instructions for reinforcement
-					guideText.setText("Please place your reinforcements\nin the countries you own.");
+					guideText.setText("Please place extra reinforcements\nin the countries you own.");
 					guideText.setTextAlignment(TextAlignment.CENTER);
 					layout.getChildren().add(guideText);
 					
@@ -611,7 +556,7 @@ public class FXUIPlayer implements Player {
 						minus.setOnAction(new EventHandler<ActionEvent>(){
 							@Override public void handle(ActionEvent t){
 								final String countryAffected = ctIn.getName();
-								if (reinforcementsApplied - 1 >= 0 && countryUsedReinforcementCount.get(countryAffected) - 1 >= 0 /* TODO use variable here*/){
+								if (reinforcementsApplied - 1 >= 0 && countryUsedReinforcementCount.get(countryAffected) - 1 >= 0){
 									reinforcementsApplied--;
 									countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected)-1);
 								}
@@ -657,13 +602,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
+			sleep(1000);
 			do{ //wait on the dialog to go away
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -671,7 +612,7 @@ public class FXUIPlayer implements Player {
 			
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? false : true;
+				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
 		while(keepRunning);
@@ -715,7 +656,7 @@ public class FXUIPlayer implements Player {
 	*/
 	public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		final AttackResponse rsp = new AttackResponse();
@@ -913,13 +854,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
+			sleep(1000);
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -928,7 +865,7 @@ public class FXUIPlayer implements Player {
 			attackTarget = blankText;
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? false : true;
+				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
 		while(keepRunning);
@@ -979,7 +916,7 @@ public class FXUIPlayer implements Player {
 	*/
 	public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int minAdv){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
@@ -1120,19 +1057,15 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 		*/
+			sleep(1000);
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? false : true;
+				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
 		while(keepRunning);
@@ -1149,7 +1082,7 @@ public class FXUIPlayer implements Player {
 	*/
 	public FortifyResponse fortify(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		final FortifyResponse rsp = new FortifyResponse();
@@ -1239,6 +1172,7 @@ public class FXUIPlayer implements Player {
 										ctTgtBtn.setOnAction(new EventHandler<ActionEvent>(){
 											@Override public void handle(ActionEvent t){
 												rsp.setToCountry(dest);
+												statusText.setFill(Color.BLACK);
 												statusText.setText("Current selection:\nFortifying\n" + dest.getName() + "\nusing ??? troops from\n" + source.getName() + ".");
 											}//end of actionevent definition
 										});
@@ -1278,6 +1212,7 @@ public class FXUIPlayer implements Player {
 							if (rsp.getToCountry() != null && curArmies < map.getCountryArmies(rsp.getFromCountry()) - 1)
 							{
 								rsp.setNumArmies(rsp.getNumArmies() + 1);
+								statusText.setFill(Color.BLACK);
 								statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
 							}
 						}
@@ -1292,6 +1227,7 @@ public class FXUIPlayer implements Player {
 							if (rsp.getToCountry() != null && curArmies > 0)
 							{
 								rsp.setNumArmies(rsp.getNumArmies() - 1);
+								statusText.setFill(Color.BLACK);
 								statusText.setText("Current selection:\nFortifying\n" + rsp.getToCountry().getName() + "\nusing " + rsp.getNumArmies() + " troops from\n" + rsp.getFromCountry().getName() + ".");
 							}
 						}
@@ -1307,7 +1243,9 @@ public class FXUIPlayer implements Player {
 					acceptIt.setOnAction(new EventHandler<ActionEvent>() {
 						@Override
 						public void handle(ActionEvent event){
-							if (FortifyResponse.isValidResponse(rsp, map, playaName))
+							if (rsp.getFromCountry() != null &&
+								rsp.getToCountry() != null &&
+								FortifyResponse.isValidResponse(rsp, map, playaName))
 							{
 								exitDecider.setAsNonSystemClose();
 								passTurn = false;
@@ -1315,7 +1253,8 @@ public class FXUIPlayer implements Player {
 							}
 							else
 							{
-								statusText.setText("Not a valid response; \nmake sure you select a target and source!.");
+								statusText.setText("Not a valid response; \nmake sure you select a target and source!!");
+								statusText.setFill(Color.RED);
 							}
 						}
 						
@@ -1353,19 +1292,15 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately following this, pause to wait for FX dialog to be closed!
 		*/
+			sleep(1000);
 			do{
-				try {
-					Thread.sleep(100);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0 ? false : true;
+				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
 		while(keepRunning);
@@ -1389,7 +1324,7 @@ public class FXUIPlayer implements Player {
 	*/
 	public DefendResponse defend(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country atkCountry, Country dfdCountry, int numAtkDice){
 		//if the player asked to end the game, don't even display the dialog
-		if(crossbar.isHumanEndingGame(this)){
+		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
 		DefendResponse rsp = new DefendResponse();
@@ -1404,20 +1339,29 @@ public class FXUIPlayer implements Player {
 	
 	/**
 	* to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
-	* @author wallace162x11
 	*/
 	class doWeExit {
 
 		private boolean systemExitUsed = true;
 
-		//get whether the program should attempt to exit back to the OS, or if the app should continue running after "dialog.close()" is called
+		/**
+		 * Get whether the program should attempt to exit back to the OS, or if the app should continue running after "dialog.close()" is called
+		 * @return "false" ONCE AND ONLY ONCE after "setAsNonSystemClose()" until the next time said method is called again,
+		 * 		returns "true" otherwise. (So only ask if we are closing the application once, because it defaults to
+		 * 		saying "yes, we want to close the entire application!" every subsequent time until you raise the flag again).
+		 */
 		public boolean isSystemExit(){
 			final boolean cExit = systemExitUsed;
 			systemExitUsed = true;
 			return cExit;
 		}
 
-		//tell the program to not attempt to exit; the user is interacting with the program as per normal use, so a dialog closing is OK
+		/**
+		 * Raises a flag to tell the program to not attempt to exit.
+		 * 		Aka "the user is interacting with the program as per normal use, so a dialog closing is OK".
+		 * Use every time you close a dialog to prevent the app from asking if you're trying to leave/exit.
+		 * @return "false" to indicate that we have successfully told the app to not fully exit, "true" otherwise. (Should never have "true" as a return!)
+		 */
 		public boolean setAsNonSystemClose()
 		{
 			systemExitUsed = false;

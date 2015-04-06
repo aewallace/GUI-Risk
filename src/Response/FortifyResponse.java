@@ -1,3 +1,5 @@
+//Fortify Response. Revised 05 April 2015. Revision 02.
+
 package Response;
 import Map.Country;
 import Map.RiskMap;
@@ -47,7 +49,8 @@ public class FortifyResponse {
 	}
 	
 	public static boolean isValidResponse(FortifyResponse rsp, RiskMap map, String playerName) {
-		if (rsp != null && rsp.getNumArmies() < map.getCountryArmies(rsp.getFromCountry())) {
+		if (rsp != null && rsp.getFromCountry() != null && rsp.getToCountry() != null && 
+				rsp.getNumArmies() < map.getCountryArmies(rsp.getFromCountry())) {
 			Country from = rsp.getFromCountry();
 			Country to = rsp.getToCountry();
 			return map.getCountryOwner(from).equals(playerName)
