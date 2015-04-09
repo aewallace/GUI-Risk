@@ -64,7 +64,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x17h\nStamp 2015.04.05, 21:50\nType:Modifiable/MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x18h\nStamp 2015.04.09, 14:06\nType:Modifiable/MNT(00)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -99,14 +99,7 @@ public class FXUIPlayer implements Player {
 	private boolean keepRunning = false;
 	private final doWeExit exitDecider = new doWeExit();
 	
-	private void sleep(long millisecs){
-		try {
-			Thread.sleep(millisecs);
-		} catch (InterruptedException e) {
-			//We never care about what caused the interruption so long as we're using this method.
-		}
-	}
-	
+
 	
 	/**
 	* Note: there is an artificial limitation (imposed by this class) where only one user may be a human player.
@@ -153,12 +146,12 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
-		
+
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		
 		do{
-			keepRunning = false;
-			//else...initial memory/variable allocation & early setup
 			
 			final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 			final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -272,9 +265,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately following this, pause to wait for FX dialog to be closed!
 			*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			reinforcementsApplied = 0;
@@ -282,10 +275,10 @@ public class FXUIPlayer implements Player {
 			
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
 		return rsp;
 	}
 	
@@ -305,11 +298,12 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
+		
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
 		final CardTurnInResponse rsp = new CardTurnInResponse();
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<>();
 		do{
-			keepRunning = false;
-			
 			final HashMap<Integer, Text> cardStatusMapping = new HashMap<>();
 			
 			Platform.runLater(new Runnable(){
@@ -429,7 +423,7 @@ public class FXUIPlayer implements Player {
 					}
 					
 					//add status and buttons to layout
-					layout.getChildren().addAll(guideText, cardArrayDisplayRowA, cardArrayDisplayRowB, statusText, acceptIt);
+					layout.getChildren().addAll(guideText, cardArrayDisplayRowA, cardArrayDisplayRowB, statusText, acceptIt,skipIt);
 					
 					//formally add linear layout to scene, and display the dialog
 					dialog.setScene(new Scene(layout));
@@ -443,19 +437,20 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
+		
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -482,14 +477,11 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
-		
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
 		final ReinforcementResponse rsp = new ReinforcementResponse();
 		
 		do{
-			keepRunning = false;
-			//else, continue setting up the dialog...
-			//some helpful data structures.
-			
 			final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 			final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 			final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
@@ -602,9 +594,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{ //wait on the dialog to go away
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -612,10 +604,10 @@ public class FXUIPlayer implements Player {
 			
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
 		return rsp;
 	}
 	
@@ -659,10 +651,11 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
+		
 		final AttackResponse rsp = new AttackResponse();
 		do{
-			keepRunning = false;
-			
 			Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
 			
 			Platform.runLater(new Runnable(){
@@ -854,9 +847,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
@@ -865,10 +858,10 @@ public class FXUIPlayer implements Player {
 			attackTarget = blankText;
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;
@@ -919,10 +912,12 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
+		
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
 		
 		do{
-			keepRunning = false;
 			final int sourceArmies = map.getCountryArmies(fromCountry);
 			
 			
@@ -1057,18 +1052,18 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 		*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
 		return rsp;
 	}
 	
@@ -1085,11 +1080,11 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
 		final FortifyResponse rsp = new FortifyResponse();
 		
 		do{
-			keepRunning = false;
-			
 			Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 			Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 			Map<Country, Set<Country>> destMap = new HashMap<Country, Set<Country>>();
@@ -1292,18 +1287,18 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately following this, pause to wait for FX dialog to be closed!
 		*/
-			sleep(1000);
+			RiskUtils.sleep(1000);
 			do{
-				sleep(100);
+				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			if(exitDecider.isSystemExit()){
 				//ask if the user actually wants the game to end
-				keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
 			}
 		}
-		while(keepRunning);
+		while(this.keepRunning);
 		if(passTurn){
 			passTurn = !passTurn;
 			return null;

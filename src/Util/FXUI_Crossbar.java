@@ -1,8 +1,10 @@
 //FXUI GameMaster-Player Crossbar Link
-//Albert Wallace, 2015. (Version 00x04h, Stamp 2015.04.05.1930, Type Final(FF).
+//Albert Wallace, 2015. (Version 00x05h, Stamp 2015.04.09.1230, Type Modifiable/MNT(00).
 //for Seth Denney's RISK, JavaFX UI-capable version
 
 package Util;
+
+import java.util.ArrayList;
 
 import Player.FXUIPlayer;
 import Player.Player;
@@ -23,7 +25,8 @@ public class FXUI_Crossbar {
 	
 	private static Stage currentPlayerJFXStage = null;
 	private static boolean fxPlayerQuit = false;
-	private static String playerName = "";
+	private static String lastHPlayerName = "";
+	private static ArrayList<String> allHPlayerNames = new ArrayList<String>();
 
 	public FXUI_Crossbar() {
 		// TODO Auto-generated constructor stub
@@ -32,6 +35,12 @@ public class FXUI_Crossbar {
 	public void setCurrentPlayerDialog(Stage stageIn)
 	{
 		currentPlayerJFXStage = stageIn;
+	}
+	
+	public void setCurrentPlayerDialog(Stage stageIn, String pName)
+	{
+		currentPlayerJFXStage = stageIn;
+		lastHPlayerName = pName;
 	}
 	
 	public Stage getCurrentPlayerDialog()
@@ -61,12 +70,19 @@ public class FXUI_Crossbar {
 		// TODO fill out stub and make use
 	}
 	
-	public String getPlayerName(){
-		return playerName;
+	public String getLastHumanName(){
+		return lastHPlayerName;
+	}
+	
+	public ArrayList<String> getAllHumanNames(){
+		return null;
 	}
 	
 	public void setCurrentHumanName(String nameOfPlayer){
-		playerName = nameOfPlayer;
+		lastHPlayerName = nameOfPlayer;
+		if (!FXUI_Crossbar.allHPlayerNames.contains(nameOfPlayer)){
+			FXUI_Crossbar.allHPlayerNames.add(nameOfPlayer);	
+		}
 	}
 	
 	public void signalHumanEndingGame()
@@ -86,6 +102,10 @@ public class FXUI_Crossbar {
 	 */
 	public boolean isHumanEndingGame(){
 		return fxPlayerQuit;
+	}
+
+	public static ArrayList<String> getAllHPlayerNames() {
+		return allHPlayerNames;
 	}
 
 }

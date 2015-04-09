@@ -212,4 +212,29 @@ public class RiskUtils {
 		}
 		return possibleSources;
 	}
+	
+
+	/**
+	 * Sleeps threads. Makes use of Thread.sleep(), but internally suppresses any exceptions 
+	 * expected to occur. Not advised for use on JavaFX threads, 
+	 * as Thread.sleep() will make UI (or the entire app) frozen until all sleeps are done!
+	 * @param millisecs the length of time, in milliseconds, to sleep the thread. Type: 'long'.
+	 * @return "true" if the sleep succeeded, "false" if an exception was caught.
+	 */
+	public static boolean sleep(long millisecs){
+		boolean didSucceed = false;
+		
+		try {
+			Thread.sleep(millisecs);
+			didSucceed = true;
+		} catch (InterruptedException e) {
+			//We never care about what caused the interruption so long as we're using this method.
+		}
+		catch (IllegalArgumentException e){
+			System.out.println("Input must be positive. Attempted value: " + millisecs);
+			e.printStackTrace();
+		}
+		
+		return didSucceed;
+	}
 }

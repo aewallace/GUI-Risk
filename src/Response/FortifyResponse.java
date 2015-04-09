@@ -1,5 +1,3 @@
-//Fortify Response. Revised 05 April 2015. Revision 02.
-
 package Response;
 import Map.Country;
 import Map.RiskMap;
