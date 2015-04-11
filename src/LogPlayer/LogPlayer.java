@@ -1,9 +1,9 @@
-//Current build Albert Wallace, Version 00x0Bh, Stamp y2015.m03.d12.hm1921, Type: Beta(02)
-//Base build by Seth Denney, Sept 10 2014 
+//Current build Albert Wallace.
 
-//todo:switch use of keyset to entryset, where possible
+//TODO:switch use of keyset to entryset, where possible
 
-//todo: make layout dynamic. Sorta. Make the coord system based in 0-100% of page, then scale based on that.
+//TODO: make layout dynamic. Sorta. Make the coord system based in 0-100% of page, then scale based on that.
+//or make use of the resize() function in FXUIGM.
 //try to work from a "center" coord -- a self-defined origin
 
 package LogPlayer;
@@ -33,7 +33,7 @@ import javafx.stage.Stage;
 
 
 public class LogPlayer extends Application {
- 
+	public static final String versionInfo = "Log-Player\nVersion 00x0Ch,\nStamp 2015.04.10, 18:00,\nStability: Beta(02)";
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final int RAPID_PLAY_TIME_DELTA = 1170;
@@ -49,6 +49,7 @@ public class LogPlayer extends Application {
 	private static final int PAUSE = 0;
 	private static final int STEP_FWD = -2;
 	private static final int iRoNMAX = 21;
+	private static boolean launchedFromFXUIGM = false;
 	private static double EXPON_SPEED_UP_PCT = 1.0;
 	
 	
@@ -77,11 +78,19 @@ public class LogPlayer extends Application {
     private boolean cancelActiveActions;
     private int currentButton;
     private String currentSimpleStatus;
-    private int iRoN; //todo: fix bad name
+    private int iRoN; // TODO: fix bad name
     private int busyRoutines; //to perform basic resource locks
     private static int routinesRequestingPriority;
     private HashMap<Long,Thread> threadMap;
  
+    /**
+     * used to let the logplayer know it didn't start itself.
+     * @return returns "true" if successfully set. (Yes, vague, I know.)
+     */
+    public static boolean setAsLaunchedFromFXUIGM(){
+    	return LogPlayer.launchedFromFXUIGM = true;
+    }
+    
     @Override
     public void start(Stage primaryStage) {
     	try {
@@ -99,8 +108,6 @@ public class LogPlayer extends Application {
 			this.mapStateCache = new ArrayList<HashMap<String, Text>>();
 			cancelActiveActions = false;
 			this.threadMap = new HashMap<Long,Thread>();
-			
-			
 			
 	        pane = new Pane();
 	        pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
@@ -126,6 +133,19 @@ public class LogPlayer extends Application {
 	        else{errorDisplay.setFill(Color.WHITE);}
 	        	
 	        pane.getChildren().add(errorDisplay);
+	        
+	        if(LogPlayer.launchedFromFXUIGM){
+	        	Button closeWindow = new Button("close (return to main menu)");
+		        closeWindow.setLayoutX(29);
+		        closeWindow.setLayoutY(50);
+		        closeWindow.setOnAction(new EventHandler<ActionEvent>() {
+		        	@Override
+		        	public void handle(ActionEvent event) {
+				        primaryStage.close();
+		        	}
+		        });
+		        pane.getChildren().add(closeWindow);
+	        }
 	        
 	        //if there was no error, populate the window with appropriate elements
 	        if(!errorDisplayBit){ 
@@ -360,6 +380,7 @@ public class LogPlayer extends Application {
 			//...eventually secondaryDialog.close() should be a confirmation
 			
 			scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+			primaryStage.setTitle("Log Player: RISK Game Review");
 	        primaryStage.setScene(scene);
 	        primaryStage.show();
     	}

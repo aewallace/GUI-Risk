@@ -14,7 +14,7 @@ import Util.Card;
 import Util.RiskConstants;
 import Util.RiskUtils;
 
-public class NormalDefaultPlayer extends EasyDefaultPlayer {
+public class NormalDefaultPlayer extends EasyDefaultPlayer{
 
 	public NormalDefaultPlayer(String nameIn) {
 		super(nameIn);
@@ -47,6 +47,11 @@ public class NormalDefaultPlayer extends EasyDefaultPlayer {
 	public ReinforcementResponse reinforce(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, int reinforcements) {
 		ReinforcementResponse rsp = new ReinforcementResponse();
 		Set<Country> myCountries = RiskUtils.filterCountriesByBorderStatus(map, this.name, RiskUtils.getPlayerCountries(map, this.name), false);
+		if(myCountries == null || myCountries.size() == 0){ 
+			//if we find no exterior neighbor countries to reinforce...
+			//return an invalid response, since something's up anyway.
+			return rsp;
+		}
 		boolean beginReinforce = this.lastCountryReinforced == null || !myCountries.contains(this.lastCountryReinforced);
 		while (reinforcements > 0) {
 			for (Country country : myCountries) {

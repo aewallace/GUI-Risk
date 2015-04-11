@@ -64,7 +64,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x18h\nStamp 2015.04.09, 14:06\nType:Modifiable/MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x19h\nStamp 2015.04.10, 18:00\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
