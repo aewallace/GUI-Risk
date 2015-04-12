@@ -19,14 +19,16 @@ public class PlayerFactory {
 	public static final String HARD = "Hard";
 	public static final String SETH = "Seth";
 	public static final String FXUI = "FXUI";
+	public static final String FXUIAsk = "FXUIAsk";
 	public static final String CONSOLE = "Console";
 	
 	/**
 	 * Builds a Player object of the specified sub-type.
 	 * @param type
+	 * @param playerNames 
 	 * @return Player object
 	 */
-	public static Player getPlayer(String type) {
+	public static Player getPlayer(String type, List<String> playerNames) {
 		if (EASY.equals(type)) {
 			return new EasyDefaultPlayer(EASY + " " + numEasy++);
 		}
@@ -41,6 +43,9 @@ public class PlayerFactory {
 		}
 		else if (FXUI.equals(type)) {
 			return new FXUIPlayer(FXUI + " " + numFXUI++);
+		}
+		else if (FXUIAsk.equals(type)) {
+			return new FXUIPlayer(true, playerNames);
 		}
 		else if (CONSOLE.equals(type)) {
 			return new CommandConsole(CONSOLE + " " + numConsole++);
@@ -59,9 +64,12 @@ public class PlayerFactory {
 	public static List<Player> getPlayersFromString(String playerList) {
 		String[] playerTypes = playerList.split(",");
 		List<Player> players = new ArrayList<Player>();
+		List<String> playerNames = new ArrayList<String>();
 		
 		for (String type : playerTypes) {
-			players.add(getPlayer(type));
+			Player pIn = getPlayer(type, playerNames);
+			players.add(pIn);
+			playerNames.add(pIn.getName());
 		}
 		
 		return players;

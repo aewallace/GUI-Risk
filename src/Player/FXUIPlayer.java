@@ -14,6 +14,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -22,6 +24,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -64,11 +68,13 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x1Ah\nStamp 2015.04.11, 23:40\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x1Bh\nStamp 2015.04.12, 16:00\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
-	private static FXUI_Crossbar crossbar = null;
+	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
 	private static Window owner = null;
+	private double windowXCoord = 0;
+	private double windowYCoord = 0;
 
 	public static void setOwnerWindow(Window ownerIn) {
 		FXUIPlayer.owner = ownerIn;
@@ -91,6 +97,7 @@ public class FXUIPlayer implements Player {
 	}
 	
 	private String name;
+	private static final int MAX_NAME_LENGTH = 22;
 	private int reinforcementsApplied = 0;
 	private int maxDiceAvailable = 0;
 	private boolean passTurn = false;
@@ -98,6 +105,8 @@ public class FXUIPlayer implements Player {
 	private String attackTarget = blankText, attackSource = blankText;
 	private boolean keepRunning = false;
 	private final doWeExit exitDecider = new doWeExit();
+	private final int maxTimes = 5;
+	private int timesLeft = maxTimes;
 	
 
 	
@@ -126,12 +135,220 @@ public class FXUIPlayer implements Player {
 		}
 	}
 	
+	public FXUIPlayer(boolean askForName, Collection<String> unavailableNames){
+		if (instanceAlreadyCreated)
+		{
+			throw new UnsupportedOperationException("One instance of FXUIPlayer allowed at a time!");
+		}
+		else
+		{
+			String desiredName = null;
+			if(askForName && null != (desiredName = askForDesiredName(unavailableNames))){
+				this.name = desiredName;
+			}
+			else{
+				this.name = "Human " + this.hashCode();
+			}
+		}
+	}
+	
+	/**
+	 * Given a valid dialog, extracts the X and Y coordinates of this window as located on screen.
+	 * Saves the coordinates to a couple of class instance variables.
+	 * @param dialog the window from which we will be gathering the coordinates
+	 */
+	private void saveLastKnownWindowLocation(Stage dialog){
+		this.windowXCoord = dialog.getX();
+		this.windowYCoord = dialog.getY();
+	}
+	
+	/**Given a valid dialog, places the dialog at coordinates previously recorded from a prior dialog.
+	 * If no dialog's coordinates had been set, uses whatever position is set in the associated vars.
+	 * @param dialog dialog to be placed at the last remembered dialog coords.
+	 */
+	private void putWindowAtLastKnownLocation(Stage dialog){
+		dialog.setX(this.windowXCoord);
+		dialog.setY(this.windowYCoord);
+	}
+	
+	/**
+	 * Check to see if a potential name is valid.
+	 * @param potentialName name to check
+	 * @param unavailableNames 
+	 * @return "true" if acceptable, "false" otherwise
+	 */
+	private boolean validateName(String potentialName, Collection<String> unavailableNames){
+		potentialName = potentialName.trim();
+		if(potentialName == null || potentialName.length() < 1){
+			return false;
+		}
+		if(unavailableNames != null && unavailableNames.contains(potentialName)){
+			return false;
+		}
+		//String desiredCharSet = "[a-zA-Z0-9]{1-21}\\s[a-zA-Z0-9]{1-21}|[a-zA-Z0-9]{1,21}"; //chars with one space inbetween
+		String desiredCharSet = "[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"}([\\s]{0,1}[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"})"; //chars with one space in between
+		Pattern patternToFind = Pattern.compile(desiredCharSet);
+		Matcher matchContainer = patternToFind.matcher(potentialName);
+		return matchContainer.matches() && potentialName.length() < MAX_NAME_LENGTH+1;
+	}
+	
 	/**
 	* Getter for the player name. Ideally, the name is only set once, so no separate "setter" exists.
 	* @return name
 	*/
 	public String getName() {
 		return this.name;
+	}
+	
+	/**
+	 * Presents a dialog to ask a user for the name they want
+	 * @param unavailableNames names that are already taken
+	 * @return
+	 */
+	private String askForDesiredName(Collection<String> unavailableNames) {
+		//else...make the window and keep displaying until the user has confirmed selection
+		System.out.println("Getting name of human...");
+		this.keepRunning = false;
+		TextField potentialName = new TextField();
+		
+		do{
+			final VBox layout = new VBox(10);
+			final Text guideText = new Text(); //generic prompt info
+			final Text guideText2 = new Text(); //in-deoth prompt info
+			final Text statusText = new Text(); //status: acceptable or unacceptable
+			timesLeft = maxTimes;
+			
+			
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					
+					/***********
+					* Begin mandatory processing on FX thread. (Required for Stage objects.)
+					*/
+					
+					final Stage dialog = new Stage();
+					FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+					potentialName.setDisable(false);
+					
+					//now let us continue with window/element setup
+					dialog.setTitle("Set Player Name.");
+					dialog.initOwner(FXUIPlayer.owner);
+					
+					layout.setAlignment(Pos.CENTER);
+					layout.setStyle("-fx-padding: 20;");
+					
+					guideText.setText("Please give us a name for your player, Human.");
+					guideText.setTextAlignment(TextAlignment.CENTER);
+					guideText.setFont(Font.font("System", 16));
+					
+					guideText2.setText("\n"+MAX_NAME_LENGTH+" character limit,\nalphanumeric chacters allowed,\n1 space allowed,\nleading or trailing space ignored");
+					guideText2.setTextAlignment(TextAlignment.CENTER);
+					guideText2.setFont(Font.font("System", 13));
+					
+					statusText.setText("--------");
+					
+					potentialName.setPromptText("[enter name here]");
+					
+					Button checkName = new Button("check name");
+					Button acceptIt = new Button("accept/ok");
+					Button autoSet = new Button("skip(auto-set)");
+					
+					potentialName.setOnKeyTyped(new EventHandler<KeyEvent>(){
+						@Override public void handle(KeyEvent t){
+							//if(validateName(t.getCharacter())){
+								//put stuff here if you want to ignore any invalid input off-the-bat
+							//}
+							timesLeft = maxTimes;
+							if(validateName(potentialName.getText(), unavailableNames))
+							{
+								statusText.setText("name OK!!");
+								statusText.setFill(Color.BLACK);
+							}
+							else{
+								statusText.setText("invalid!!");
+								statusText.setFill(Color.BLACK);
+							}
+						}
+					});
+					checkName.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							potentialName.setDisable(true);
+							if(validateName(potentialName.getText(), unavailableNames))
+							{
+								statusText.setText("name OK!!");
+								statusText.setFill(Color.BLUE);
+							}
+							else{
+								statusText.setText("invalid!!");
+								statusText.setFill(Color.RED);
+							}
+							potentialName.setDisable(false);
+						}
+					});
+					acceptIt.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							potentialName.setDisable(true);
+							if(validateName(potentialName.getText(), unavailableNames))
+							{
+								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
+								dialog.close();
+							}
+							else{
+								statusText.setText("invalid!!");
+								statusText.setFill(Color.RED);
+								potentialName.setDisable(false);
+							}
+						}
+					});
+					autoSet.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							if(validateName(potentialName.getText(), unavailableNames))
+							{
+								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
+								dialog.close();
+							}
+							else{
+								timesLeft--;
+								statusText.setText("press " + timesLeft + "x to auto-set");
+								statusText.setFill(Color.BLACK);
+								if(timesLeft == 0){
+									potentialName.setText(null);
+									exitDecider.setAsNonSystemClose();
+									saveLastKnownWindowLocation(dialog);
+									dialog.close();
+								}
+							}
+						}
+					});
+					
+					layout.getChildren().addAll(guideText, guideText2,statusText, potentialName, checkName, acceptIt, autoSet);
+					//formally add linear layout to scene, and display the dialog
+					dialog.setScene(new Scene(layout));
+					dialog.show();
+				}
+			});
+			
+			/**
+			* End mandatory FX thread processing.
+			* Immediately following this, pause to wait for FX dialog to be closed!
+			*/
+			RiskUtils.sleep(1000);
+			do{
+				RiskUtils.sleep(100);
+			}
+			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			reinforcementsApplied = 0;
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+			
+			if(exitDecider.isSystemExit()){
+				//ask if the user actually wants the game to end
+				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+			}
+		}
+		while(this.keepRunning);
+		return potentialName.getText();
 	}
 	
 	/**
@@ -174,8 +391,7 @@ public class FXUIPlayer implements Player {
 					//now let us continue with window/element setup
 					dialog.setTitle("Initial Troop Allocation!");
 					dialog.initOwner(FXUIPlayer.owner);
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
@@ -244,6 +460,7 @@ public class FXUIPlayer implements Player {
 									rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
 								}
 								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
 								dialog.close();
 							}
 							else{
@@ -337,8 +554,7 @@ public class FXUIPlayer implements Player {
 					dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
 					dialog.initOwner(FXUIPlayer.owner);
 					
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
@@ -392,6 +608,7 @@ public class FXUIPlayer implements Player {
 								if (CardTurnInResponse.isValidResponse(rsp, myCards)){
 									passTurn = false;
 									exitDecider.setAsNonSystemClose();
+									saveLastKnownWindowLocation(dialog);
 									dialog.close();
 								}
 								else{
@@ -402,6 +619,7 @@ public class FXUIPlayer implements Player {
 							else if(!turnInRequired){
 								passTurn = true;
 								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
 								dialog.close();
 							}
 							else{
@@ -414,6 +632,7 @@ public class FXUIPlayer implements Player {
 						@Override public void handle(ActionEvent t){
 							passTurn = true;
 							exitDecider.setAsNonSystemClose();
+							saveLastKnownWindowLocation(dialog);
 							dialog.close();
 						}
 					});
@@ -499,8 +718,7 @@ public class FXUIPlayer implements Player {
 					//updating the elements with their contents &/or styles...
 					dialog.setTitle("Reinforcement with new troops!");
 					dialog.initOwner(FXUIPlayer.owner);
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
 					
@@ -566,6 +784,7 @@ public class FXUIPlayer implements Player {
 									rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
 								}
 								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
 								dialog.close();
 							}
 							else{
@@ -695,8 +914,7 @@ public class FXUIPlayer implements Player {
 					
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					
 					//Generic instructions for attacking (the act of which is always optional, technically)
 					guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
@@ -789,6 +1007,7 @@ public class FXUIPlayer implements Player {
 								else{
 									passTurn = false;
 									exitDecider.setAsNonSystemClose();
+									saveLastKnownWindowLocation(dialog);
 									dialog.close();
 								}
 							}
@@ -806,6 +1025,7 @@ public class FXUIPlayer implements Player {
 						@Override public void handle(ActionEvent t){
 							passTurn = true;
 							exitDecider.setAsNonSystemClose();
+							saveLastKnownWindowLocation(dialog);
 							dialog.close();
 						}
 					});
@@ -942,8 +1162,7 @@ public class FXUIPlayer implements Player {
 					dialog.setTitle("Advance armies into conquests");
 					dialog.initOwner(FXUIPlayer.owner);
 					
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					sourceCount.setTextAlignment(TextAlignment.CENTER);
 					destCount.setTextAlignment(TextAlignment.CENTER);
 					acceptanceStatus.setTextAlignment(TextAlignment.CENTER);
@@ -1019,6 +1238,7 @@ public class FXUIPlayer implements Player {
 							if(updater.verifyAcceptance())
 							{
 								exitDecider.setAsNonSystemClose();
+								saveLastKnownWindowLocation(dialog);
 								dialog.close();
 							}
 						}
@@ -1114,8 +1334,7 @@ public class FXUIPlayer implements Player {
 					dialog.setTitle("Fortify? [optional]");
 					dialog.initOwner(FXUIPlayer.owner);
 					
-					//dialog.setX(owner.getX());
-					//dialog.setY(owner.getY());
+					putWindowAtLastKnownLocation(dialog);
 					
 					final VBox layout = new VBox(10);
 					layout.setAlignment(Pos.CENTER);
@@ -1237,6 +1456,7 @@ public class FXUIPlayer implements Player {
 							{
 								exitDecider.setAsNonSystemClose();
 								passTurn = false;
+								saveLastKnownWindowLocation(dialog);
 								dialog.close();
 							}
 							else
@@ -1254,6 +1474,7 @@ public class FXUIPlayer implements Player {
 						public void handle(ActionEvent event){
 							passTurn = true;
 							exitDecider.setAsNonSystemClose();
+							saveLastKnownWindowLocation(dialog);
 							dialog.close();
 						}
 					});

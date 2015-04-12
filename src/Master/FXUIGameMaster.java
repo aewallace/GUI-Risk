@@ -116,8 +116,8 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x02h\nStamp 2015.04.11, 23:39\nStability:Unstable(00)";
-	private static final long TIME_UNTIL_EXIT = 6000;
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x03h\nStamp 2015.04.12, 16:00\nStability:Unstable(00)";
+	private static final long AUTO_CLOSE_TIMEOUT = 4500;
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
@@ -153,7 +153,7 @@ public class FXUIGameMaster extends Application {
 	private static Text currentPlayStatus;
 	private String errorTextInitialContents;
 	private boolean errorHasOccurred;
-	private ArrayList<Text> playerDisplayCache = null;
+	private HBox playerDisplay = null;
 	private HashMap<String, Text> textNodeMap;
 	private Map<String, Color> playerColorMap;
 	private int numGames = 1;
@@ -300,7 +300,7 @@ public class FXUIGameMaster extends Application {
 			new Thread(new Runnable()
 			{
 				@Override public void run(){
-					RiskUtils.sleep(TIME_UNTIL_EXIT);
+					RiskUtils.sleep(AUTO_CLOSE_TIMEOUT);
 					Platform.runLater(new Runnable(){
 						@Override public void run(){
 							dialog.close();
@@ -326,7 +326,7 @@ public class FXUIGameMaster extends Application {
 								animatedRegion.setText(output);
 							}
 						});
-						RiskUtils.sleep((long)TIME_UNTIL_EXIT/discreteAnimSteps);
+						RiskUtils.sleep((long)AUTO_CLOSE_TIMEOUT/discreteAnimSteps);
 					}
 					Platform.runLater(new Runnable(){
 						@Override public void run(){
@@ -1493,13 +1493,10 @@ public class FXUIGameMaster extends Application {
 	private void representPlayersSubroutine(){
 		try {
 			//clears the old display of players
-			if(this.playerDisplayCache != null && this.playerDisplayCache.size() > 0){
-				for (Text oldPlayer : this.playerDisplayCache){
-					FXUIGameMaster.pane.getChildren().remove(oldPlayer);
-				}
+			if(this.playerDisplay != null){
+				FXUIGameMaster.pane.getChildren().remove(this.playerDisplay);
 			}
 			
-			this.playerDisplayCache = new ArrayList<Text>();
 			ArrayList<Color> colors = new ArrayList<Color>();
 			colors.add(Color.WHITE);
 			colors.add(Color.AQUA);
@@ -1510,18 +1507,23 @@ public class FXUIGameMaster extends Application {
 			this.playerColorMap = new HashMap<String, Color>();
 			int i = -1;
 			
+			HBox namesOfPlayers = new HBox(40);
+			namesOfPlayers.setLayoutX(50);
+			namesOfPlayers.setLayoutY(5);
+			
 			if (this.playerMap == null || this.playerMap.size() == 0){
 				System.out.println("Player map not populated; please fix logic!");
 			}
 			for (String playerName : this.playerMap.keySet())
 			{
 				this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
-				Text txt = new Text(200 * (i) + 50, 20, "∎"+playerName.toLowerCase());
+				Text txt = new Text("#"+playerName.toLowerCase());
 				txt.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 				txt.setFill(colors.get((i) % colors.size()));
-				FXUIGameMaster.pane.getChildren().add(txt);
-				this.playerDisplayCache.add(txt);
+				namesOfPlayers.getChildren().add(txt);
 			}
+			FXUIGameMaster.pane.getChildren().add(namesOfPlayers);
+			this.playerDisplay = namesOfPlayers;
 		}
 		catch (RuntimeException e) {
 		}
@@ -1568,7 +1570,7 @@ public class FXUIGameMaster extends Application {
 				RiskConstants.resetTurnIn();
 				PlayerFactory.resetPlayerCounts();
 				boolean doWeLog = forceEnableLogging || (!forceDisableLogging && i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
-				initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, doWeLog);
+				initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUIAsk, doWeLog);
 				
 				System.out.print((i + 1) + " - ");
 				
@@ -1781,8 +1783,8 @@ public class FXUIGameMaster extends Application {
 	 */
 	private void flashPlayerCountries(String playerName){
 		final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, playerName);
-		final long timeDeltaMS = 120;
-		final int totalCycles = 3;
+		final long timeDeltaMS = 220;
+		final int totalCycles = 2;
 		Runnable clockedBlinkTask = new Runnable()
 		{
 			@Override public void run()
