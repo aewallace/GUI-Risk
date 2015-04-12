@@ -64,7 +64,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x19h\nStamp 2015.04.10, 18:00\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x1Ah\nStamp 2015.04.11, 23:40\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = null;
@@ -301,11 +301,11 @@ public class FXUIPlayer implements Player {
 		
 		//else...make the window and keep displaying until the user has confirmed selection
 		this.keepRunning = false;
+		this.passTurn = true;
 		final CardTurnInResponse rsp = new CardTurnInResponse();
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<>();
 		do{
 			final HashMap<Integer, Text> cardStatusMapping = new HashMap<>();
-			
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					
@@ -364,7 +364,6 @@ public class FXUIPlayer implements Player {
 						card.setTextAlignment(TextAlignment.CENTER);
 						card.setOnAction(new EventHandler<ActionEvent>(){
 							@Override public void handle(ActionEvent t){
-								passTurn = false;
 								final Integer cardAffected = (Integer)indexInCardsUM;
 								if (cardsToTurnIn.containsKey(cardAffected)) {
 									cardsToTurnIn.remove(cardAffected);
@@ -391,17 +390,19 @@ public class FXUIPlayer implements Player {
 									rsp.addCard(cdOut);
 								}
 								if (CardTurnInResponse.isValidResponse(rsp, myCards)){
+									passTurn = false;
 									exitDecider.setAsNonSystemClose();
 									dialog.close();
 								}
 								else{
 									statusText.setText("invalid selection.\n(cards not a valid set)");
+									rsp.resetCards();
 								}
 							}
 							else if(!turnInRequired){
+								passTurn = true;
 								exitDecider.setAsNonSystemClose();
 								dialog.close();
-								passTurn = true;
 							}
 							else{
 								statusText.setText("invalid selection.\n(invalid card count. " + RiskConstants.NUM_CARD_TURN_IN +" required)");
@@ -411,9 +412,9 @@ public class FXUIPlayer implements Player {
 					
 					skipIt.setOnAction(new EventHandler<ActionEvent>(){
 						@Override public void handle(ActionEvent t){
+							passTurn = true;
 							exitDecider.setAsNonSystemClose();
 							dialog.close();
-							passTurn = true;
 						}
 					});
 					
@@ -442,6 +443,7 @@ public class FXUIPlayer implements Player {
 				RiskUtils.sleep(100);
 			}
 			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			
 			if(exitDecider.isSystemExit()){
@@ -452,15 +454,10 @@ public class FXUIPlayer implements Player {
 		while(this.keepRunning);
 		
 		if(passTurn){
-			passTurn = !passTurn;
+			passTurn = false;
 			return null;
 		}
-		else{
-			for (Card card : cardsToTurnIn.values()) {
-				rsp.addCard(card);
-			}
-			return rsp;
-		}
+		return rsp;
 	}
 	
 	/**
@@ -863,7 +860,7 @@ public class FXUIPlayer implements Player {
 		}
 		while(this.keepRunning);
 		if(passTurn){
-			passTurn = !passTurn;
+			passTurn = false;
 			return null;
 		}
 		return rsp;
@@ -994,9 +991,7 @@ public class FXUIPlayer implements Player {
 							updater.resetAcceptance();
 							if (rsp.getNumArmies() < sourceArmies - 1)
 							{
-								//System.out.println(rsp.getNumArmies());
 								rsp.setNumArmies(rsp.getNumArmies() + 1);
-								//System.out.println("adv rsp +" + rsp.getNumArmies());
 								updater.resetAcceptance();
 								updater.refreshStatus();
 							}
@@ -1009,9 +1004,7 @@ public class FXUIPlayer implements Player {
 							if (rsp.getNumArmies() > minAdv + 1 && sourceArmies - (rsp.getNumArmies() + 1) >= 0)
 							{
 								updater.resetAcceptance();
-								//System.out.println(rsp.getNumArmies());
 								rsp.setNumArmies(rsp.getNumArmies() - 1);
-								//System.out.println("adv rsp -" + rsp.getNumArmies());
 								updater.refreshStatus();
 							}
 						}
@@ -1300,7 +1293,7 @@ public class FXUIPlayer implements Player {
 		}
 		while(this.keepRunning);
 		if(passTurn){
-			passTurn = !passTurn;
+			passTurn = false;
 			return null;
 		}
 		return rsp;

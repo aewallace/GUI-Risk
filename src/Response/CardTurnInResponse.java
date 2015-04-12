@@ -24,6 +24,12 @@ public class CardTurnInResponse {
 		}
 	}
 	
+	public boolean resetCards()
+	{
+		this.cards = new ArrayList<Card>();
+		return this.cards == null;
+	}
+	
 	public boolean setBonusCountry(Country country) {
 		if (country != null) {
 			for (Card card : this.cards) {
@@ -56,7 +62,7 @@ public class CardTurnInResponse {
 					}
 					else {
 						types[i] = card.getType();
-						//any single wild card forces valididty of the set
+						//any single wild card forces validity of the set
 						if (types[i].equals(RiskConstants.WILD_CARD)) {
 							return true;
 						}

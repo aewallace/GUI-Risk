@@ -116,7 +116,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x01h\nStamp 2015.04.10, 20:30\nStability:Unstable(00)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x02h\nStamp 2015.04.11, 23:39\nStability:Unstable(00)";
 	private static final long TIME_UNTIL_EXIT = 6000;
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
@@ -511,8 +511,6 @@ public class FXUIGameMaster extends Application {
 		final String HDP = HardDefaultPlayer.class.toString();
 		final String NDP = NormalDefaultPlayer.class.toString();
 		final String S_P = Seth.class.toString();
-		System.out.print("loadPlayersFromSave entered...");
-		System.out.println(loadedSave.getPlayerIsEliminatedMap().entrySet().size() + " players to load today!!");
 		for (Entry<String, Boolean> playerIn : loadedSave.getPlayerIsEliminatedMap().entrySet())
 		{
 			this.allPlayers.add(playerIn.getKey());
@@ -613,7 +611,7 @@ public class FXUIGameMaster extends Application {
 	*/
 	public void setButtonAvailability(){
 		if (buttonCache.size() < 6){
-			System.out.println("Couldn't access all required buttons. Weird, huh?");
+			System.out.println("Couldn't access all required buttons on main window. Weird, huh?");
 			return;
 		}
 		Platform.runLater(new Runnable()
@@ -1407,14 +1405,6 @@ public class FXUIGameMaster extends Application {
 				if (!card.getType().equals(RiskConstants.WILD_CARD)) {
 					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
 					allocationIdx++;
-					/*try{
-					map.setCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
-					allocationIdx++;
-					}
-					catch(Exception e)
-					{
-						System.out.println("allocateMap:: " + e);
-					}*/
 				}
 			}
 		}
@@ -1601,7 +1591,7 @@ public class FXUIGameMaster extends Application {
 			}
 		}
 		catch (RuntimeException e) {
-			System.out.println("fake main() method runtime error:: " + e);
+			System.out.println("low-level game runtime error:: " + e);
 			e.printStackTrace();
 		}	
 	}
@@ -1653,12 +1643,7 @@ public class FXUIGameMaster extends Application {
 		
 		this.map = starterMap.getCopy();
 		loadDeck();
-		if(players != null){
-			FXUIGameMaster.desiredPlayersForGame = players;
-		}
-		else{
-			FXUIGameMaster.desiredPlayersForGame = null;
-		}
+		FXUIGameMaster.desiredPlayersForGame = players;
 	}
 	
 	/**
@@ -2110,13 +2095,13 @@ public class FXUIGameMaster extends Application {
 		//one more tweak to perform if there was -no- error
 		scene.widthProperty().addListener(new ChangeListener<Number>() {
 			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
-				System.out.println("Width: " + newSceneWidth);
+				//System.out.println("Width: " + newSceneWidth);
 				resize(null);
 			}
 		});
 		scene.heightProperty().addListener(new ChangeListener<Number>() {
 			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
-				System.out.println("Height: " + newSceneHeight);
+				//System.out.println("Height: " + newSceneHeight);
 				resize(null);
 			}
 		});
