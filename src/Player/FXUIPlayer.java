@@ -34,6 +34,7 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
@@ -68,7 +69,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 00x1Bh\nStamp 2015.04.12, 16:00\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x00h\nStamp 2015.04.13, 19:10\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
@@ -104,9 +105,10 @@ public class FXUIPlayer implements Player {
 	private final String blankText = "-----";
 	private String attackTarget = blankText, attackSource = blankText;
 	private boolean keepRunning = false;
-	private final doWeExit exitDecider = new doWeExit();
+	private final ExitStateSubHelper exitDecider = new ExitStateSubHelper();
 	private final int maxTimes = 5;
 	private int timesLeft = maxTimes;
+	private boolean lastCoordIsKnown = false;
 	
 
 	
@@ -160,6 +162,7 @@ public class FXUIPlayer implements Player {
 	private void saveLastKnownWindowLocation(Stage dialog){
 		this.windowXCoord = dialog.getX();
 		this.windowYCoord = dialog.getY();
+		this.lastCoordIsKnown = true;
 	}
 	
 	/**Given a valid dialog, places the dialog at coordinates previously recorded from a prior dialog.
@@ -167,8 +170,52 @@ public class FXUIPlayer implements Player {
 	 * @param dialog dialog to be placed at the last remembered dialog coords.
 	 */
 	private void putWindowAtLastKnownLocation(Stage dialog){
-		dialog.setX(this.windowXCoord);
-		dialog.setY(this.windowYCoord);
+		final int single_screen = 1;
+		if(!this.lastCoordIsKnown && FXUIPlayer.owner != null){
+			dialog.setX(FXUIPlayer.owner.getX());
+			dialog.setY(FXUIPlayer.owner.getY() + FXUIGameMaster.DEFAULT_DIALOG_OFFSET);
+		}
+		else{
+			if(Screen.getScreens().size() == single_screen){
+				double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
+				double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
+				dialog.setX(this.windowXCoord < 0 || this.windowXCoord > widthOfPriScreen ? 0 : this.windowXCoord);
+				dialog.setY(this.windowYCoord < 0 || this.windowXCoord > heightOfPriScreen ? 0 : this.windowYCoord);
+			}
+			else{
+				dialog.setX(this.windowXCoord);
+				dialog.setY(this.windowYCoord);
+			}
+		}
+	}
+	
+	/**
+	 * Waits for distinct player dialogs to close. Requires dialogs to be registered with the local Crossbar.
+	 * Else, if no dialog is registered with the local crossbar, immediately returns.
+	 * If used with the incorrect dialog, will stall indefinitely until the correct, associated dialog is closed.
+	 * Will be interrupted (and return) if an attempt to end the game is registered by the local Crossbar.
+	 */
+	private void waitForDialogToClose(FXUI_Crossbar xbar){
+		RiskUtils.sleep(1000);
+		do{
+			RiskUtils.sleep(100);
+		}
+		while(xbar.getCurrentPlayerDialog() != null && xbar.getCurrentPlayerDialog().isShowing() && !xbar.isHumanEndingGame());
+	}
+	
+	/**
+	 * Decides if the prior closing of a dialog was intended as part of the game's progression, or if the user
+	 * closed the dialog methods for other reasons.
+	 * If the dialog was closed through other means, prompts the user to confirm whether the window was closed
+	 * in error, assuming the proper flag was left set/unset.
+	 * The local ExitDecider contains the flag to determine whether the close was expected or unexpected.
+	 * The local Crossbar contains the flag to determine if we have already indicated that the app *is* being closed.
+	 */
+	private void checkIfCloseMeansMore(ExitStateSubHelper exitHelper, FXUI_Crossbar xbar){
+		if(exitHelper.isSystemExit() && !xbar.isHumanEndingGame()){
+			//ask if the user actually wants the game to end
+			this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
+		}
 	}
 	
 	/**
@@ -178,6 +225,7 @@ public class FXUIPlayer implements Player {
 	 * @return "true" if acceptable, "false" otherwise
 	 */
 	private boolean validateName(String potentialName, Collection<String> unavailableNames){
+		System.out.println("("+potentialName+")");
 		potentialName = potentialName.trim();
 		if(potentialName == null || potentialName.length() < 1){
 			return false;
@@ -186,7 +234,7 @@ public class FXUIPlayer implements Player {
 			return false;
 		}
 		//String desiredCharSet = "[a-zA-Z0-9]{1-21}\\s[a-zA-Z0-9]{1-21}|[a-zA-Z0-9]{1,21}"; //chars with one space inbetween
-		String desiredCharSet = "[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"}([\\s]{0,1}[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"})"; //chars with one space in between
+		String desiredCharSet = "[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"}((\\s)?[a-zA-Z0-9]{0,"+MAX_NAME_LENGTH+"})?"; //chars with one space in between
 		Pattern patternToFind = Pattern.compile(desiredCharSet);
 		Matcher matchContainer = patternToFind.matcher(potentialName);
 		return matchContainer.matches() && potentialName.length() < MAX_NAME_LENGTH+1;
@@ -232,7 +280,9 @@ public class FXUIPlayer implements Player {
 					
 					//now let us continue with window/element setup
 					dialog.setTitle("Set Player Name.");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
@@ -259,7 +309,7 @@ public class FXUIPlayer implements Player {
 								//put stuff here if you want to ignore any invalid input off-the-bat
 							//}
 							timesLeft = maxTimes;
-							if(validateName(potentialName.getText(), unavailableNames))
+							if(validateName(potentialName.getText()+t.getCharacter(), unavailableNames))
 							{
 								statusText.setText("name OK!!");
 								statusText.setFill(Color.BLACK);
@@ -334,18 +384,10 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately following this, pause to wait for FX dialog to be closed!
 			*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			reinforcementsApplied = 0;
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-			
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		return potentialName.getText();
@@ -390,7 +432,9 @@ public class FXUIPlayer implements Player {
 					
 					//now let us continue with window/element setup
 					dialog.setTitle("Initial Troop Allocation!");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					putWindowAtLastKnownLocation(dialog);
 					
 					layout.setAlignment(Pos.CENTER);
@@ -482,18 +526,10 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately following this, pause to wait for FX dialog to be closed!
 			*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			reinforcementsApplied = 0;
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-			
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		return rsp;
@@ -552,7 +588,9 @@ public class FXUIPlayer implements Player {
 					
 					//now...begin handling the layout details and such.
 					dialog.setTitle(turnInRequired ? "Please Turn In Cards (required)" : "Turn In Cards? (optional)");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					
 					putWindowAtLastKnownLocation(dialog);
 					
@@ -657,18 +695,9 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
-			
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-			
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		
@@ -717,7 +746,9 @@ public class FXUIPlayer implements Player {
 					
 					//updating the elements with their contents &/or styles...
 					dialog.setTitle("Reinforcement with new troops!");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					putWindowAtLastKnownLocation(dialog);
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
@@ -810,18 +841,10 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			RiskUtils.sleep(1000);
-			do{ //wait on the dialog to go away
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			reinforcementsApplied = 0;
-			
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		return rsp;
@@ -909,7 +932,9 @@ public class FXUIPlayer implements Player {
 					//now that things have been placed in memory, let's set it all up...
 					
 					dialog.setTitle("Attack? [optional]");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					
 					
 					layout.setAlignment(Pos.CENTER);
@@ -1064,19 +1089,12 @@ public class FXUIPlayer implements Player {
 			* End mandatory FX thread processing.
 			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 			*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
-			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			//if we have completed all business within the dialog, cleanup and return as required.
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 			attackSource = blankText;
 			attackTarget = blankText;
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		if(passTurn){
@@ -1160,7 +1178,9 @@ public class FXUIPlayer implements Player {
 					final Text acceptanceStatus = new Text("Minimum to advance: " + minAdv);
 					
 					dialog.setTitle("Advance armies into conquests");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					
 					putWindowAtLastKnownLocation(dialog);
 					sourceCount.setTextAlignment(TextAlignment.CENTER);
@@ -1265,16 +1285,9 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
 		*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		return rsp;
@@ -1324,15 +1337,16 @@ public class FXUIPlayer implements Player {
 			
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
-					
 					/***********
-		* Begin mandatory processing on FX thread. (Required for Stage objects.)
-		*/
+					 * Begin mandatory processing on FX thread. (Required for Stage objects.)
+					 */
 					
 					ScrollPane spane = new ScrollPane();
 					final Stage dialog = new Stage();
 					dialog.setTitle("Fortify? [optional]");
-					dialog.initOwner(FXUIPlayer.owner);
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
 					
 					putWindowAtLastKnownLocation(dialog);
 					
@@ -1501,16 +1515,9 @@ public class FXUIPlayer implements Player {
 		* End mandatory FX thread processing.
 		* Immediately following this, pause to wait for FX dialog to be closed!
 		*/
-			RiskUtils.sleep(1000);
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(FXUIPlayer.crossbar.getCurrentPlayerDialog() != null && FXUIPlayer.crossbar.getCurrentPlayerDialog().isShowing());
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-			if(exitDecider.isSystemExit()){
-				//ask if the user actually wants the game to end
-				this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0;
-			}
 		}
 		while(this.keepRunning);
 		if(passTurn){
@@ -1549,7 +1556,7 @@ public class FXUIPlayer implements Player {
 	/**
 	* to determine whether the user is still playing the game, or if the user initiated a normal program exit from the system
 	*/
-	class doWeExit {
+	class ExitStateSubHelper {
 
 		private boolean systemExitUsed = true;
 
