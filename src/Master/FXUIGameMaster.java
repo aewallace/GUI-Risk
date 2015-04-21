@@ -38,6 +38,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
 
+import sun.util.resources.cldr.ar.CalendarData_ar_SD;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -53,8 +54,10 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Labeled;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
@@ -67,6 +70,7 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 import javafx.scene.transform.Scale;
+import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -116,10 +120,13 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x04h\nStamp 2015.04.13, 19:10\nStability:Unstable(00)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x05h\nStamp 2015.04.20, 22:22\nStability:Unstable(00)";
 	public static final String ERROR = "(ERROR!!)";
 	public static final String INFO = "(info:)";
 	public static final String WARN = "(warning-)"; 
+	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
+	private static String loadfrom_filename = DEFAULT_CHKPNT_FILE_NAME;
+	private static String saveto_filename = DEFAULT_CHKPNT_FILE_NAME;
 	private static final long AUTO_CLOSE_TIMEOUT = 4500;
 	private static final int DEFAULT_APP_WIDTH = 1600;
 	private static final int DEFAULT_APP_HEIGHT = 1062;
@@ -167,7 +174,7 @@ public class FXUIGameMaster extends Application {
 	//to handle recovering a prior session or help with launching a new game session
 	private SavePoint savePoint = new SavePoint();
 	private SavePoint loadedSaveIn = null;
-	private String loadFailureReason = "";
+	private static String loadFailureReason = "";
 	private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
 	private ArrayList<Node> buttonCache = new ArrayList<Node>();
 	private static boolean initiationGood = false;
@@ -177,6 +184,7 @@ public class FXUIGameMaster extends Application {
 	private static boolean exitDialogIsShowing = true;
 	private static boolean skipExitConfirmation = false;
 	private static Thread priGameLogicThread = null;
+	private static boolean loadTypeState = false;
 	
 	
 	/**
@@ -295,6 +303,171 @@ public class FXUIGameMaster extends Application {
 		catch(Exception e){System.out.println(ERROR+"attempted exit failed:: " + e);}
 	}
 	
+	
+	/**
+	 * Allow the player to decide if they want to start a new game, or launch an old game.
+	 * MUST BE RUN ON JAVAFX THREAD.
+	 * @param shutAppDownOnAccept
+	 * @param fxThread
+	 */
+	private int displayGameSelector()
+	{
+		if (!Platform.isFxApplicationThread() || FXUIGameMaster.workingMode != IDLE_MODE){
+			return -1;
+		}
+		Window owner = pane.getScene().getWindow();
+		final Stage dialog = new Stage();
+		dialog.setTitle("new? restore?");
+		dialog.initOwner(owner);
+		dialog.setX(owner.getX());
+		dialog.setY(owner.getY()+300);
+		
+		final Pane miniPane = new Pane();
+		
+		final VBox layout = new VBox(10);
+		layout.setAlignment(Pos.CENTER);
+		layout.setStyle("-fx-background-color: lightcyan");
+		layout.setStyle("-fx-padding: 50;");
+		
+		final Text spaceBuffer = new Text("");
+		
+		final Text queryText = new Text("     Greetings, Human!     \nWhat would you like to do?\n-\n");
+		queryText.setTextAlignment(TextAlignment.CENTER);
+		
+		final Text querySymbol = new Text("\\(OxO ?)");
+		querySymbol.setTextAlignment(TextAlignment.CENTER);
+		querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+
+		final Button newGameBtn = new Button("Launch a NEW game.");
+		final Text newGameText = new Text("\nStart a brand new game.");
+		newGameText.setTextAlignment(TextAlignment.CENTER);
+		newGameBtn.setTooltip(new Tooltip("Launch a brand new game, with the potential to overwrite\nprevious game saves."));
+		
+		final Button loadGameBtn = new Button("Load CURRENT save file.");
+		final Text loadGameText = new Text();
+		loadGameText.setTextAlignment(TextAlignment.CENTER);
+		final Text loadGameSubText = new Text();
+		loadGameSubText.setTextAlignment(TextAlignment.CENTER);
+		loadGameSubText.setOpacity(0.5d);
+		final String startingTooltipContents = "Load from the default save file!\nCurrently set to load from " + loadfrom_filename;
+		final Tooltip ldToolTip = new Tooltip(startingTooltipContents);
+		loadGameBtn.setTooltip(ldToolTip);
+		
+		final Button cnclBtn = new Button("[cancel]");
+		cnclBtn.setTooltip(new Tooltip("Return to the main menu screen without launching a game of either type."));
+		
+		
+		/*
+		 * Different event handlers, to be used depending on states/keys&buttons to make available.
+		 */
+		EventHandler<ActionEvent> defaultLdBtnHandler = new EventHandler<ActionEvent>() {
+			@Override public void handle(ActionEvent t) {
+				FXUIGameMaster.workingMode = LOADED_GAME_MODE;
+				dialog.close();
+			}
+		};
+		
+		EventHandler<ActionEvent> loadAltFileHandler = new EventHandler<ActionEvent> (){
+			@Override public void handle(ActionEvent t) {
+				final FileChooser fileChooser = new FileChooser();
+				File file = fileChooser.showOpenDialog(new Stage());
+	            if (file != null) {
+	            	//active_checkpoint_file_name = file.getPath();
+	            	if(loadFromSave(true, file.getAbsolutePath())){
+		            	loadfrom_filename = file.getAbsolutePath();
+						FXUIGameMaster.workingMode = LOADED_GAME_MODE;
+		            	dialog.close();
+	            	}
+	            	else{
+	            		loadGameText.setText("load failed.");
+	            		ldToolTip.setText(
+            				(FXUIGameMaster.loadFailureReason.contains("FileNotFound") 
+								? //If true, set text to...
+								"Can't load: "
+								+ "OS dependent path error;\nplace the file in the same dir as the app,"
+								+ "\nrename as " + DEFAULT_CHKPNT_FILE_NAME + "& relaunch app"
+								: //Or if false, set text to...
+								"Can't load save file!\nReason:"
+        					)
+        					+ loadFailureReason 
+        					+ "\n\nCLICK to load alt save file"
+        				);
+	            	}
+	            }
+			}
+		};
+		
+		EventHandler<KeyEvent> altKeyEventHandler = new EventHandler<KeyEvent>(){
+			@Override
+			public void handle(KeyEvent event) {
+				if(event.getEventType() == KeyEvent.KEY_PRESSED){
+					if(event.getCode() == KeyCode.ALT || event.getCode() == KeyCode.SHIFT){
+						loadTypeState = !loadTypeState;
+						if(loadTypeState){
+							loadGameBtn.setOnAction(loadAltFileHandler);
+							loadGameBtn.setText("Select OTHER save file...");
+							ldToolTip.setText("Select a different checkpoint/save file!\n(Opens \"Locate File...\" dialog)");
+						}
+						else{
+							loadGameBtn.setOnAction(defaultLdBtnHandler);
+							loadGameBtn.setText("Load CURRENT save file...");
+							ldToolTip.setText(startingTooltipContents);
+						}
+					}
+				}
+			}
+		};
+		
+		newGameBtn.setOnAction(new EventHandler<ActionEvent>() {
+			@Override public void handle(ActionEvent t) {
+				FXUIGameMaster.workingMode = NEW_GAME_MODE;
+				dialog.close();
+			}
+		});
+		newGameBtn.setDefaultButton(true);
+		
+		loadGameBtn.setOnAction(defaultLdBtnHandler);
+		
+		cnclBtn.setOnAction(new EventHandler<ActionEvent> (){
+			@Override public void handle(ActionEvent t) {
+				dialog.close();
+			}
+		});
+		
+		
+		if(!loadFromSave(true, DEFAULT_CHKPNT_FILE_NAME)){
+			loadGameBtn.setOpacity(0.5d);
+			loadGameText.setOpacity(0.5d);
+			loadGameBtn.setOnAction(loadAltFileHandler);
+			loadGameBtn.setFocusTraversable(false);
+			queryText.setText("     Make new game?     \n\n\n");
+			ldToolTip.setText("Tried to load default save file...\n" +
+					(FXUIGameMaster.loadFailureReason.contains("FileNotFound") ?
+								"No checkpoint/save file found!\n" : "Couldn't load it!\nReason:")
+					+ loadFailureReason 
+					+ "\n\nCLICK to load alt save file");
+			loadGameText.setText("Load alternate save file");
+		}
+		else{
+			loadGameText.setText("Load game from save file!");
+			loadGameSubText.setText("(ALT/SHIFT switches loading types.)\n\n(hover over buttons to see more info.)");
+			miniPane.setOnKeyPressed(altKeyEventHandler);
+		}
+		
+		layout.getChildren().setAll(
+				querySymbol, queryText, newGameText, newGameBtn, loadGameText, loadGameBtn, loadGameSubText, spaceBuffer, cnclBtn
+		);
+		miniPane.getChildren().add(layout);
+		
+		dialog.setScene(new Scene(miniPane));
+		
+		FXUIGameMaster.crossbar.setCurrentPlayerDialog(dialog);
+		dialog.showAndWait();
+		FXUIGameMaster.crossbar.setCurrentPlayerDialog(null);
+		
+		return FXUIGameMaster.workingMode;
+	}
+	
 	/**
 	 * Used to auto-close the final dialog when exiting the app. Also gives a sort of
 	 * ...ASCII animation to indicate closing process.
@@ -376,17 +549,34 @@ public class FXUIGameMaster extends Application {
 	* 
 	* @return returns true on successful save, or false when a show-stopping exception was thrown.
 	*/
-	private boolean performSave(){
+	private boolean performSave(boolean customSave){
 		disableSaveButton();
 		// TODO add informative error messages
 		boolean succeeded = false;
 		try{
-			OutputStream file = new FileOutputStream("fxuigm_save.ser");
-			OutputStream buffer = new BufferedOutputStream(file);
+			OutputStream fileOutStream = null;
+			
+			if(customSave){
+				FileChooser fileChooser = new FileChooser();
+				File fileOut = fileChooser.showSaveDialog(new Stage());
+				fileChooser.setTitle("Set your save location & save now:");
+				if(fileOut == null){
+					customSave = false;
+				}
+				else{
+					fileOutStream = new FileOutputStream(fileOut);
+					saveto_filename = fileOut.getAbsolutePath();
+				}
+			}
+			if(!customSave){
+				fileOutStream = new FileOutputStream(saveto_filename);
+			}
+			OutputStream buffer = new BufferedOutputStream(fileOutStream);
 			ObjectOutput output = new ObjectOutputStream(buffer);
 			output.writeObject(savePoint);
 			output.close();
 			succeeded = true;
+			System.out.println(INFO+"Checkpoint saved to " + saveto_filename + ".");
 		}
 		catch(Exception e){
 			System.out.println(ERROR+"Save failed. ::: " + e);
@@ -407,55 +597,62 @@ public class FXUIGameMaster extends Application {
 	* Loading should occur on the game logic thread (whichever thread prompts for responses).
 	* Should *not* be run on threads which may delay reading/processing (can cause concurrency issues,
 	* as it does not force a lock of any necessary resources).
+	* @param testing To test the ability to read the save file & skip actually loading data, "true".
+	* 	To do a full load of previous save data, "false".
+	* @param potentialLocation location of the save file. Ignored unless testing = true.
 	* @return returns true if the load succeeded, or false if a show-stopping exception was encountered
 	*/
-	private boolean loadFromSave()
+	private boolean loadFromSave(boolean testing, String potentialLocation)
 	{
 		boolean loadSucceeded = true;
 		try{
 			
-			InputStream file = new FileInputStream("fxuigm_save.ser");
+			InputStream file = new FileInputStream(testing ? potentialLocation : FXUIGameMaster.loadfrom_filename);
 			InputStream buffer = new BufferedInputStream(file);
 			ObjectInput input = new ObjectInputStream(buffer);
 			SavePoint loadedSave = (SavePoint)input.readObject();
 			loadedSaveIn = loadedSave;
-			
-			if(!loadPlayersFromSave(loadedSave)){
-				loadFailureReason.concat("\n!LF::: " + 
-					"Couldn't load prior player information from the given save file!");
-				loadSucceeded = false;
+			if(!testing){
+				if(!loadPlayersFromSave(loadedSave)){
+					loadFailureReason.concat("\n!LF::: " + 
+						"Couldn't load prior player information from the given save file!");
+					loadSucceeded = false;
+				}
+				else{
+					loadSucceeded &= true;
+				}
+				if(!resetCountryInfo(loadedSave)){
+					loadFailureReason.concat("\n!LF::: " +
+						"Couldn't reset status information for all Countries.");
+					loadSucceeded = false;
+				}
+				else{
+					loadSucceeded &= true;
+				}
+				
+				if(!restorePreviousLogInfo(loadedSave)){
+					loadFailureReason.concat("\n!LF::: " + 
+						"Couldn't restore the log for the prior game session!");
+					loadSucceeded = false;
+				}
+				else{
+					loadSucceeded &= true;
+				}
+				representPlayersOnUI();
+				refreshUIElements(true);
 			}
-			else{
-				loadSucceeded &= true;
-			}
-			if(!resetCountryInfo(loadedSave)){
-				loadFailureReason.concat("\n!LF::: " +
-					"Couldn't reset status information for all Countries.");
-				loadSucceeded = false;
-			}
-			else{
-				loadSucceeded &= true;
-			}
-			
-			if(!restorePreviousLogInfo(loadedSave)){
-				loadFailureReason.concat("\n!LF::: " + 
-					"Couldn't restore the log for the prior game session!");
-				loadSucceeded = false;
-			}
-			else{
-				loadSucceeded &= true;
-			}
-			representPlayersOnUI();
-			refreshUIElements(true);
 			input.close();
 			buffer.close();
 			file.close();
+			loadFailureReason ="";
 		}
 		catch(Exception e){
-			System.out.println(ERROR+"Load failed. ::: " + e);
-			e.printStackTrace();
-			loadFailureReason.concat("\n!LF::: " + 
-					"exception occurred: " + e.getStackTrace().toString());
+			if(!testing){
+				System.out.println(ERROR+"Load failed. ::: " + e);
+				e.printStackTrace();
+			}
+			loadFailureReason ="\n!LF::: " + 
+					"exception occurred: " + e;
 			loadSucceeded = false;
 		}
 		return loadSucceeded;
@@ -566,6 +763,7 @@ public class FXUIGameMaster extends Application {
 					}
 					else{
 						String[] ssmm = cardRepresentation.split(",");
+						//System.out.println(ssmm[0] + ssmm[1]);
 						Card cdOut = new Card(ssmm[0], stringCountryRepresentation.get(ssmm[1]));
 						newCards.add(cdOut);
 					}
@@ -750,7 +948,7 @@ public class FXUIGameMaster extends Application {
 			
 		}
 		else if (workingMode == LOADED_GAME_MODE){
-			initiationGood = loadFromSave();
+			initiationGood = loadFromSave(false, null);
 			if(!initiationGood){
 				setPlayStatus("load failed!!");
 			}
@@ -809,7 +1007,7 @@ public class FXUIGameMaster extends Application {
 					if (currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()) && !FXUIGameMaster.endGame)
 					{
 						prepareSave();
-						performSave();
+						performSave(false);
 					}
 				}
 				catch (PlayerEliminatedException e) {
@@ -1724,11 +1922,11 @@ public class FXUIGameMaster extends Application {
 	public void refreshUIElements(boolean guaranteeRefresh)
 	{	
 		if (this.players == null || this.players.size() == 0){
-			System.out.println("(warn)FXUIGM - Player count mismatch; Cannot refresh!");
+			System.out.println("(warn)FXUIGM - Player count mismatch; Delaying country refresh...");
 			return;
 		}
 		if(this.playerColorMap == null || this.playerColorMap.size() == 0){
-			System.out.println("(warn)FXUIGM - PlayerColorMap size mismatch; Cannot refresh!");
+			System.out.println("(warn)FXUIGM - PlayerColorMap size mismatch; Delaying country refresh...");
 			return;
 		}
 		if (!guaranteeRefresh && this.round % this.players.size() != 0) //just...just don't update too often. Skip this once.
@@ -1972,13 +2170,15 @@ public class FXUIGameMaster extends Application {
 		});
 		
 		//Button to initiate the game
-		Button startBtn = new Button("Let's go!!\n(Start new game)");
+		Button startBtn = new Button("Let's go!!\n(Start/Load game)");
 		startBtn.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
 				if(workingMode == IDLE_MODE)
 				{
-					workingMode = FXUIGameMaster.NEW_GAME_MODE;
-					createGameLogicThread();
+					int stateOut = displayGameSelector();
+					if(stateOut != IDLE_MODE){
+						createGameLogicThread();
+					}
 				}
 			}
 			
@@ -2001,10 +2201,22 @@ public class FXUIGameMaster extends Application {
 		});
 		
 		//testing saving functionality
-		Button saveMe = new Button("save.");
+		Button saveMe = new Button("save game as...");
+		saveMe.setTooltip(new Tooltip("Changes the location where your game is being auto-saved"
+				+ "\nAND IMMEDIATELY saves to that new location!"));
 		saveMe.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
-				performSave();
+				if(performSave(true))
+				{
+					saveMe.getTooltip().setText("saved. autosave set to " + saveto_filename
+							+ ".\n\nChanges the location where your game is being auto-saved"
+							+ "\nAND IMMEDIATELY saves to that new location!");
+				}
+				else{
+					saveMe.getTooltip().setText("save failed; try again???"
+							+ "\n\nChanges the location where your game is being auto-saved"
+							+ "\nAND IMMEDIATELY saves to that new location!");
+				}
 			}
 		});
 		saveMe.setDisable(true);
@@ -2042,7 +2254,11 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		CheckBox doLogging = new CheckBox("Enable logging?\n(State: default)");
+		CheckBox doLogging = new CheckBox("Enable logging?\nnot set (yes)");
+		doLogging.setTooltip(new Tooltip("YES: Always log (each game overwrites the log of the last game for normal games)\n"
+				+ "NO: Never log (whatever log file exists will remain untouched)\n"
+				+ "INDETERMINATE/NOT SET: Effectively YES, unless redefined elsewhere.\n"
+				+ "For game simulations (when available): enabling (setting to YES) may result in a flood of logs!"));
 		doLogging.setTextFill(Color.ANTIQUEWHITE);
 		doLogging.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
@@ -2050,19 +2266,19 @@ public class FXUIGameMaster extends Application {
 					//tell it to do whatever it wants by default
 					forceEnableLogging = false;
 					forceDisableLogging = false;
-					doLogging.setText("Enable logging?\n(State: default)");
+					doLogging.setText("Enable logging?\nnot set (yes)");
 				}
 				else if(doLogging.isSelected()){
 					//tell it to enable logging
 					forceEnableLogging = true;
 					forceDisableLogging = false;
-					doLogging.setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled ? "Yes" : "No") + ")");
+					doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
 				}
 				else if(!doLogging.isSelected()){
 					//tell it to forcefully disable logging
 					forceEnableLogging = false;
 					forceDisableLogging = true;
-					doLogging.setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled ? "Yes" : "No") + ")");
+					doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
 				}
 			}
 		});
@@ -2098,9 +2314,9 @@ public class FXUIGameMaster extends Application {
 			});
 		}
 		
-		lowerButtonPanel.getChildren().addAll(tellMe, tellMe2, saveMe, restoreMe);
+		lowerButtonPanel.getChildren().addAll(tellMe, tellMe2);
 		primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,
-								stopGameBtn,exitApp,lowerButtonPanel, doLogging, logPlayback);
+								stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback);
 		//****layout of text & buttons displayed upon launch ends here.***
 		
 		pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
