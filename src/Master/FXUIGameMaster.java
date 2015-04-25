@@ -37,8 +37,8 @@ import java.util.Set;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-import sun.util.resources.cldr.ar.CalendarData_ar_SD;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -120,10 +120,8 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x05h\nStamp 2015.04.20, 22:22\nStability:Unstable(00)";
-	public static final String ERROR = "(ERROR!!)";
-	public static final String INFO = "(info:)";
-	public static final String WARN = "(warning-)"; 
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x06h\nStamp 2015.04.25, 18:22\nStability:Unstable(00)";
+	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)"; 
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
 	private static String loadfrom_filename = DEFAULT_CHKPNT_FILE_NAME;
 	private static String saveto_filename = DEFAULT_CHKPNT_FILE_NAME;
@@ -136,9 +134,8 @@ public class FXUIGameMaster extends Application {
 	protected static final String LOGFILE = "LOG.txt";
 	protected static final String STATSFILE = "STATS.txt";
 	protected static final String EVENT_DELIM = "...";
-	protected static final boolean LOGGING_OFF = false;
-	protected static final boolean LOGGING_ON = true;
-	protected static boolean forceEnableLogging = false, forceDisableLogging = false;
+	protected static final boolean LOGGING_OFF = false, LOGGING_ON = true;
+	protected static boolean forceEnableLogging = false, forceLoggingIsIndeterminate = true;
 	protected static boolean loggingEnabled = true; //this is the one that has the final say as to whether the log file is created
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
 	protected RiskMap map;
@@ -167,24 +164,27 @@ public class FXUIGameMaster extends Application {
 	private HBox playerDisplay = null;
 	private HashMap<String, Text> textNodeMap;
 	private Map<String, Color> playerColorMap;
-	private int numGames = 1;
-	private static boolean proceedWithExit = false;
 	private static boolean fullAppExit = false;
 	
 	//to handle recovering a prior session or help with launching a new game session
-	private SavePoint savePoint = new SavePoint();
-	private SavePoint loadedSaveIn = null;
+	private static SavePoint savePoint = new SavePoint();
+	private static SavePoint loadedSaveIn = null;
 	private static String loadFailureReason = "";
 	private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
-	private ArrayList<Node> buttonCache = new ArrayList<Node>();
-	private static boolean initiationGood = false;
+	private static ArrayList<Node> buttonCache = new ArrayList<Node>();
+	private enum ButtonIndex{
+		BTN_START,
+		BTN_LOAD,
+		BTN_SAVE,
+		BTN_HIGHLIGHT,
+		CKBX_LOGGING,
+		BTN_LOG_PLAYBACK
+	}
 	private static boolean endGame = false;
 	private static Player currentPlayer = null;
-	private boolean updateUI = false;
-	private static boolean exitDialogIsShowing = true;
 	private static boolean skipExitConfirmation = false;
 	private static Thread priGameLogicThread = null;
-	private static boolean loadTypeState = false;
+	private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
 	
 	
 	/**
@@ -192,31 +192,41 @@ public class FXUIGameMaster extends Application {
 	* and it's from a dialog window, handle the call by...asking if we really want to exit.
 	*/
 	public static int doYouWantToMakeAnExit(boolean shutAppDownOnAccept, int currentAttempts){
-		exitDialogIsShowing = true;
+		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+		AtomicBoolean allowAppToExit = new AtomicBoolean(false);
 		if(!FXUIGameMaster.skipExitConfirmation && Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
-			exitDialogHelper(shutAppDownOnAccept || FXUIGameMaster.fullAppExit, true);
+			exitDialogHelper(shutAppDownOnAccept || FXUIGameMaster.fullAppExit, true, allowAppToExit, dialogIsShowing);
 		}
 		
 		else if(!FXUIGameMaster.skipExitConfirmation && !Platform.isFxApplicationThread()){ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
-					exitDialogHelper(shutAppDownOnAccept || FXUIGameMaster.fullAppExit, false);
+					exitDialogHelper(shutAppDownOnAccept || FXUIGameMaster.fullAppExit, false, allowAppToExit, dialogIsShowing);
 				}
 			});
-			do{
-				RiskUtils.sleep(100);
+			if(!shutAppDownOnAccept){
+				do{
+					RiskUtils.sleep(100);
+				}
+				while(dialogIsShowing.get() && !FXUIGameMaster.fullAppExit);
+				if(FXUIGameMaster.fullAppExit){
+					allowAppToExit.set(true);
+				}
 			}
-			while(exitDialogIsShowing); 
+			else{
+				do{
+					RiskUtils.sleep(100);
+				}
+				while(dialogIsShowing.get());
+			}
 		}
 		
 		else{
-			exitDialogIsShowing = false;
+			dialogIsShowing.set(false);
 		}
-		
-		if(FXUIGameMaster.proceedWithExit || FXUIGameMaster.skipExitConfirmation)
+		if(allowAppToExit.get() || FXUIGameMaster.skipExitConfirmation)
 		{
 			FXUIGameMaster.skipExitConfirmation = false;
-			FXUIGameMaster.proceedWithExit = false;
 			return RiskConstants.MAX_ATTEMPTS;
 		}
 		else{
@@ -225,7 +235,7 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	
-	private static void exitDialogHelper(boolean shutAppDownOnAccept, boolean fxThread)
+	private static void exitDialogHelper(final boolean shutAppDownOnAccept, final boolean fxThread, AtomicBoolean allowAppToExit, AtomicBoolean dialogIsShowing)
 	{
 		Window owner = pane.getScene().getWindow();
 		try{
@@ -235,7 +245,11 @@ public class FXUIGameMaster extends Application {
 			dialog.setX(owner.getX());
 			dialog.setY(owner.getY());
 			
-			final Text queryText = new Text("     Did you want to end the game?     \n[If enabled, your most recent\ncheckpoint will be saved]");
+			final VBox layout = new VBox(10);
+			layout.setAlignment(Pos.CENTER);
+			layout.setStyle("-fx-background-color: pink; -fx-padding: 30");
+			
+			final Text queryText = new Text("     Did you want to end the game?     ");
 			queryText.setTextAlignment(TextAlignment.CENTER);
 			
 			final Text querySymbol = new Text("(o.o ?)");
@@ -243,14 +257,21 @@ public class FXUIGameMaster extends Application {
 			querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
 			
 
+			Text spaceBuffer = new Text("\nIf enabled, your most recent\ncheckpoint will auto-save,\nor you may manually save");
+			querySymbol.setTextAlignment(TextAlignment.CENTER);
+			querySymbol.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+			
+
 			final Button yeah = new Button("Yes");
 			final Button nah = new Button("No");
+			final Button saveMe = new Button("save last checkpoint to...");
+			
 			yeah.setOnAction(new EventHandler<ActionEvent>() {
 				@Override public void handle(ActionEvent t) {
 					crossbar.signalHumanEndingGame();
-					FXUIGameMaster.proceedWithExit = true;
+					allowAppToExit.set(true);
+					dialogIsShowing.set(false);
 					FXUIGameMaster.skipExitConfirmation = shutAppDownOnAccept;
-					exitDialogIsShowing = false;
 					if(!shutAppDownOnAccept)
 					{
 						FXUIGameMaster.endGame = true;
@@ -264,33 +285,62 @@ public class FXUIGameMaster extends Application {
 			nah.setDefaultButton(true);
 			nah.setOnAction(new EventHandler<ActionEvent>() {
 				@Override public void handle(ActionEvent t) {
-					exitDialogIsShowing = false;
-					FXUIGameMaster.proceedWithExit = false;
+					dialogIsShowing.set(false);
+					allowAppToExit.set(false);
 					dialog.close();
-					yeah.setDisable(true);
 				}
 			});
 			
-			final VBox layout = new VBox(10);
-			layout.setAlignment(Pos.CENTER);
-			layout.setStyle("-fx-background-color: pink");
-			Text spaceBuffer = new Text("");
+			saveMe.setTooltip(new Tooltip("Changes the location where your game is being auto-saved"
+					+ "\nAND IMMEDIATELY saves to that new location!"));
+			saveMe.setOnAction(new EventHandler<ActionEvent>(){
+				@Override public void handle(ActionEvent t){
+					if(performSave(true))
+					{
+						saveMe.getTooltip().setText("saved. autosave set to " + saveto_filename
+								+ ".\n\nChanges the location where your game is being auto-saved"
+								+ "\nAND IMMEDIATELY saves to that new location!");
+						spaceBuffer.setText("checkpoint saved. autosaving there\nuntil app restart");
+					}
+					else{
+						saveMe.getTooltip().setText("save failed; try again???"
+								+ "\n\nChanges the location where your game is being auto-saved"
+								+ "\nAND IMMEDIATELY saves to that new location!");
+						spaceBuffer.setText("manual save failed.\n(checkpoint may be auto-saved)");
+					}
+				}
+			});
+			
+			if(!FXUIGameMaster.savePoint.getIsReady()){
+				saveMe.setDisable(true);
+				saveMe.setText("save checkpoint (N/A)");
+			}
+			
 			if(shutAppDownOnAccept)
 			{
 				yeah.setText("[continue]");
-				layout.setStyle("-fx-background-color: black");
-				queryText.setText("     ZzZz...     \n\n[this window will auto-close]");
+				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
+				queryText.setText("thanks for playing!\n\n[this window will auto-close]");
 				queryText.setFill(Color.WHEAT);
-				querySymbol.setText("  zZz  (u_u?) zZz  ");
+				querySymbol.setText("\t\tzZz\t(u_u?)\tzZz\t\t");
 				querySymbol.setFill(Color.WHEAT);
 				spaceBuffer.setFill(Color.WHEAT);
+				spaceBuffer.setText("+\n+\n+");
 				nah.setVisible(false);
-				deathKnell(dialog, spaceBuffer);
+				saveMe.setVisible(false);
+				deathKnell(dialog, spaceBuffer, dialogIsShowing);
 			}
 			
 			layout.getChildren().setAll(
-					querySymbol, queryText, nah, yeah, spaceBuffer
+					querySymbol, queryText, saveMe, nah, yeah, spaceBuffer
 			);
+			
+			dialog.setOnCloseRequest(new EventHandler<WindowEvent>(){
+				@Override public void handle(WindowEvent t){
+					dialogIsShowing.set(false);
+					allowAppToExit.set(false);
+				}
+			});
 			
 			dialog.setScene(new Scene(layout));
 			if(fxThread){
@@ -326,8 +376,7 @@ public class FXUIGameMaster extends Application {
 		
 		final VBox layout = new VBox(10);
 		layout.setAlignment(Pos.CENTER);
-		layout.setStyle("-fx-background-color: lightcyan");
-		layout.setStyle("-fx-padding: 50;");
+		layout.setStyle("-fx-background-color: lightcyan; -fx-padding: 50");
 		
 		final Text spaceBuffer = new Text("");
 		
@@ -397,18 +446,20 @@ public class FXUIGameMaster extends Application {
 			}
 		};
 		
+		
+		AtomicBoolean loadButtonState = new AtomicBoolean(false);
 		EventHandler<KeyEvent> altKeyEventHandler = new EventHandler<KeyEvent>(){
 			@Override
 			public void handle(KeyEvent event) {
 				if(event.getEventType() == KeyEvent.KEY_PRESSED){
 					if(event.getCode() == KeyCode.ALT || event.getCode() == KeyCode.SHIFT){
-						loadTypeState = !loadTypeState;
-						if(loadTypeState){
+						loadButtonState.set(!loadButtonState.get());
+						if(loadButtonState.get() == LOAD_DEFAULT_SAVE){
 							loadGameBtn.setOnAction(loadAltFileHandler);
 							loadGameBtn.setText("Select OTHER save file...");
 							ldToolTip.setText("Select a different checkpoint/save file!\n(Opens \"Locate File...\" dialog)");
 						}
-						else{
+						else if (loadButtonState.get() == LOAD_ALT_SAVE){
 							loadGameBtn.setOnAction(defaultLdBtnHandler);
 							loadGameBtn.setText("Load CURRENT save file...");
 							ldToolTip.setText(startingTooltipContents);
@@ -473,7 +524,7 @@ public class FXUIGameMaster extends Application {
 	 * ...ASCII animation to indicate closing process.
 	 * @param dialog the dialog window to be closed (which permits the logic to end)
 	 */
-	public static void deathKnell(Stage dialog, Text animatedRegion){
+	public static void deathKnell(Stage dialog, Text animatedRegion, AtomicBoolean callerIsVisible){
 		if(dialog == null){return;}
 		else if(animatedRegion == null){
 			new Thread(new Runnable()
@@ -489,15 +540,15 @@ public class FXUIGameMaster extends Application {
 			}).start();
 			return;
 		}
-		else{
-			final String originalAnimState = "* * * * * * * * * * * *";
+		else if (callerIsVisible != null){
+			final String originalAnimState = "G O O D B Y E       : D";
 			final int discreteAnimSteps = 10;
 			final int origStrLen = originalAnimState.length();
 			final int singleChunkLength = (int)Math.floor(origStrLen/discreteAnimSteps); 
 			new Thread(new Runnable()
 			{
 				@Override public void run(){
-					for (int i = discreteAnimSteps; i > 0 && exitDialogIsShowing; --i){
+					for (int i = discreteAnimSteps; i > 0 && callerIsVisible.get(); --i){
 						final int iO = i;
 						Platform.runLater(new Runnable(){
 							@Override public void run(){
@@ -522,23 +573,35 @@ public class FXUIGameMaster extends Application {
 	*   to avoid any one player getting an advantage over any other player upon later resume.
 	*   Doesn't guarantee perfect state save, but helps.
 	*/
-	private void prepareSave(){
+	private boolean prepareSave(){
+		if(savePoint == null){savePoint = new SavePoint();}
 		disableSaveButton();
-		if(loadedSaveIn != null){ //updating an old save
-			savePoint.updateSaveIdentificationInfo(loadedSaveIn.getOriginalSaveDate(), new Date(), this.round);
+		boolean saveIsReady = false;
+		HashMap<String, Collection<Card>> playerCardsetMap = new HashMap<>();
+		for (String player : this.players){
+			playerCardsetMap.put(player, createCardSetCopy(player));
 		}
-		else{ //completely new save
-			savePoint.updateSaveIdentificationInfo(new Date(), new Date(), this.round);
-		}
-		savePoint.prepAllCountryDetails(map);
-		savePoint.prepAllPlayerDetails((HashMap<String, Player>) playerMap, allPlayers);
-		savePoint.prepRoundsCompleted(round);
-		savePoint.prepLogCache(internalLogCache);
-		for (String player : players){
-			savePoint.prepCardsForGivenPlayer(player, createCardSetCopy(player));
-		}
+		/*
+		 * If loadedSaveIn != null, we're working with an old save, so transplant the original save date
+		 * from that old game save. Else, we're working with a new game, and a new save date for the game.
+		 * Successive saves of a new game should only receive an updated latestSaveDate while 
+		 * keeping the original originalSaveDate.
+		 */
+		Date originalSaveDate = (loadedSaveIn != null && loadedSaveIn.getOriginalSaveDate() != null) 
+				? loadedSaveIn.getOriginalSaveDate()
+				: savePoint.getOriginalSaveDate();
+		saveIsReady = savePoint.prepareOverallSave
+			(
+				originalSaveDate, new Date(), this.round,
+				this.map,
+				(HashMap<String, Player>) playerMap, this.allPlayers,
+				internalLogCache,
+				this.players,
+				playerCardsetMap
+			);
 		System.out.println(INFO+"Checkpoint reached.");
 		enableSaveButton();
+		return saveIsReady;
 	}
 	
 	/**
@@ -549,7 +612,7 @@ public class FXUIGameMaster extends Application {
 	* 
 	* @return returns true on successful save, or false when a show-stopping exception was thrown.
 	*/
-	private boolean performSave(boolean customSave){
+	private static boolean performSave(boolean customSave){
 		disableSaveButton();
 		// TODO add informative error messages
 		boolean succeeded = false;
@@ -815,7 +878,7 @@ public class FXUIGameMaster extends Application {
 	* 	Based on states that might otherwise be easily compromised.
 	*/
 	public void setButtonAvailability(){
-		if (buttonCache.size() < 6){
+		if (buttonCache.size() < ButtonIndex.values().length){
 			System.out.println(WARN+"I can't determine if I'm able to access some of" + 
 							" the UI buttons to disable/enable them. Weird, huh?");
 			return;
@@ -825,27 +888,26 @@ public class FXUIGameMaster extends Application {
 			@Override public void run(){
 				if(workingMode == IDLE_MODE)
 				{
-					// TODO index these buttons by name
-					buttonCache.get(0).setDisable(false); //we can start a new game
-					buttonCache.get(1).setDisable(false); //we can load a previous game
+					buttonCache.get(ButtonIndex.BTN_START.ordinal()).setDisable(false); //we can start a new game
+					buttonCache.get(ButtonIndex.BTN_LOAD.ordinal()).setDisable(false); //we can load a previous game
 					disableSaveButton(); //we cannot use the save button
-					buttonCache.get(3).setDisable(true); //we cannot highlight the countries owner by a given player...
-					buttonCache.get(4).setDisable(false); //we are allowed to enable/disable logging
-					buttonCache.get(5).setDisable(false); //disable the log playback button
-					//thw checkbox shouldn't have changed during play, but we update its text
-					((CheckBox)buttonCache.get(4)).setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled==LOGGING_ON ? "Yes" : "No") + ")");
+					buttonCache.get(ButtonIndex.BTN_HIGHLIGHT.ordinal()).setDisable(true); //we cannot highlight the countries owner by a given player...
+					buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal()).setDisable(false); //we are allowed to enable/disable logging
+					buttonCache.get(ButtonIndex.BTN_LOG_PLAYBACK.ordinal()).setDisable(false); //disable the log playback button
+					//the checkbox shouldn't have changed during play, but we update its text
+					((CheckBox)buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal())).setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled==LOGGING_ON ? "Yes" : "No") + ")");
 					setPlayStatus("I D L E"); //set the status to "IDLE"
 				}
 				else {
-					buttonCache.get(0).setDisable(true); //we cannot start a new game...at this point.
-					buttonCache.get(1).setDisable(true); //we cannot load a previous game...at this point.
+					buttonCache.get(ButtonIndex.BTN_START.ordinal()).setDisable(true); //we cannot start a new game...at this point.
+					buttonCache.get(ButtonIndex.BTN_LOAD.ordinal()).setDisable(true); //we cannot load a previous game...at this point.
 					//save button is set dynamically while the game is in play, so do not concern yourself with it
-					buttonCache.get(3).setDisable(false); //we CAN highlight the countries owner by a given player.
-					buttonCache.get(4).setDisable(true); //we are not allowed to enable/disable logging
-					buttonCache.get(5).setDisable(true); //disable the log playback button
-					((CheckBox)buttonCache.get(4)).setIndeterminate(false);
-					((CheckBox)buttonCache.get(4)).setSelected(FXUIGameMaster.loggingEnabled);
-					((CheckBox)buttonCache.get(4)).setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled==LOGGING_ON ? "Yes" : "No") + " -- Locked during play)");
+					buttonCache.get(ButtonIndex.BTN_HIGHLIGHT.ordinal()).setDisable(false); //we CAN highlight the countries owner by a given player.
+					buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal()).setDisable(true); //we are not allowed to enable/disable logging
+					buttonCache.get(ButtonIndex.BTN_LOG_PLAYBACK.ordinal()).setDisable(true); //disable the log playback button
+					((CheckBox)buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal())).setIndeterminate(false);
+					((CheckBox)buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal())).setSelected(FXUIGameMaster.loggingEnabled);
+					((CheckBox)buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal())).setText("Enable logging?\n(State: " + (FXUIGameMaster.loggingEnabled==LOGGING_ON ? "Yes" : "No") + " -- Locked during play)");
 					setPlayStatus("in play."); //set the status to "in play"; will be overwritten with an error if need be
 				}
 			}
@@ -855,11 +917,11 @@ public class FXUIGameMaster extends Application {
 	/**
 	 * Companion method to disable the save button; ensures actions happen on FX thread
 	 */
-	public void disableSaveButton(){
+	public static void disableSaveButton(){
 		Platform.runLater(new Runnable()
 		{
 			@Override public void run(){
-				buttonCache.get(2).setDisable(true); //disable the save button
+				buttonCache.get(ButtonIndex.BTN_SAVE.ordinal()).setDisable(true); //disable the save button
 			}
 		});
 	}
@@ -867,11 +929,11 @@ public class FXUIGameMaster extends Application {
 	/**
 	 * Companion method to enable the save button; ensures actions happen on FX thread
 	 */
-	public void enableSaveButton(){
+	public static void enableSaveButton(){
 		Platform.runLater(new Runnable()
 		{
 			@Override public void run(){
-				buttonCache.get(2).setDisable(false); //enable the save button
+				buttonCache.get(ButtonIndex.BTN_SAVE.ordinal()).setDisable(false); //enable the save button
 			}
 		});
 	}
@@ -906,7 +968,7 @@ public class FXUIGameMaster extends Application {
 	 * @param error text to be displayed  (or default/alternative text, if no error occurred)
 	 * @return "true" if called from the JavaFX thread, "false" otherwise
 	 */
-	private boolean setErrorStatus(String status){
+	private static boolean setErrorStatus(String status){
 		if(Platform.isFxApplicationThread()) //if already on FX thread, can directly set
 		{
 			errorTextElement.setText(status);
@@ -932,6 +994,7 @@ public class FXUIGameMaster extends Application {
 	* @return name of the winner if the game has an ideal termination, null otherwise.
 	*/
 	private String begin() {
+		boolean initiationGood = false;
 		if (workingMode == NEW_GAME_MODE){
 			if (!(initiationGood = loadPlayers(FXUIGameMaster.desiredPlayersForGame))) {
 				System.out.println(ERROR+"Invalid number of players. 2-6 Players allowed.");
@@ -943,6 +1006,9 @@ public class FXUIGameMaster extends Application {
 				initiationGood = initializeForces() && initiationGood;
 				if(!initiationGood){
 					setPlayStatus("creation of new game failed");
+				}
+				else{
+					prepareSave();
 				}
 			}
 			
@@ -966,49 +1032,37 @@ public class FXUIGameMaster extends Application {
 					}
 				}
 				currentPlayer = this.playerMap.get(this.players.get(turn));
-				this.updateUI = currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
+				boolean canUpdateUIAndSave = currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
 				writeLogLn(true, currentPlayer.getName() + " is starting their turn.");
 				writeStatsLn();
 				this.turnCount++;
 				try {
-					refreshUIElements(this.updateUI);
+					for(int gameStep = 4; gameStep > -1 && !(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame); gameStep--){
+						refreshUIElements(canUpdateUIAndSave);
+						switch(gameStep){
+						case 4:
+							reinforce(currentPlayer, true);
+							break;
+						case 3:
+							attack(currentPlayer);
+							break;
+						case 2:
+							fortify(currentPlayer);
+							break;
+						case 1:
+							turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
+							break;
+						case 0:
+							if (canUpdateUIAndSave){
+								prepareSave();
+								performSave(false);
+							}
+							break;
+						default:
+							break;
+						}
+					}
 					
-					reinforce(currentPlayer, true);
-					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame){
-						break;
-					}
-					else{
-						refreshUIElements(this.updateUI);
-					}
-					
-					attack(currentPlayer);
-					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame){
-						break;
-					}
-					else{
-						refreshUIElements(this.updateUI);
-					}
-					
-					fortify(currentPlayer);
-					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame){
-						break;
-					}
-					else{
-						refreshUIElements(this.updateUI);
-					}
-					
-					turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
-					if(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame){
-						break;
-					}
-					else{
-						refreshUIElements(this.updateUI);
-					}
-					if (currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString()) && !FXUIGameMaster.endGame)
-					{
-						prepareSave();
-						performSave(false);
-					}
 				}
 				catch (PlayerEliminatedException e) {
 					//If an elimination exception is thrown up to this level,
@@ -1131,7 +1185,6 @@ public class FXUIGameMaster extends Application {
 			return;
 		}
 		Map<String, Integer> oppCards = getPlayerCardCounts();
-		// TODO turn off oppCards IN THIS METHOD; it's unused after you get extra reinforcements manually beforehand
 		if (withCountryBonus) {
 			reinforcements += RiskUtils.calculateReinforcements(this.map, currentPlayer.getName());
 		}
@@ -1163,7 +1216,6 @@ public class FXUIGameMaster extends Application {
 		boolean resetTurn;
 		boolean hasGottenCard = false;
 		while (attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
-			refreshUIElements(this.updateUI);
 			attempts++;
 			resetTurn = false;
 			AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
@@ -1176,7 +1228,6 @@ public class FXUIGameMaster extends Application {
 					+ atkRsp.getDfdCountry() + "(" + this.map.getCountryArmies(atkRsp.getDfdCountry())
 					+ ") from " + atkRsp.getAtkCountry() + "(" + this.map.getCountryArmies(atkRsp.getAtkCountry()) + ")!");
 					attempts = 0;
-					refreshUIElements(this.updateUI);
 					Player defender = getOwnerObject(atkRsp.getDfdCountry());
 					DefendResponse dfdRsp = null;
 					try {
@@ -1736,7 +1787,9 @@ public class FXUIGameMaster extends Application {
 		launch(FXUIGameMaster.class, args);
 		if(FXUIGameMaster.priGameLogicThread != null){
 			try {
+				System.out.println("Full exit?");
 				FXUIGameMaster.priGameLogicThread.join();
+				System.out.println("Full exit.");
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -1764,7 +1817,7 @@ public class FXUIGameMaster extends Application {
 		gameThread.setDaemon(true);
 		gameThread.start();
 		if (gameThread.isAlive()){
-			this.priGameLogicThread = gameThread;
+			FXUIGameMaster.priGameLogicThread = gameThread;
 			return true;
 		}
 		else{
@@ -1777,10 +1830,11 @@ public class FXUIGameMaster extends Application {
 			// TODO add support for selecting types of players, which is set during call to initializeFXGMClass
 			HashMap<String, Integer> winLog = new HashMap<String, Integer>();
 			RiskConstants.SEED = 1;
-			for (int i = 0; i < this.numGames; i++) {
+			int numGames = 1;
+			for (int i = 0; i < numGames; i++) {
 				RiskConstants.resetTurnIn();
 				PlayerFactory.resetPlayerCounts();
-				boolean doWeLog = forceEnableLogging || (!forceDisableLogging && i == this.numGames - 1 ? LOGGING_ON : LOGGING_OFF);
+				boolean doWeLog = (!forceLoggingIsIndeterminate && forceEnableLogging) || (forceLoggingIsIndeterminate && i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
 				initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUIAsk, doWeLog);
 				
 				System.out.print((i + 1) + " - ");
@@ -1799,7 +1853,7 @@ public class FXUIGameMaster extends Application {
 			}
 			if(!FXUIGameMaster.fullAppExit){
 				for (Map.Entry<String, Integer> entry : winLog.entrySet()) {
-					System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / this.numGames + "%");
+					System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / numGames + "%");
 				}
 			}
 		}
@@ -1828,6 +1882,8 @@ public class FXUIGameMaster extends Application {
 		if (rand == null) {
 			rand = new Random(RiskConstants.SEED);
 		}
+		
+		FXUIGameMaster.savePoint = new SavePoint();
 		
 		FXUIGameMaster.loggingEnabled = logSwitch;
 		if (FXUIGameMaster.loggingEnabled == LOGGING_ON) {
@@ -1865,10 +1921,9 @@ public class FXUIGameMaster extends Application {
 	 */
 	private void loadTextNodesForUI(String nodeFile) {
 		try {
-			if (nodeFile != null) { // TODO make better way to package app with original TextNodes.txt file
+			if (nodeFile != null) {
 				this.textNodeMap = new HashMap<String, Text>();
 				File fileRepresentation = new File(nodeFile);
-				getClass().getResourceAsStream(nodeFile);
 				//basic check for existence of country list file
 				if (!fileRepresentation.exists()){
 					Scanner reader = new Scanner(TextNodes.nodes);
@@ -1922,11 +1977,11 @@ public class FXUIGameMaster extends Application {
 	public void refreshUIElements(boolean guaranteeRefresh)
 	{	
 		if (this.players == null || this.players.size() == 0){
-			System.out.println("(warn)FXUIGM - Player count mismatch; Delaying country refresh...");
+			System.out.println(INFO+"FXUIGM - Player count mismatch; Delaying country refresh...");
 			return;
 		}
 		if(this.playerColorMap == null || this.playerColorMap.size() == 0){
-			System.out.println("(warn)FXUIGM - PlayerColorMap size mismatch; Delaying country refresh...");
+			System.out.println(INFO+"FXUIGM - PlayerColorMap size mismatch; Delaying country refresh...");
 			return;
 		}
 		if (!guaranteeRefresh && this.round % this.players.size() != 0) //just...just don't update too often. Skip this once.
@@ -2107,7 +2162,7 @@ public class FXUIGameMaster extends Application {
 		
 		//Facilitate checking for errors...
 		errorHasOccurred = false;
-		errorTextInitialContents = "Status...";
+		errorTextInitialContents = "currently";
 		
 		//pre-load the error background, just in case...
 		Image imageE = new Image("RiskBoardAE.jpg",true);
@@ -2148,7 +2203,7 @@ public class FXUIGameMaster extends Application {
 		primaryStatusButtonPanel.getChildren().add(errorTextElement);
 		
 		
-		currentPlayStatus = new Text("H E L L O");
+		currentPlayStatus = new Text("ready to play!");
 		currentPlayStatus.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
 		currentPlayStatus.setFill(Color.WHITE);
 		
@@ -2161,9 +2216,9 @@ public class FXUIGameMaster extends Application {
 				{
 					@Override
 					public void run() {
-						crossbar.signalHumanEndingGame();
+						//crossbar.signalHumanEndingGame();
 						crossbar.tryCloseCurrentPlayerDialog();
-						FXUIGameMaster.endGame = true;
+						//FXUIGameMaster.endGame = true;
 					}
 				});
 			}
@@ -2200,7 +2255,7 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		//testing saving functionality
+		//Attempt to force a manual game save, when allowed
 		Button saveMe = new Button("save game as...");
 		saveMe.setTooltip(new Tooltip("Changes the location where your game is being auto-saved"
 				+ "\nAND IMMEDIATELY saves to that new location!"));
@@ -2265,19 +2320,19 @@ public class FXUIGameMaster extends Application {
 				if(doLogging.isIndeterminate()){
 					//tell it to do whatever it wants by default
 					forceEnableLogging = false;
-					forceDisableLogging = false;
+					forceLoggingIsIndeterminate = true;
 					doLogging.setText("Enable logging?\nnot set (yes)");
 				}
 				else if(doLogging.isSelected()){
 					//tell it to enable logging
 					forceEnableLogging = true;
-					forceDisableLogging = false;
+					forceLoggingIsIndeterminate = false;
 					doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
 				}
 				else if(!doLogging.isSelected()){
 					//tell it to forcefully disable logging
 					forceEnableLogging = false;
-					forceDisableLogging = true;
+					forceLoggingIsIndeterminate = false;
 					doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
 				}
 			}
@@ -2341,6 +2396,7 @@ public class FXUIGameMaster extends Application {
 		});
 		
 		//Add buttons to a secondary cache, to allow easy enable/disable depending on state.
+		//***If you disable/remove any of these, update the ENUM table "ButtonIndex"!***
 		buttonCache.add(startBtn);
 		buttonCache.add(restoreMe);
 		buttonCache.add(saveMe);
@@ -2467,7 +2523,7 @@ class About {
 		info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		if(About.firstLaunch){
 			dialog.setTitle("about(basic)");
-			info1.setText("\\(^.^\")/\n\nRISK!\nor\n\"how to build an empire\"");
+			info1.setText("\\(^.^\")/\n\nRISK!\nor the open-source way to\nCONQUER THE WO--err, have fun");
 			info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
 		}
 		
@@ -2508,7 +2564,7 @@ class About {
 		About.firstLaunch = false;
 		if(autoExit)
 		{
-			FXUIGameMaster.deathKnell(dialog,null);
+			FXUIGameMaster.deathKnell(dialog,null,null);
 		}
 	}
 	

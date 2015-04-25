@@ -69,7 +69,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x00h\nStamp 2015.04.13, 19:10\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x01h\nStamp 2015.04.25, 18:22\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
@@ -250,6 +250,7 @@ public class FXUIPlayer implements Player {
 	
 	/**
 	 * Presents a dialog to ask a user for the name they want
+	 * Designed to run on a main game thread that is NOT the JavaFX thread.
 	 * @param unavailableNames names that are already taken
 	 * @return
 	 */

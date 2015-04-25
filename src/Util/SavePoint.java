@@ -13,9 +13,10 @@ import Map.RiskMap;
 import Player.Player;
 
 /**
- * Class to save games at a given point in time.
+ * Class to store the state of a game at a given point in time.
  * Relies heavily on GameMaster being able to bring itself
- * 		 to a relatively similar state using limited information.
+ * 		to a state relatively similar to the game being restored
+ * 		through use of very limited information.
  */
 public class SavePoint implements Serializable {
 	/**
@@ -25,7 +26,7 @@ public class SavePoint implements Serializable {
 	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH01\nStamp Y2015.M02.D26.HM1830\nType:MNT(00)";
 	public HashMap<String, String> countriesPlusOwners;
 	public HashMap<String, Integer> countriesPlusArmies;
-	
+	public transient boolean readyToSave = false;
 
 	public HashMap<String, ArrayList<String>> playersPlusCards;
 	public HashMap<String, String> activePlayersAndTheirTypes;
@@ -47,6 +48,8 @@ public class SavePoint implements Serializable {
 		activePlayersAndTheirTypes = new HashMap<String, String>();
 
 		playerIsEliminatedMap = new HashMap<String, Boolean>();
+		dateOriginallySaved = new Date();
+		latestGameSaveDate = new Date();
 
 		roundsPlayed = 0;
 		
@@ -65,6 +68,11 @@ public class SavePoint implements Serializable {
 	public int getRoundsPlayed(){return roundsPlayed;}
 	
 	public ArrayList<String> getLogCache(){return logCache;}
+	
+
+	public Date getLatestSaveDate(){return latestGameSaveDate;}
+	
+	public Date getOriginalSaveDate(){return dateOriginallySaved;}
 	
 	/**
 	 * 
@@ -108,9 +116,6 @@ public class SavePoint implements Serializable {
 		return updateOccurredWithoutError;
 	}
 	
-	public Date getOriginalSaveDate(){
-		return dateOriginallySaved;
-	}
 	
 	public void prepAllCountryDetails(RiskMap map){
 		for (Country country : Country.values()) {
@@ -160,5 +165,25 @@ public class SavePoint implements Serializable {
 	
 	public void prepLogCache(ArrayList<String> logCacheIn){
 		logCache = logCacheIn;
+	}
+	
+	public boolean prepareOverallSave(Date originalSDate, Date currentSDate, int roundIn, RiskMap map,
+			HashMap<String, Player> currentPlayers, List<String> originalPlayers,
+			ArrayList<String> logCacheIn,
+			List<String> players,
+			HashMap<String, Collection<Card>> playerCardsetMap)
+	{
+		updateSaveIdentificationInfo(originalSDate, currentSDate, roundIn);
+		prepAllCountryDetails(map);
+		prepAllPlayerDetails(currentPlayers, originalPlayers);
+		prepLogCache(logCacheIn);
+		for (String player : players){
+			prepCardsForGivenPlayer(player, playerCardsetMap.get(player));
+		}
+		return this.readyToSave = true;
+	}
+	
+	public boolean getIsReady(){
+		return this.readyToSave;
 	}
 }
