@@ -59,6 +59,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -120,7 +121,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x06h\nStamp 2015.04.25, 18:22\nStability:Unstable(00)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x06h\nStamp 2015.05.06, 18:22\nStability:Unstable(00)";
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)"; 
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
 	private static String loadfrom_filename = DEFAULT_CHKPNT_FILE_NAME;
@@ -157,10 +158,9 @@ public class FXUIGameMaster extends Application {
 	//private ScrollPane scrollPane;
 	private Scene scene;
 	private static Pane pane;
-	private static Text errorTextElement;
-	private static Text currentPlayStatus;
+	private static Text subStatusTextElement;
+	private static Text mainStatusTextElement;
 	private String errorTextInitialContents;
-	private boolean errorHasOccurred;
 	private HBox playerDisplay = null;
 	private HashMap<String, Text> textNodeMap;
 	private Map<String, Color> playerColorMap;
@@ -171,10 +171,9 @@ public class FXUIGameMaster extends Application {
 	private static SavePoint loadedSaveIn = null;
 	private static String loadFailureReason = "";
 	private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
-	private static ArrayList<Node> buttonCache = new ArrayList<Node>();
+	private static ArrayList<Node> buttonCache = null;
 	private enum ButtonIndex{
 		BTN_START,
-		BTN_LOAD,
 		BTN_SAVE,
 		BTN_HIGHLIGHT,
 		CKBX_LOGGING,
@@ -275,7 +274,7 @@ public class FXUIGameMaster extends Application {
 					if(!shutAppDownOnAccept)
 					{
 						FXUIGameMaster.endGame = true;
-						currentPlayStatus.setText("I D L E");
+						mainStatusTextElement.setText("I D L E");
 					}
 					crossbar.tryCloseCurrentPlayerDialog();
 					dialog.close();
@@ -322,7 +321,7 @@ public class FXUIGameMaster extends Application {
 				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
 				queryText.setText("thanks for playing!\n\n[this window will auto-close]");
 				queryText.setFill(Color.WHEAT);
-				querySymbol.setText("\t\tzZz\t(u_u?)\tzZz\t\t");
+				querySymbol.setText("zZz (u_u?) zZz");
 				querySymbol.setFill(Color.WHEAT);
 				spaceBuffer.setFill(Color.WHEAT);
 				spaceBuffer.setText("+\n+\n+");
@@ -392,7 +391,7 @@ public class FXUIGameMaster extends Application {
 		newGameText.setTextAlignment(TextAlignment.CENTER);
 		newGameBtn.setTooltip(new Tooltip("Launch a brand new game, with the potential to overwrite\nprevious game saves."));
 		
-		final Button loadGameBtn = new Button("Load CURRENT save file.");
+		final Button loadGameBtn = new Button("LOAD previous save.");
 		final Text loadGameText = new Text();
 		loadGameText.setTextAlignment(TextAlignment.CENTER);
 		final Text loadGameSubText = new Text();
@@ -456,12 +455,12 @@ public class FXUIGameMaster extends Application {
 						loadButtonState.set(!loadButtonState.get());
 						if(loadButtonState.get() == LOAD_DEFAULT_SAVE){
 							loadGameBtn.setOnAction(loadAltFileHandler);
-							loadGameBtn.setText("Select OTHER save file...");
+							loadGameBtn.setText("SELECT OTHER save file...");
 							ldToolTip.setText("Select a different checkpoint/save file!\n(Opens \"Locate File...\" dialog)");
 						}
 						else if (loadButtonState.get() == LOAD_ALT_SAVE){
 							loadGameBtn.setOnAction(defaultLdBtnHandler);
-							loadGameBtn.setText("Load CURRENT save file...");
+							loadGameBtn.setText("LOAD from known checkpoint...");
 							ldToolTip.setText(startingTooltipContents);
 						}
 					}
@@ -498,6 +497,7 @@ public class FXUIGameMaster extends Application {
 					+ loadFailureReason 
 					+ "\n\nCLICK to load alt save file");
 			loadGameText.setText("Load alternate save file");
+                        loadGameBtn.setText("FIND previous save file...");
 		}
 		else{
 			loadGameText.setText("Load game from save file!");
@@ -640,6 +640,7 @@ public class FXUIGameMaster extends Application {
 			output.close();
 			succeeded = true;
 			System.out.println(INFO+"Checkpoint saved to " + saveto_filename + ".");
+			setErrorStatus("checkpoint saved");
 		}
 		catch(Exception e){
 			System.out.println(ERROR+"Save failed. ::: " + e);
@@ -648,7 +649,7 @@ public class FXUIGameMaster extends Application {
 		enableSaveButton();
 		if(!succeeded)
 		{
-			setErrorStatus("Save failed");
+			setErrorStatus("save failed");
 		}
 		return succeeded;
 	}
@@ -878,7 +879,7 @@ public class FXUIGameMaster extends Application {
 	* 	Based on states that might otherwise be easily compromised.
 	*/
 	public void setButtonAvailability(){
-		if (buttonCache.size() < ButtonIndex.values().length){
+		if (buttonCache.size() != ButtonIndex.values().length){
 			System.out.println(WARN+"I can't determine if I'm able to access some of" + 
 							" the UI buttons to disable/enable them. Weird, huh?");
 			return;
@@ -889,7 +890,6 @@ public class FXUIGameMaster extends Application {
 				if(workingMode == IDLE_MODE)
 				{
 					buttonCache.get(ButtonIndex.BTN_START.ordinal()).setDisable(false); //we can start a new game
-					buttonCache.get(ButtonIndex.BTN_LOAD.ordinal()).setDisable(false); //we can load a previous game
 					disableSaveButton(); //we cannot use the save button
 					buttonCache.get(ButtonIndex.BTN_HIGHLIGHT.ordinal()).setDisable(true); //we cannot highlight the countries owner by a given player...
 					buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal()).setDisable(false); //we are allowed to enable/disable logging
@@ -900,7 +900,6 @@ public class FXUIGameMaster extends Application {
 				}
 				else {
 					buttonCache.get(ButtonIndex.BTN_START.ordinal()).setDisable(true); //we cannot start a new game...at this point.
-					buttonCache.get(ButtonIndex.BTN_LOAD.ordinal()).setDisable(true); //we cannot load a previous game...at this point.
 					//save button is set dynamically while the game is in play, so do not concern yourself with it
 					buttonCache.get(ButtonIndex.BTN_HIGHLIGHT.ordinal()).setDisable(false); //we CAN highlight the countries owner by a given player.
 					buttonCache.get(ButtonIndex.CKBX_LOGGING.ordinal()).setDisable(true); //we are not allowed to enable/disable logging
@@ -947,7 +946,7 @@ public class FXUIGameMaster extends Application {
 	private boolean setPlayStatus(String status){
 		if(Platform.isFxApplicationThread()) //if already on FX thread, can directly set
 		{
-			currentPlayStatus.setText(status);
+			mainStatusTextElement.setText(status);
 			return true;
 		}
 		else //place in event queue for running on the FX thread
@@ -955,7 +954,7 @@ public class FXUIGameMaster extends Application {
 			Platform.runLater(new Runnable()
 			{
 				@Override public void run(){
-					currentPlayStatus.setText(status);
+					mainStatusTextElement.setText(status);
 				}
 			});
 			return false;
@@ -963,7 +962,8 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	/**
-	 * Used to set the text of the "errorTextElement" UI element, even from unsafe threads (unsafe: "not the FX thread")
+	 * Used to set the text of the "subStatusTextElement" UI element, even from unsafe threads (unsafe: "not the FX thread").
+	 * As implied, intended use is to indicate some sort of error -- without replacing the main status.
 	 * TODO add the ability to push these messages to diagnostics dialog & secondary storage
 	 * @param error text to be displayed  (or default/alternative text, if no error occurred)
 	 * @return "true" if called from the JavaFX thread, "false" otherwise
@@ -971,7 +971,7 @@ public class FXUIGameMaster extends Application {
 	private static boolean setErrorStatus(String status){
 		if(Platform.isFxApplicationThread()) //if already on FX thread, can directly set
 		{
-			errorTextElement.setText(status);
+			subStatusTextElement.setText(status);
 			return true;
 		}
 		else //place in event queue for running on the FX thread
@@ -979,7 +979,7 @@ public class FXUIGameMaster extends Application {
 			Platform.runLater(new Runnable()
 			{
 				@Override public void run(){
-					errorTextElement.setText(status);
+					subStatusTextElement.setText(status);
 				}
 			});
 			return false;
@@ -1773,6 +1773,13 @@ public class FXUIGameMaster extends Application {
 				Text txt = new Text("#"+playerName.toLowerCase());
 				txt.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 				txt.setFill(colors.get((i) % colors.size()));
+                                txt.setOnMouseClicked(new EventHandler<MouseEvent>(){
+                                        @Override public void handle(MouseEvent t){
+                                                if(currentPlayer!=null){
+                                                        flashPlayerCountries(playerName);
+                                                }
+                                        }
+                                });
 				namesOfPlayers.getChildren().add(txt);
 			}
 			FXUIGameMaster.pane.getChildren().add(namesOfPlayers);
@@ -2161,37 +2168,21 @@ public class FXUIGameMaster extends Application {
 		* If there was an error, it'll be changed later.*/
 		
 		//Facilitate checking for errors...
-		errorHasOccurred = false;
 		errorTextInitialContents = "currently";
 		
-		//pre-load the error background, just in case...
-		Image imageE = new Image("RiskBoardAE.jpg",true);
 		ImageView backgroundImg = new ImageView();
-		backgroundImg.setImage(imageE);
+
+		Image imageOK = new Image("RiskBoard.jpg", true);
+		backgroundImg.setImage(imageOK);
 		pane.getChildren().add(backgroundImg);
 		
-		//...which will happen here:
-		//populate the countries, checking for any error in the process.
-		//assumes a "default" activity of starting a new game
-		
-		//initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUI, LOGGING_ON);
+		//populate the countries
 		loadTextNodesForUI("TextNodes.txt");
-		//representPlayersOnUI();
-		//now display elements -- status and buttons -- according to whether there was an error!
 		
-		//TODO unify error display/error handling process.
-		errorTextElement = new Text(errorTextInitialContents);
-		errorTextElement.setFont(Font.font("Verdana", FontWeight.THIN, 20));
-		if(errorHasOccurred)
-		{
-			errorTextElement.setFill(Color.RED);
-		}
-		else
-		{
-			errorTextElement.setFill(Color.WHITE);
-			Image imageOK = new Image("RiskBoard.jpg", true);
-			backgroundImg.setImage(imageOK);
-		}
+		//now display elements -- status and buttons!
+		subStatusTextElement = new Text(errorTextInitialContents);
+		subStatusTextElement.setFill(Color.WHITE);
+		subStatusTextElement.setFont(Font.font("Verdana", FontWeight.THIN, 20));
 		
 		//The vertical box to contain the major buttons and status.
 		VBox primaryStatusButtonPanel = new VBox(10);
@@ -2200,12 +2191,12 @@ public class FXUIGameMaster extends Application {
 		primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
 		primaryStatusButtonPanel.setLayoutX(29);
 		primaryStatusButtonPanel.setLayoutY(525);
-		primaryStatusButtonPanel.getChildren().add(errorTextElement);
+		primaryStatusButtonPanel.getChildren().add(subStatusTextElement);
 		
 		
-		currentPlayStatus = new Text("ready to play!");
-		currentPlayStatus.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
-		currentPlayStatus.setFill(Color.WHITE);
+		mainStatusTextElement = new Text("ready to play!");
+		mainStatusTextElement.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
+		mainStatusTextElement.setFill(Color.WHITE);
 		
 		
 		//End the current game, but don't close the program.
@@ -2276,16 +2267,6 @@ public class FXUIGameMaster extends Application {
 		});
 		saveMe.setDisable(true);
 		
-		Button restoreMe = new Button("load.");
-		restoreMe.setOnAction(new EventHandler<ActionEvent>(){
-			@Override public void handle(ActionEvent t){
-				if(workingMode == IDLE_MODE)
-				{
-					workingMode = LOADED_GAME_MODE;
-					createGameLogicThread();
-				}
-			}
-		});
 		
 		Button logPlayback = new Button("open log player.");
 		logPlayback.setOnAction(new EventHandler<ActionEvent>(){
@@ -2309,10 +2290,10 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		CheckBox doLogging = new CheckBox("Enable logging?\nnot set (yes)");
+		CheckBox doLogging = new CheckBox("Enable logging?\nauto (yes)");
 		doLogging.setTooltip(new Tooltip("YES: Always log (each game overwrites the log of the last game for normal games)\n"
 				+ "NO: Never log (whatever log file exists will remain untouched)\n"
-				+ "INDETERMINATE/NOT SET: Effectively YES, unless redefined elsewhere.\n"
+				+ "INDETERMINATE/AUTO: Effectively YES, unless redefined elsewhere.\n"
 				+ "For game simulations (when available): enabling (setting to YES) may result in a flood of logs!"));
 		doLogging.setTextFill(Color.ANTIQUEWHITE);
 		doLogging.setOnAction(new EventHandler<ActionEvent>(){
@@ -2321,7 +2302,7 @@ public class FXUIGameMaster extends Application {
 					//tell it to do whatever it wants by default
 					forceEnableLogging = false;
 					forceLoggingIsIndeterminate = true;
-					doLogging.setText("Enable logging?\nnot set (yes)");
+					doLogging.setText("Enable logging?\nauto (yes)");
 				}
 				else if(doLogging.isSelected()){
 					//tell it to enable logging
@@ -2351,26 +2332,18 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		//tweaks to perform if there was an error...
-		if(errorHasOccurred){
-			currentPlayStatus.setText("------");
-			startBtn.setDisable(true);
-			stopGameBtn.setDisable(true);
-		}
-		else{
-			pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
-				@Override public void handle(KeyEvent t){
-					if(workingMode == IDLE_MODE)
-					{
-						workingMode = FXUIGameMaster.NEW_GAME_MODE;
-						createGameLogicThread();
-					}
+		pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
+			@Override public void handle(KeyEvent t){
+				if(workingMode == IDLE_MODE)
+				{
+					workingMode = FXUIGameMaster.NEW_GAME_MODE;
+					createGameLogicThread();
 				}
-			});
-		}
+			}
+		});
 		
 		lowerButtonPanel.getChildren().addAll(tellMe, tellMe2);
-		primaryStatusButtonPanel.getChildren().addAll(currentPlayStatus,startBtn,
+		primaryStatusButtonPanel.getChildren().addAll(mainStatusTextElement,startBtn,
 								stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback);
 		//****layout of text & buttons displayed upon launch ends here.***
 		
@@ -2395,14 +2368,19 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		//Add buttons to a secondary cache, to allow easy enable/disable depending on state.
-		//***If you disable/remove any of these, update the ENUM table "ButtonIndex"!***
-		buttonCache.add(startBtn);
-		buttonCache.add(restoreMe);
-		buttonCache.add(saveMe);
-		buttonCache.add(flashCurrCountries);
-		buttonCache.add(doLogging);
-		buttonCache.add(logPlayback);
+		//Add buttons to an array, to allow easy enable/disable depending on state.
+		//Use the ENUM table "ButtonIndex" to access elements in the array -- and set the targeted capacity.***
+		buttonCache = new ArrayList<Node>(ButtonIndex.values().length);
+		for (int loopIdx = 0; loopIdx < ButtonIndex.values().length; ++loopIdx){
+			buttonCache.add(null); //necessary to actually create the slots in the array
+		}
+		//this presentation preferred to indicate importance of enumeration in ButtonIndex
+		//in alternative setups, you could merely do "buttonCache.add(element)" for each individual object.
+		buttonCache.set(ButtonIndex.BTN_START.ordinal(), startBtn);
+		buttonCache.set(ButtonIndex.BTN_SAVE.ordinal(), saveMe);
+		buttonCache.set(ButtonIndex.BTN_HIGHLIGHT.ordinal(), flashCurrCountries);
+		buttonCache.set(ButtonIndex.CKBX_LOGGING.ordinal(), doLogging);
+		buttonCache.set(ButtonIndex.BTN_LOG_PLAYBACK.ordinal(), logPlayback);
 		
 		//Get the primary window showin', already!
 		resize(primaryStage);
@@ -2523,7 +2501,7 @@ class About {
 		info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		if(About.firstLaunch){
 			dialog.setTitle("about(basic)");
-			info1.setText("\\(^.^\")/\n\nRISK!\nor the open-source way to\nCONQUER THE WO--err, have fun");
+			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\n\"risk\" it all. HA. (sorry.)");
 			info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
 		}
 		
