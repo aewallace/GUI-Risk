@@ -121,8 +121,9 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x06h\nStamp 2015.05.06, 18:22\nStability:Unstable(00)";
-	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)"; 
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x07h\nStamp 2015.05.17, 16:22\nStability:Alpha(01)";
+	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
+	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
 	private static String loadfrom_filename = DEFAULT_CHKPNT_FILE_NAME;
 	private static String saveto_filename = DEFAULT_CHKPNT_FILE_NAME;
@@ -2156,7 +2157,6 @@ public class FXUIGameMaster extends Application {
 	@Override
 	public void start(final Stage primaryStage) throws Exception {
 		final About nAbout = new About();
-		
 		double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() - 5;
 		double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() - 25;
 		System.out.println("(info)Width first set: " + widthOfPriScreen + " :: Height first set: " + heightOfPriScreen);
@@ -2170,11 +2170,22 @@ public class FXUIGameMaster extends Application {
 		//Facilitate checking for errors...
 		errorTextInitialContents = "currently";
 		
+		//Attempt to load the background image (the map). If fail, exit app.
 		ImageView backgroundImg = new ImageView();
-
-		Image imageOK = new Image("RiskBoard.jpg", true);
-		backgroundImg.setImage(imageOK);
-		pane.getChildren().add(backgroundImg);
+		try{
+			Image imageOK = new Image(expectedMapBackground, true);
+			backgroundImg.setImage(imageOK);
+			pane.getChildren().add(backgroundImg);
+		}
+		catch(Exception e){
+			errorTextInitialContents = ERROR+"Couldn't load background map image "+expectedMapBackground
+					+".\n(Maybe bad compilation?)\n If you compiled this, check the build source"
+					+ " for all required resources, mind any errors encountered while building,"
+					+ " and please attempt to rebuild from scratch. "
+					+ "\nElse, please report this error.\nDisabling application features...";
+			System.out.println(errorTextInitialContents);
+			fullAppExit = true;
+		}
 		
 		//populate the countries
 		loadTextNodesForUI("TextNodes.txt");
@@ -2215,7 +2226,7 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		//Button to initiate the game
+		//Button to actually start the game
 		Button startBtn = new Button("Let's go!!\n(Start/Load game)");
 		startBtn.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
@@ -2229,6 +2240,20 @@ public class FXUIGameMaster extends Application {
 			}
 			
 		});
+		
+		//Mirrors the functionality of the start button.
+		pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
+			@Override public void handle(KeyEvent t){
+				if(workingMode == IDLE_MODE)
+				{
+					int stateOut = displayGameSelector();
+					if(stateOut != IDLE_MODE){
+						createGameLogicThread();
+					}
+				}
+			}
+		});
+		
 		
 		//your standard About buttons...
 		Button tellMe = new Button("About");
@@ -2246,7 +2271,7 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		//Attempt to force a manual game save, when allowed
+		//Button allowing you to attempt to force a manual game save, when allowed
 		Button saveMe = new Button("save game as...");
 		saveMe.setTooltip(new Tooltip("Changes the location where your game is being auto-saved"
 				+ "\nAND IMMEDIATELY saves to that new location!"));
@@ -2267,7 +2292,7 @@ public class FXUIGameMaster extends Application {
 		});
 		saveMe.setDisable(true);
 		
-		
+		//Button to launch the logplayer (assuming a previous game has actually taken place)
 		Button logPlayback = new Button("open log player.");
 		logPlayback.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
@@ -2282,7 +2307,7 @@ public class FXUIGameMaster extends Application {
 		
 		
 		
-		//Exit the application entirely
+		//Button to exit the application entirely
 		Button exitApp = new Button("Lights out!\n(Exit to desktop)");
 		exitApp.setOnAction(new EventHandler<ActionEvent>(){
 			@Override public void handle(ActionEvent t){
@@ -2290,6 +2315,8 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
+		//Checkbox to allow you to set whether you want to have the log file created
+		//(Note: the logfile allows you to review the actions taken during the game)
 		CheckBox doLogging = new CheckBox("Enable logging?\nauto (yes)");
 		doLogging.setTooltip(new Tooltip("YES: Always log (each game overwrites the log of the last game for normal games)\n"
 				+ "NO: Never log (whatever log file exists will remain untouched)\n"
@@ -2332,22 +2359,23 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
-		pane.setOnKeyPressed(new EventHandler<KeyEvent>(){
-			@Override public void handle(KeyEvent t){
-				if(workingMode == IDLE_MODE)
-				{
-					workingMode = FXUIGameMaster.NEW_GAME_MODE;
-					createGameLogicThread();
-				}
-			}
-		});
 		
+		//****Add buttons to panel. Tweak these additions depending on whether there was an error
 		lowerButtonPanel.getChildren().addAll(tellMe, tellMe2);
-		primaryStatusButtonPanel.getChildren().addAll(mainStatusTextElement,startBtn,
-								stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback);
+		if(!fullAppExit){ //if we had no error
+			
+			primaryStatusButtonPanel.getChildren().addAll(mainStatusTextElement,startBtn,
+					stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback);
+			
+			pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
+		}
+		else{ //if we had an error
+			primaryStatusButtonPanel.getChildren().addAll(mainStatusTextElement,exitApp,
+					lowerButtonPanel);
+			pane.getChildren().addAll(primaryStatusButtonPanel);
+			pane.setOnKeyPressed(null);
+		}
 		//****layout of text & buttons displayed upon launch ends here.***
-		
-		pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
 		
 
 		// DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
