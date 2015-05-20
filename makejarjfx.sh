@@ -1,4 +1,5 @@
 #!/bin/bash
+JDKERR="(Did you add the JDK location to your \$PATH variables?)"
 
 #Depending on platform, this may be used to compile + run the JavaFX version of Risk.
 #If it doesn't work for your platform, it still gives you guidance on what needs to happen
@@ -18,6 +19,7 @@ rm -rf build
 
 #find all the source files in the project
 #and store them as a list in a text file
+echo "   Locating source files..."
 find . -name "*.java" > srcFiles.txt
 echo "   ..."
 
@@ -28,8 +30,14 @@ mkdir build
 #list of files found in srcFiles.txt
 #flags: "-g": required to generate debugging info due to obscure bug
 # introduced by using "final String" variables in source code at select spots.
-echo "   Locating source files..."
+echo "   Preparing source files for compilation..."
 javac -g -d build @srcFiles.txt
+if [ ! $? -eq 0 ]
+then
+	echo $JDKERR
+else
+	echo "   ...OK!"
+fi
 
 #create a manifest, in preparation for the creation of the final Jar.
 #This points to the class containing the main() method we desire.
@@ -49,6 +57,12 @@ cd build
 #includes additional resources such as the map & list of countries.
 echo "   Attempting to create runnable Jar..."
 jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg
+if [ ! $? -eq 0 ]
+then
+	echo $JDKERR
+else
+	echo "   ...OK!"
+fi
 
 #return to the main project folder, where the jar should exist
 cd ..
