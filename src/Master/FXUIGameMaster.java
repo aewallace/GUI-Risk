@@ -38,6 +38,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -59,6 +60,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseDragEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
@@ -121,7 +123,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x07h\nStamp 2015.05.17, 16:22\nStability:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x08h SDBDAY\nStamp 2015.05.25, 00:00\nStability:Alpha(01)";
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -166,6 +168,9 @@ public class FXUIGameMaster extends Application {
 	private HashMap<String, Text> textNodeMap;
 	private Map<String, Color> playerColorMap;
 	private static boolean fullAppExit = false;
+	
+	private static AtomicInteger countOfQueuedCallsToResize = new AtomicInteger(0);
+	private static AtomicBoolean lastResizeCallWasProgrammatic = new AtomicBoolean(false);
 	
 	//to handle recovering a prior session or help with launching a new game session
 	private static SavePoint savePoint = new SavePoint();
@@ -320,7 +325,7 @@ public class FXUIGameMaster extends Application {
 			{
 				yeah.setText("[continue]");
 				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
-				queryText.setText("thanks for playing!\n\n[this window will auto-close]");
+				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nhappy birthday <3\n\n[window will close soon]");
 				queryText.setFill(Color.WHEAT);
 				querySymbol.setText("zZz (u_u?) zZz");
 				querySymbol.setFill(Color.WHEAT);
@@ -2382,17 +2387,21 @@ public class FXUIGameMaster extends Application {
 		scene = new Scene(pane,widthOfPriScreen, heightOfPriScreen);
 		
 		
-		//one more tweak to perform if there was -no- error
+		//enable proper window resizing of a sort...
 		scene.widthProperty().addListener(new ChangeListener<Number>() {
 			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
 				//System.out.println("Width: " + newSceneWidth);
-				resize(null);
+				//resize(null);
+				boolean scaleUp = (oldSceneWidth.floatValue() < newSceneWidth.floatValue());
+				resize(primaryStage, false, scaleUp, false);
 			}
 		});
 		scene.heightProperty().addListener(new ChangeListener<Number>() {
 			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
 				//System.out.println("Height: " + newSceneHeight);
-				resize(null);
+				//resize(null);
+				boolean scaleUp = (oldSceneHeight.floatValue() < newSceneHeight.floatValue());
+				resize(primaryStage, false, scaleUp, true);
 			}
 		});
 		
@@ -2411,7 +2420,7 @@ public class FXUIGameMaster extends Application {
 		buttonCache.set(ButtonIndex.BTN_LOG_PLAYBACK.ordinal(), logPlayback);
 		
 		//Get the primary window showin', already!
-		resize(primaryStage);
+		resize(primaryStage, false, true, true);
 		primaryStage.setTitle("RISK!");
 		primaryStage.setScene(scene);
 		primaryStage.show();
@@ -2442,42 +2451,96 @@ public class FXUIGameMaster extends Application {
 	 * (Note: use of this method after launch does not snap the OS window bounds to the contents
 	 * of the window when the aspect ratio is different).
 	 * @param stageIn Stage object which represents the contents of the window to be resized.
+	 * @param initialLaunch "true" if this resize is triggered by the launch of the app, "false" otherwise.
+	 * @param scaleUp "true" if we increased window size (so scale up), "false" if we decreased a dimension (so scale down)
+	 * @param wasHeight "true" if it was the height property that was triggered, "false" if it was width.
 	 */
-	private void resize(Stage stageIn)
+	private void resize(Stage stageIn, boolean initialLaunch, boolean scaleUp, boolean wasHeight)
 	{
-		double currLiveRatio = scene.getWidth()/scene.getHeight();
+		countOfQueuedCallsToResize.addAndGet(1);
+		final double oldWidth = scene.getWidth();
+		final double oldHeight = scene.getHeight();
+		final long resizeCheckDelayMS = 700;
+		double currLiveRatio = oldWidth/oldHeight;
 		double targetRatio = (double)(DEFAULT_APP_WIDTH)/(double)(DEFAULT_APP_HEIGHT);
 		double newWidth = 0;
 		double newHeight = 0;
+		double scalePercentage = 1.0d;
+		final double bufferPixels = 2.0d;
+		AtomicBoolean didCalcHeightFromWidth = new AtomicBoolean(false);
+		
+		if(scaleUp){
+			//if scaleUp with height, keep the height property and set the width
+			if(wasHeight){
+				newHeight = oldHeight;
+				newWidth = oldHeight * targetRatio;
+				didCalcHeightFromWidth.set(false);
+			}
+			//else if the width, keep width and set the height
+			else if(!wasHeight){
+				newWidth = oldWidth;
+				newHeight = oldWidth / targetRatio; 
+				didCalcHeightFromWidth.set(true);
+			}
+		}
+		else if (!scaleUp){ //then scaleDown, which the current code works for with no issue.
+			//if scaleDown where original input/trigger was height, keep height and calculate new width
+			//if scaleDown where original input/trigger was width, keep width and calculate new height.
+			if (currLiveRatio <= targetRatio) //wider than high; limit by height
+			{
+				newWidth = oldWidth;
+				newHeight = oldWidth / targetRatio;
+				didCalcHeightFromWidth.set(true);
+			}
+			else if (currLiveRatio > targetRatio)//higher than wide; limit by width
+			{
+				newHeight = oldHeight;
+				newWidth = oldHeight * targetRatio;
+				didCalcHeightFromWidth.set(false);
+			}
+		}
 		
 		
-		if (currLiveRatio <= targetRatio) //wider than high; limit by height
-		{
-			newWidth = scene.getWidth();
-			newHeight = scene.getWidth() / targetRatio;
-			Scale scale = new Scale(newWidth/(DEFAULT_APP_WIDTH), newWidth/(DEFAULT_APP_WIDTH));
-			scale.setPivotX(0);
-			scale.setPivotY(0);
-			scene.getRoot().getTransforms().setAll(scale);
-			if(stageIn != null){
-				stageIn.setHeight(newHeight);
-			}
-
+		if(true == didCalcHeightFromWidth.get()){
+			scalePercentage = newWidth/(DEFAULT_APP_WIDTH);
 		}
-		else //higher than wide; limit by width
-		{
-			newHeight = scene.getHeight();
-			newWidth = scene.getHeight() * targetRatio;
-			Scale scale = new Scale(newHeight/(DEFAULT_APP_HEIGHT), newHeight/(DEFAULT_APP_HEIGHT));
-			scale.setPivotX(0);
-			scale.setPivotY(0);
-			scene.getRoot().getTransforms().setAll(scale);
-			if(stageIn != null){
-				stageIn.setWidth(newWidth);
-				
-			}
-			
+		else{
+			scalePercentage = newHeight/(DEFAULT_APP_HEIGHT);
 		}
+		
+		Scale scale = new Scale(scalePercentage, scalePercentage);
+		scale.setPivotX(0);
+		scale.setPivotY(0);
+		
+		
+		//wait and see if we are the resize call with the final say on how we snap the window dimensions.
+		if(stageIn != null){
+			final double newWidthCopy = newWidth+bufferPixels;
+			final double newHeightCopy = newHeight+bufferPixels;
+			new Thread(new Runnable()
+			{
+			@Override public void run(){
+				RiskUtils.sleep(resizeCheckDelayMS + (long)(countOfQueuedCallsToResize.get()*10));
+				if (0 == countOfQueuedCallsToResize.decrementAndGet()){
+					Platform.runLater(new Runnable(){
+					@Override public void run(){
+						scene.getRoot().getTransforms().setAll(scale);
+						if(!didCalcHeightFromWidth.get()){
+							stageIn.setWidth(newWidthCopy);
+							lastResizeCallWasProgrammatic.set(true);
+						}
+						else{
+							stageIn.setHeight(newHeightCopy);
+							lastResizeCallWasProgrammatic.set(true);
+						}
+					}
+					});
+				}
+			}
+			}).start();
+		}
+		
+		
 	}
 	
 	/**
@@ -2529,7 +2592,7 @@ class About {
 		info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		if(About.firstLaunch){
 			dialog.setTitle("about(basic)");
-			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\n\"risk\" it all. HA. (sorry.)");
+			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\nwish someone \"Happy Birthday!\"");
 			info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
 		}
 		

@@ -1,4 +1,5 @@
 #!/bin/bash
+#JavaFX RISK build-building script v1.1
 JDKERR="(Did you add the JDK location to your \$PATH variables?)"
 
 #Depending on platform, this may be used to compile + run the JavaFX version of Risk.
