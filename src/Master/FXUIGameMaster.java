@@ -123,7 +123,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x08h SDBDAY\nStamp 2015.05.25, 00:00\nStability:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x09h SDBDAY\nStamp 2015.05.25, 00:00\nStability:Alpha(01)";
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -2168,7 +2168,7 @@ public class FXUIGameMaster extends Application {
 		
 		pane = new Pane();
 		pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-		pane.setStyle("-fx-background-color: blue");
+		pane.setStyle("-fx-background-color: black");
 		/*We set the image in the pane based on whether there was an error or not.
 		* If there was an error, it'll be changed later.*/
 		
@@ -2466,7 +2466,7 @@ public class FXUIGameMaster extends Application {
 		double newWidth = 0;
 		double newHeight = 0;
 		double scalePercentage = 1.0d;
-		final double bufferPixels = 2.0d;
+		final double bufferPixels = 7.0d;
 		AtomicBoolean didCalcHeightFromWidth = new AtomicBoolean(false);
 		
 		if(scaleUp){
@@ -2525,13 +2525,17 @@ public class FXUIGameMaster extends Application {
 					Platform.runLater(new Runnable(){
 					@Override public void run(){
 						scene.getRoot().getTransforms().setAll(scale);
-						if(!didCalcHeightFromWidth.get()){
+						if(lastResizeCallWasProgrammatic.get()){
+							lastResizeCallWasProgrammatic.set(false);
+						}
+						else if(!didCalcHeightFromWidth.get()){
 							stageIn.setWidth(newWidthCopy);
 							lastResizeCallWasProgrammatic.set(true);
 						}
 						else{
 							stageIn.setHeight(newHeightCopy);
 							lastResizeCallWasProgrammatic.set(true);
+							
 						}
 					}
 					});

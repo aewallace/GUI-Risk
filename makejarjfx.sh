@@ -1,6 +1,6 @@
 #!/bin/bash
 #JavaFX RISK build-building script v1.1
-JDKERR="(Did you add the JDK location to your \$PATH variables?)"
+JDKERR="Did you add the JDK location to your \$PATH variables?\nsomething like...\nexport PATH=\$PATH:\"/cygdrive/C/Program Files/Java/jdk1.8.0_45/bin/\""
 
 #Depending on platform, this may be used to compile + run the JavaFX version of Risk.
 #If it doesn't work for your platform, it still gives you guidance on what needs to happen
@@ -35,7 +35,8 @@ echo "   Preparing source files for compilation..."
 javac -g -d build @srcFiles.txt
 if [ ! $? -eq 0 ]
 then
-	echo $JDKERR
+	printf "$JDKERR"
+	echo "   ...?"
 else
 	echo "   ...OK!"
 fi
@@ -60,9 +61,10 @@ echo "   Attempting to create runnable Jar..."
 jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg
 if [ ! $? -eq 0 ]
 then
-	echo $JDKERR
+	printf "$JDKERR"
+	echo "   ...?"
 else
-	echo "   ...OK!"
+	echo -e "   ...OK!"
 fi
 
 #return to the main project folder, where the jar should exist
