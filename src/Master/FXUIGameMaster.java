@@ -103,6 +103,7 @@ import Util.DiceRoller;
 import Util.FXUI_Crossbar;
 import Util.OSExitException;
 import Util.PlayerEliminatedException;
+import Util.WindowResizeHandler;
 import Util.RiskConstants;
 import Util.RiskUtils;
 import Util.RollOutcome;
@@ -125,16 +126,15 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Ah SDBDAY\nStamp 2015.05.25, 00:00\nStability:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Bh SDBDAY\nStamp 2015.05.30, 19:09\nStability:Alpha(01)"; // TODO: Seth's BDay
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
 	private static String loadfrom_filename = DEFAULT_CHKPNT_FILE_NAME;
 	private static String saveto_filename = DEFAULT_CHKPNT_FILE_NAME;
 	private static final long AUTO_CLOSE_TIMEOUT = 4500;
-	private static final int DEFAULT_APP_WIDTH = 1600;
-	private static final int DEFAULT_APP_HEIGHT = 1062;
-	private static final double TARGET_RATIO = (double)(DEFAULT_APP_WIDTH)/(double)(DEFAULT_APP_HEIGHT);
+	private static final int DEFAULT_CONTENT_WIDTH = 1600;
+	private static final int DEFAULT_CONTENT_HEIGHT = 1062;
 	public static final int DEFAULT_DIALOG_OFFSET = 300;
 	private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
 	private static int workingMode = IDLE_MODE;
@@ -172,10 +172,7 @@ public class FXUIGameMaster extends Application {
 	private Map<String, Color> playerColorMap;
 	private static boolean fullAppExit = false;
 	
-	private static AtomicInteger countOfQueuedCallsToResize = new AtomicInteger(0);
-	private static AtomicBoolean lastResizeCallWasProgrammatic = new AtomicBoolean(false);
-	private static AtomicBoolean resizeThreadIsActive = new AtomicBoolean(false);
-	private static AtomicInteger desiredResizeWidth = new AtomicInteger(0), desiredResizeHeight = new AtomicInteger(0);
+	private static WindowResizeHandler mainWindowResizeHandler = null;
 	
 	//to handle recovering a prior session or help with launching a new game session
 	private static SavePoint savePoint = new SavePoint();
@@ -330,7 +327,7 @@ public class FXUIGameMaster extends Application {
 			{
 				yeah.setText("[continue]");
 				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
-				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nhappy birthday <3\n\n[window will close soon]");
+				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nhappy birthday <3\n\n[window will close soon]"); // TODO: Seth's BDay
 				queryText.setFill(Color.WHEAT);
 				querySymbol.setText("zZz (u_u?) zZz");
 				querySymbol.setFill(Color.WHEAT);
@@ -552,12 +549,9 @@ public class FXUIGameMaster extends Application {
 			return;
 		}
 		else if (callerIsVisible != null){
-			final String originalAnimState = "G O O D B Y E       : D";
 			final ArrayList<String> messagesOut = new ArrayList<String>();
 			messagesOut.addAll(Arrays.asList("wait","no","don't leave","come back!","I LOVE YOU", "BE MY FRIEND", "...", "uh"));
 			final int discreteAnimSteps = 10 < (messagesOut.size()-1) ? 10 : (messagesOut.size()-1);
-			final int origStrLen = originalAnimState.length();
-			final int singleChunkLength = (int)Math.floor(origStrLen/discreteAnimSteps); 
 			new Thread(new Runnable()
 			{
 				@Override public void run(){
@@ -2168,13 +2162,14 @@ public class FXUIGameMaster extends Application {
 	*/
 	@Override
 	public void start(final Stage primaryStage) throws Exception {
+		System.out.println("Preparing window...");
 		final About nAbout = new About();
 		double widthOfPriScreen = Screen.getPrimary().getVisualBounds().getWidth() /*- 5*/;
 		double heightOfPriScreen = Screen.getPrimary().getVisualBounds().getHeight() /*- 25*/;
-		System.out.println(INFO+"Target window size:\nScreen Width detected: " + widthOfPriScreen + " :: Screen height detected: " + heightOfPriScreen);
+		WindowResizeHandler.diagnosticPrintln(INFO+"Target window size:\nScreen Width detected: " + widthOfPriScreen + " :: Screen height detected: " + heightOfPriScreen);
 		
 		pane = new Pane();
-		pane.setPrefSize(DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
+		pane.setPrefSize(widthOfPriScreen, heightOfPriScreen);
 		pane.setStyle("-fx-background-color: black");
 		/*We set the image in the pane based on whether there was an error or not.
 		* If there was an error, it'll be changed later.*/
@@ -2404,36 +2399,8 @@ public class FXUIGameMaster extends Application {
 		
 
 		//scene = new Scene(pane,widthOfPriScreen, heightOfPriScreen);
-		//scene = new Scene(pane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-		scene = new Scene(pane);
-		
-		//enable proper window resizing of a sort...
-		scene.widthProperty().addListener(new ChangeListener<Number>() {
-			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth) {
-				//System.out.println("Width: " + newSceneWidth);
-				//resize(null);
-				if(newSceneWidth.doubleValue() >= Screen.getPrimary().getBounds().getWidth()){
-					return;
-				}
-				boolean scaleUp = (oldSceneWidth.floatValue() < newSceneWidth.floatValue());
-				desiredResizeWidth.set(newSceneWidth.intValue());
-				//System.out.println(desiredResizeWidth.get() + "desiredResizeWidth");
-				resize(primaryStage, false, scaleUp, false, true);
-			}
-		});
-		scene.heightProperty().addListener(new ChangeListener<Number>() {
-			@Override public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight) {
-				//System.out.println("Height: " + newSceneHeight);
-				//resize(null);
-				if(newSceneHeight.doubleValue() >= Screen.getPrimary().getBounds().getWidth()){
-					return;
-				}
-				boolean scaleUp = (oldSceneHeight.floatValue() < newSceneHeight.floatValue());
-				desiredResizeHeight.set(newSceneHeight.intValue());
-				//System.out.println(desiredResizeHeight.get() + "desiredResizeHeight");
-				resize(primaryStage, false, scaleUp, true, true);
-			}
-		});
+		//scene = new Scene(pane, DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT, Color.BLACK);
+		scene = new Scene(pane, Color.BLACK);
 		
 		//Add buttons to an array, to allow easy enable/disable depending on state.
 		//Use the ENUM table "ButtonIndex" to access elements in the array -- and set the targeted capacity.***
@@ -2449,21 +2416,13 @@ public class FXUIGameMaster extends Application {
 		buttonCache.set(ButtonIndex.CKBX_LOGGING.ordinal(), doLogging);
 		buttonCache.set(ButtonIndex.BTN_LOG_PLAYBACK.ordinal(), logPlayback);
 		
-		//Get the primary window showin', already!
-		desiredResizeHeight.set((int)heightOfPriScreen);
-		desiredResizeWidth.set((int)widthOfPriScreen);
-		if(desiredResizeHeight.get() <= DEFAULT_APP_HEIGHT){
-			resize(primaryStage, false, false, true, true);
-		}
-		else if(desiredResizeWidth.get() <= DEFAULT_APP_WIDTH){
-			resize(primaryStage, false, false, false, true);
-		}
-		else{
-			resize(primaryStage, false, true, true, true);
-		}
+		//Get the primary window showin', already! (and set the initial size appropriately)
 		primaryStage.setTitle("RISK!");
 		primaryStage.setScene(scene);
+		
 		primaryStage.show();
+		
+		enableAutomaticResizingFunctionality(primaryStage);
 		
 		
 		//go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
@@ -2482,238 +2441,30 @@ public class FXUIGameMaster extends Application {
 				tryToExit(primaryStage);
 			}
 		});
+		
+		System.out.println("RISK is ready.\n" + FXUIGameMaster.versionInfo);
 	}
 	
-	/**
-	 * Used to assist in resizing of the primary window at launch as well as after launch.
-	 * Attempts to keep the proper aspect ratio of the contents of the main window.
-	 * Has no effect on secondary dialogs.
-	 * (Note: use of this method after launch does not snap the OS window bounds to the contents
-	 * of the window when the aspect ratio is different).
-	 * @param stageIn Stage object which represents the contents of the window to be resized.
-	 * @param initialLaunch "true" if this resize is triggered by the launch of the app, "false" otherwise.
-	 * @param scaleUp "true" if we increased window size (so scale up), "false" if we decreased a dimension (so scale down)
-	 * @param wasHeight "true" if it was the height property that was triggered, "false" if it was width.
-	 * @deprecated use {@link #resize(Stage, boolean, boolean, boolean, boolean)} instead.
-	 */
-	@SuppressWarnings("unused")
-	@Deprecated
-	private void resize(Stage stageIn, boolean initialLaunch, boolean scaleUp, boolean wasHeight)
-	{
-		countOfQueuedCallsToResize.addAndGet(1);
-		final double oldWidth = scene.getWidth();
-		final double oldHeight = scene.getHeight();
-		final long resizeCheckDelayMS = 700;
-		double currLiveRatio = oldWidth/oldHeight;
-		double TARGET_RATIO = (double)(DEFAULT_APP_WIDTH)/(double)(DEFAULT_APP_HEIGHT);
-		double newWidth = 0;
-		double newHeight = 0;
-		double scalePercentage = 1.0d;
-		final double bufferPixels = 7.0d;
-		AtomicBoolean didCalcHeightFromWidth = new AtomicBoolean(false);
-		
-		if(scaleUp){
-			//if scaleUp with height, keep the height property and set the width
-			if(wasHeight){
-				newHeight = oldHeight;
-				newWidth = oldHeight * TARGET_RATIO;
-				didCalcHeightFromWidth.set(false);
-			}
-			//else if the width, keep width and set the height
-			else if(!wasHeight){
-				newWidth = oldWidth;
-				newHeight = oldWidth / TARGET_RATIO; 
-				didCalcHeightFromWidth.set(true);
-			}
-		}
-		else if (!scaleUp){ //then scaleDown, which the current code works for with no issue.
-			//if scaleDown where original input/trigger was height, keep height and calculate new width
-			//if scaleDown where original input/trigger was width, keep width and calculate new height.
-			if (currLiveRatio <= TARGET_RATIO) //wider than high; limit by height
-			{
-				newWidth = oldWidth;
-				newHeight = oldWidth / TARGET_RATIO;
-				didCalcHeightFromWidth.set(true);
-			}
-			else if (currLiveRatio > TARGET_RATIO)//higher than wide; limit by width
-			{
-				newHeight = oldHeight;
-				newWidth = oldHeight * TARGET_RATIO;
-				didCalcHeightFromWidth.set(false);
-			}
-		}
-		
-		
-		if(true == didCalcHeightFromWidth.get()){
-			scalePercentage = newWidth/(DEFAULT_APP_WIDTH);
-		}
-		else{
-			scalePercentage = newHeight/(DEFAULT_APP_HEIGHT);
-		}
-		
-		Scale scale = new Scale(scalePercentage, scalePercentage);
-		scale.setPivotX(0);
-		scale.setPivotY(0);
-		
-		
-		//wait and see if we are the resize call with the final say on how we snap the window dimensions.
-		if(stageIn != null){
-			final double newWidthCopy = newWidth+bufferPixels;
-			final double newHeightCopy = newHeight+bufferPixels;
-			new Thread(new Runnable()
-			{
-			@Override public void run(){
-				RiskUtils.sleep(resizeCheckDelayMS + (long)(countOfQueuedCallsToResize.get()*10));
-				if (0 == countOfQueuedCallsToResize.decrementAndGet()){
-					Platform.runLater(new Runnable(){
-					@Override public void run(){
-						scene.getRoot().getTransforms().setAll(scale);
-						if(lastResizeCallWasProgrammatic.get()){
-							lastResizeCallWasProgrammatic.set(false);
-						}
-						else if(!didCalcHeightFromWidth.get()){
-							stageIn.setWidth(newWidthCopy);
-							lastResizeCallWasProgrammatic.set(true);
-						}
-						else{
-							stageIn.setHeight(newHeightCopy);
-							lastResizeCallWasProgrammatic.set(true);
-							
-						}
-					}
-					});
-				}
-			}
-			}).start();
-		}
-	}
-	
-	/**
-	 * Used to assist in resizing of the primary window at launch as well as after launch.
-	 * Attempts to keep the proper aspect ratio of the contents of the main window.
-	 * Has no effect on secondary dialogs.
-	 * (Note: use of this method after launch does not snap the OS window bounds to the contents
-	 * of the window when the aspect ratio is different).
-	 * @param stageIn Stage object which represents the contents of the window to be resized.
-	 * @param initialLaunch "true" if this resize is triggered by the launch of the app, "false" otherwise.
-	 * @param scaleUp "true" if we increased window size (so scale up), "false" if we decreased a dimension (so scale down)
-	 * @param wasHeight "true" if it was the height property that was triggered, "false" if it was width.
-	 * @param tryWait "true" if the method should allow any delay to do the resize (strongly encouraged in this project!), "false" if should be immediate resize
-	 */
-	private void resize(Stage stageIn, boolean initialLaunch, boolean scaleUp, boolean wasHeight, boolean tryWait){
-		countOfQueuedCallsToResize.incrementAndGet();
-		if(resizeThreadIsActive.get()){
-			//System.out.println("not making resize thread... (thread already active)");
-			return;
-		}
-		else if (stageIn == null){
-			//System.out.println("skipping resize thread...(no stageIn)");
-			return;
-		}
-		else{
-			//System.out.println("making new resize thread.");
-			new Thread(new Runnable()
-			{
-			@Override public void run(){
-				resizeHelper(stageIn, initialLaunch, scaleUp, wasHeight, tryWait);
-			}
-			}).start();
-		}
-	}
-	
-	private void resizeHelper(Stage stageIn, boolean initialLaunch, boolean scaleUp, boolean wasHeight, boolean tryWait){
-		//System.out.println("Enter resize thread...");
-		resizeThreadIsActive.set(true);
-		long sleepTimeMS = 250;
-		int timesToCheck = 5;
-		AtomicBoolean skipResizeJustScale = new AtomicBoolean(false);
-		do{
-			if(countOfQueuedCallsToResize.get() > 0){
-				while(countOfQueuedCallsToResize.get() > 0){
-					if(tryWait){
-						RiskUtils.sleep(sleepTimeMS);
-					}
-					countOfQueuedCallsToResize.decrementAndGet();
-				}
-				//System.out.println("Target aspect ratio: " + TARGET_RATIO);
-				double newWidth = 0;
-				double newHeight = 0;
-				double scalePercentageWidth = 1.0d;
-				double scalePercentageHeight = 1.0d;
-				final double bufferPixels = 10.0d;
-				AtomicBoolean didCalcHeightFromWidth = new AtomicBoolean(false);
-				double maximumDistanceBetweenAspectRatios = 0.05d;
-				
-				//if scaleUp with height, keep the height property and set the width
-				if(wasHeight){
-					newHeight = desiredResizeHeight.doubleValue();
-					//System.out.println("desiredResizeHeight.doubleValue" + desiredResizeHeight.doubleValue());
-					newWidth = desiredResizeHeight.doubleValue() * TARGET_RATIO;
-					didCalcHeightFromWidth.set(false);
-					//scalePercentageWidth = newHeight/(DEFAULT_APP_HEIGHT);
-					//scalePercentageHeight = newHeight/(DEFAULT_APP_HEIGHT);
-				}
-				//else if the width, keep width and set the height
-				else if(!wasHeight){
-					newWidth = desiredResizeWidth.doubleValue();
-					//System.out.println("desiredResizeWidth.doubleValue" + desiredResizeWidth.doubleValue());
-					newHeight = desiredResizeWidth.doubleValue() / TARGET_RATIO; 
-					didCalcHeightFromWidth.set(true);
-					//scalePercentageWidth = (newWidth + bufferPixels)/(DEFAULT_APP_WIDTH);
-					//scalePercentageHeight = (newWidth + bufferPixels)/(DEFAULT_APP_WIDTH);
-				}
-				else{
-					//System.out.println("How did you get here? Nobody's s'pose to be here.");
-				}
-				
-				/*System.out.println("Compare stageW " + stageIn.getWidth() 
-						+ " vs sceneW " + scene.getWidth() + ", stageH " + stageIn.getHeight()
-						+ " vs sceneH " + scene.getHeight() + "...");*/
-				
-				//if((stageIn.getHeight() != 0) && (Math.abs(TARGET_RATIO - (double)(stageIn.getWidth()/stageIn.getHeight())) <=  maximumDistanceBetweenAspectRatios))
-				if((scene.getHeight() != 0) && (Math.abs(TARGET_RATIO - (double)(scene.getWidth()/scene.getHeight())) <=  maximumDistanceBetweenAspectRatios))
-				{
-					//System.out.println("Math.abs skip");
-					skipResizeJustScale.set(true);
-					//scalePercentageWidth = (newWidth + bufferPixels)/(stageIn.getWidth());
-					//scalePercentageHeight = newHeight/(stageIn.getHeight());
-				}
-				else{
-					skipResizeJustScale.set(false);
-					//scalePercentageWidth = (newWidth + bufferPixels)/(DEFAULT_APP_WIDTH);
-					//scalePercentageHeight = newHeight/(DEFAULT_APP_HEIGHT);
-				}
-				scalePercentageWidth = (newWidth + bufferPixels)/(DEFAULT_APP_WIDTH);
-				scalePercentageHeight = newHeight/(DEFAULT_APP_HEIGHT);
-				//System.out.println("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
-				Scale scale = new Scale(scalePercentageWidth, scalePercentageHeight);
-				
-				final double newWidthCopy = newWidth+bufferPixels;
-				final double newHeightCopy = newHeight+bufferPixels;
-				
-				Platform.runLater(new Runnable(){
-					@Override public void run(){
-						//System.out.println("Scaling...");
-						scene.getRoot().getTransforms().setAll(scale);
-						if(!skipResizeJustScale.get()){
-							if(wasHeight){
-								stageIn.setWidth(newWidthCopy);
-								lastResizeCallWasProgrammatic.set(true);
-							}
-							else{
-								stageIn.setHeight(newHeightCopy);
-								lastResizeCallWasProgrammatic.set(true);
-								
-							}
-						}
-					}
-				});
-			}
-			timesToCheck--;
-		}
-		while(timesToCheck > 0);
-		resizeThreadIsActive.set(false);
-		//System.out.println("Exit resize thread.");
+	private void enableAutomaticResizingFunctionality(Stage stageIn){
+		/*GET INFORMATION NECESSARY FOR WINDOW RESIZING...
+		...which means get the height of the window decoration.
+		Otherwise, a border happens.*/
+		Stage testStage = new Stage();
+		Pane testPane = new Pane();
+		testPane.setMaxSize(0,0);
+		Scene testScene = new Scene(testPane, 1,1);
+		testStage.setScene(testScene);
+		testStage.show();
+		WindowResizeHandler.diagnosticPrintln("TestStage size:" + testStage.getWidth() + ":::" + testStage.getHeight());
+		WindowResizeHandler.diagnosticPrintln("TestScene height:: " + testScene.getHeight());
+		double windowDecorationHeight = (double)testStage.getHeight() - (double)testScene.getHeight();
+		testStage.close();
+		testScene = null;
+		testPane = null;
+		testStage = null;
+		/*End part where we get extra window size information*/
+		FXUIGameMaster.mainWindowResizeHandler = new WindowResizeHandler(stageIn, (double)DEFAULT_CONTENT_WIDTH/DEFAULT_CONTENT_HEIGHT, 0, windowDecorationHeight, DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+		FXUIGameMaster.mainWindowResizeHandler.setCallerAsValid();
 	}
 	
 	/**
@@ -2765,7 +2516,7 @@ class About {
 		info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		if(About.firstLaunch){
 			dialog.setTitle("about(basic)");
-			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\nwish someone \"Happy Birthday!\"");
+			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\nwish someone \"Happy Birthday!\""); // TODO: Seth's BDay
 			info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
 		}
 		
