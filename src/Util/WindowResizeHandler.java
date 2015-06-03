@@ -21,7 +21,7 @@ import javafx.stage.Stage;
 public class WindowResizeHandler {
 	/*Convenient class-level variables.*/
 	private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
-	private static final boolean diagnosticModeEnabled = false;
+	private static final boolean diagnosticModeEnabled = true;
 	private Stage activeStage = null;
 	private Scene activeScene = null;
 	private double desiredAspectRatio = 0.0;
@@ -33,7 +33,7 @@ public class WindowResizeHandler {
 	private AtomicBoolean resizeThreadIsActive = new AtomicBoolean(false);
 	private double widthHistory = 0.0,  heightHistory = 0.0;
 	private double idealContentWidth = 0, idealContentHeight = 0;
-	private boolean callerIsFine = false;
+	private boolean assumeCallerIsActive = false;
 	
 	
 	/**
@@ -99,6 +99,7 @@ public class WindowResizeHandler {
 			if((this.activeScene = desiredStage.getScene()) == null){
 				throw new UnsupportedOperationException("Couldn't get scene from stage (attempt to setup resize capability failed).");
 			}
+			setCallerActive();
 			this.desiredAspectRatio = aspectRatio;
 			this.windowDecorationHeight = windowDecorationHeight;
 			storeIdealContentDimensions(1,1,contentWidth, contentHeight);
@@ -108,12 +109,45 @@ public class WindowResizeHandler {
 	}
 	
 	/**
-	 * Used to be sure that the caller which created this window completed its window creation successfully.
-	 * @return
+	 * Alerts this WindowResize object that we can expect the window (Stage) to be active/open/non-null, allowing auto-resizing.
+	 * This is only a hint; internal checks are used to verify that the window/Stage is still active, to avoid major catastrophe.
+	 * Pair with with {@link #setCallerInactive()} to enable/disable automatic resizing for this object on-the-fly.
+	 * @return state of the associated internal check, which should be "true" after calling this function.
 	 */
-	public boolean setCallerAsValid(){
-		return this.callerIsFine = true;
+	public boolean setCallerActive(){
+		return this.assumeCallerIsActive = true;
 	}
+	
+	/**
+	 * Alerts this WindowResize object that we can expect the window (Stage) to be inactive/hidden/closed/null, blocking auto-resizing.\n
+	 * The associated flag indicating "active" or "inactive" will be ignored if the associated window/Stage has become inactive, so you are not
+	 * required to explicitly called this function. However, this flag (when set as "inactive" after calling this function) will block any attempts 
+	 * to make use of this WindowResize object until the flag is cleared/set back to "active" with {@link #setCallerActive()}, should
+	 * such utility prove useful (e.g., should you want to block & unblock automatic resizing at a certain point of the project flow,
+	 * or if we are shutting down the program and want to avoid any further resource usage).
+	 * @return state of the associated internal check, which should be "false" after calling this function.
+	 */
+	public boolean setCallerInactive(){
+		return this.assumeCallerIsActive = false;
+	}
+	
+	/**
+	 * Forces a check of the internal window object state.
+	 * Should the associated Stage or Scene (window and its contents) be null/inactive, tells this object that the caller is "inactive"--
+	 * i.e., automatically blocks any further attempts at auto-resizing until either (a) the WindowResize object is refreshed
+	 *  or (b) this object is removed from memory.
+	 * @return "true" if the window object is relatively safe to operative on, "false" otherwise.
+	 */
+	private boolean getWindowObjectState(){
+		if (this.activeScene == null || this.activeStage == null){
+			diagnosticPrintln("There was either a faulty stage or faulty scene submitted for resizing. Please be wary...");
+			return setCallerInactive();
+		}
+		else{
+			return this.assumeCallerIsActive;
+		}
+	}
+	
 	
 	/**
 	 * Verifies that the caller method is being run on a JavaFX thread.
@@ -137,6 +171,10 @@ public class WindowResizeHandler {
 	 * @param minHeight the minimum height allowed for the content.
 	 */
 	private void storeIdealContentDimensions(double minWidth, double minHeight, double idealWidth, double idealHeight){
+		if(!getWindowObjectState()){
+			return;
+		}
+		
 		//if we have some invalid input, we must do some calculation...
 		if (idealWidth < minWidth || idealHeight < minHeight){
 			diagnosticPrintln("Detecting ideal window size..." + idealWidth + " <<W ::: H>> " + idealHeight);
@@ -171,6 +209,10 @@ public class WindowResizeHandler {
 	 * Makes use of the ideal dimensions. NOT FOR USE IN FULLSCREEN.
 	 */
 	private void fitToScreen(){
+		checkIfOnJFXThread();
+		if(!getWindowObjectState()){
+			return;
+		}
 		diagnosticPrintln("Determining optimal window dimensions.");
 		double maxWidth = Screen.getPrimary().getVisualBounds().getWidth();
 		double maxHeight = Screen.getPrimary().getVisualBounds().getHeight();
@@ -262,6 +304,7 @@ public class WindowResizeHandler {
 			diagnosticPrintln("Resizing listeners already off!");
 			return;
 		}
+		
 		diagnosticPrintln("Resizing listeners: OFF!");
 		checkIfOnJFXThread();
 		this.resizeBlocked.set(true);
@@ -298,16 +341,18 @@ public class WindowResizeHandler {
 	
 	private void resizeHelper(int triggerType){
 		diagnosticPrintln("Initial resizeHelper call stats (W:H:windowDecorationHeight): " + this.widthHistory + ":::" + this.heightHistory + ":::" + this.windowDecorationHeight);
-		if(this.activeStage == null || this.activeScene == null)
-		{
-			diagnosticPrintln("There was either a faulty stage or faulty scene submitted for resizing. Please be wary...");
+		if(!getWindowObjectState()){
+			return;
 		}
+		
+		long waitTime = 200;
+		
 		do{
 			diagnosticPrintln("Waiting for user to stop altering dimensions.");
-			RiskUtils.sleep(400);
+			RiskUtils.sleep(2*waitTime);
 			this.widthHistory = this.activeStage.getWidth();
 			this.heightHistory = this.activeStage.getHeight();
-			RiskUtils.sleep(400);
+			RiskUtils.sleep(2*waitTime);
 		}
 		while(this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
 		
@@ -357,9 +402,16 @@ public class WindowResizeHandler {
 		final double newHeightCopy = newContentHeight;
 		final double attemptedAspectRatio = newContentWidth/newContentHeight;
 		
+		//If we attempted to resize our content to a dimension beyond the screen's bounds, we just snap back to the max dimensions available.
 		if ((newWidthCopy > Screen.getPrimary().getVisualBounds().getWidth() || newHeightCopy > Screen.getPrimary().getVisualBounds().getHeight()) 
-				&& !activeStage.isFullScreen()){
-			fitToScreen();
+				&& !activeStage.isFullScreen())
+		{
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					diagnosticPrintln("Choosing the \"fitToScreen\" path.");
+					fitToScreen();
+				}
+			});
 		}
 		else{
 			/*Perform the actual changes using the JavaFX thread. At a bare minimum, content scaling is performed.*/
@@ -368,33 +420,44 @@ public class WindowResizeHandler {
 					diagnosticPrintln("Target scene height  ::: target scene width");
 					diagnosticPrintln(newHeightCopy + ";;;" + newWidthCopy);
 					//activeStage.sizeToScene();
-					diagnosticPrintln("Can this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
-					activeStage.setWidth(newWidthCopy+windowDecorationWidth);
-					activeStage.setHeight(newHeightCopy+windowDecorationHeight);
+					diagnosticPrintln("Attempting to scale.\nCan this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
 					activeScene.getRoot().getTransforms().setAll(scale);
-					diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double)(activeScene.getWidth()/activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
-					diagnosticPrintln("new2!!! ...effective dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: "+ activeScene.getHeight());
 					stillRunningResize.set(false);
 				}
 			});
 			
 			do{
-				RiskUtils.sleep(1000);
-				diagnosticPrintln("Waiting at EXIT for resize to finish.");
+				RiskUtils.sleep(waitTime);
+				diagnosticPrintln("Pausing for SCALE to finish.");
 			}
 			while(stillRunningResize.get() == true);
-				
-			/*Indicate that the thread to resize the window is no longer active.
-				The app allows the thread to terminate to avoid permanent excess resource usage...in this case, at least.
-				Any further use should re-fire the thread elsewhere.*/
+			
+			/*Now resize the window to fit the new scaling
+			 * ...yes, we must make this thread wait on other actions to complete. Again.*/
+			stillRunningResize.set(true);
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					activeStage.setWidth(newWidthCopy+windowDecorationWidth);
 					activeStage.setHeight(newHeightCopy+windowDecorationHeight);
+					diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double)(activeScene.getWidth()/activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
+					diagnosticPrintln("new2!!! ...effective dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: "+ activeScene.getHeight());
+					stillRunningResize.set(false);
+				}
+			});
+			do{
+				RiskUtils.sleep(waitTime);
+				diagnosticPrintln("Waiting at EXIT for RESIZE to finish.");
+			}
+			while(stillRunningResize.get() == true);
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
 					attachResizeListeners();
 				}
 			});
 		}
+		/*	Indicate that the thread to resize the window is no longer active.
+		*	The app allows the thread to terminate to avoid permanent excess resource usage...in this case, at least.
+		*	Any further use should re-fire the thread elsewhere.*/
 		resizeThreadIsActive.set(false);
 		diagnosticPrintln("Exit resize thread.");
 	}
