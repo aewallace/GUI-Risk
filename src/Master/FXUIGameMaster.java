@@ -126,7 +126,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Bh SDBDAY\nStamp 2015.05.30, 19:09\nStability:Alpha(01)"; // TODO: Seth's BDay
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Ch IWATA\nStamp 2015.07.12, 21:30\nStability:Alpha(01)"; //TODO: Iwata memorial removal
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -199,7 +199,7 @@ public class FXUIGameMaster extends Application {
 	* and it's from a dialog window, handle the call by...asking if we really want to exit.
 	*/
 	public static int doYouWantToMakeAnExit(boolean shutAppDownOnAccept, int currentAttempts){
-		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+		AtomicBoolean dialogIsShowing = new AtomicBoolean(true); //represents the EXIT dialog; true: the code displaying the dialog is still running, false otherwise.
 		AtomicBoolean allowAppToExit = new AtomicBoolean(false);
 		if(!FXUIGameMaster.skipExitConfirmation && Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
 			exitDialogHelper(shutAppDownOnAccept || FXUIGameMaster.fullAppExit, true, allowAppToExit, dialogIsShowing);
@@ -327,7 +327,7 @@ public class FXUIGameMaster extends Application {
 			{
 				yeah.setText("[continue]");
 				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
-				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nhappy birthday <3\n\n[window will close soon]"); // TODO: Seth's BDay
+				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nRest well, satoru IWATA\n\n[window will close soon]"); //TODO: iwata memorial removal (added in 1xC)
 				queryText.setFill(Color.WHEAT);
 				querySymbol.setText("zZz (u_u?) zZz");
 				querySymbol.setFill(Color.WHEAT);
@@ -363,15 +363,31 @@ public class FXUIGameMaster extends Application {
 	
 	/**
 	 * Allow the player to decide if they want to start a new game, or launch an old game.
-	 * MUST BE RUN ON JAVAFX THREAD.
-	 * @param shutAppDownOnAccept
-	 * @param fxThread
+	 * SHOULD NOT BE RUN ON JAVAFX THREAD
+	 * Will automatically return (-1) if not on the JavaFX thread, or if the game is not idle (if working mode doesn't equal idle)
 	 */
 	private int displayGameSelector()
 	{
-		if (!Platform.isFxApplicationThread() || FXUIGameMaster.workingMode != IDLE_MODE){
+		if (Platform.isFxApplicationThread() || FXUIGameMaster.workingMode != IDLE_MODE){
 			return -1;
 		}
+		AtomicBoolean gameSelectorIsShowing = new AtomicBoolean(true);
+		Platform.runLater(new Runnable(){
+			@Override public void run(){
+				gameSelectorHelper(gameSelectorIsShowing);
+			}
+		});
+		
+		do{
+			RiskUtils.sleep(100);
+		}
+		while(gameSelectorIsShowing.get());
+		FXUIGameMaster.crossbar.setCurrentPlayerDialog(null);
+
+		return FXUIGameMaster.workingMode;
+	}
+	
+	private void gameSelectorHelper(AtomicBoolean gameSelectorIsShowing){
 		Window owner = pane.getScene().getWindow();
 		final Stage dialog = new Stage();
 		dialog.setTitle("new? restore?");
@@ -520,11 +536,33 @@ public class FXUIGameMaster extends Application {
 		
 		dialog.setScene(new Scene(miniPane));
 		
-		FXUIGameMaster.crossbar.setCurrentPlayerDialog(dialog);
-		dialog.showAndWait();
-		FXUIGameMaster.crossbar.setCurrentPlayerDialog(null);
+		/*Alter the boolean indicating whether the window is showing; without this, the logic will not continue
+		 * if the caller method depends on said atomic boolean to determine when to wait versus when to continue.
+		 */
+		dialog.setOnHiding(new EventHandler<WindowEvent>(){
+			@Override
+			public void handle(WindowEvent event) {
+				gameSelectorIsShowing.set(false);
+				
+			}
+		});
+		dialog.setOnShowing(new EventHandler<WindowEvent>(){
+			@Override
+			public void handle(WindowEvent event) {
+				gameSelectorIsShowing.set(true);
+				
+			}
+		});
 		
-		return FXUIGameMaster.workingMode;
+		/*Tell the crossbar what the current dialog is
+		 * (we are indeed treating it as a human player dialog, for the sake of consistency)
+		 */
+		FXUIGameMaster.crossbar.setCurrentPlayerDialog(dialog);
+		dialog.show();
+		/*
+		 *Don't forget to set the crossbar variable back to NULL when you are done! You can't safely do it here. 
+		 */
+		
 	}
 	
 	/**
@@ -533,45 +571,60 @@ public class FXUIGameMaster extends Application {
 	 * @param dialog the dialog window to be closed (which permits the logic to end)
 	 */
 	public static void deathKnell(Stage dialog, Text animatedRegion, AtomicBoolean callerIsVisible){
-		if(dialog == null){return;}
-		else if(animatedRegion == null){
-			new Thread(new Runnable()
-			{
-				@Override public void run(){
-					RiskUtils.sleep(AUTO_CLOSE_TIMEOUT);
-					Platform.runLater(new Runnable(){
-						@Override public void run(){
-							dialog.close();
-						}
-					});
-				}
-			}).start();
-			return;
-		}
-		else if (callerIsVisible != null){
-			final ArrayList<String> messagesOut = new ArrayList<String>();
-			messagesOut.addAll(Arrays.asList("wait","no","don't leave","come back!","I LOVE YOU", "BE MY FRIEND", "...", "uh"));
-			final int discreteAnimSteps = 10 < (messagesOut.size()-1) ? 10 : (messagesOut.size()-1);
-			new Thread(new Runnable()
-			{
-				@Override public void run(){
-					for (int i = discreteAnimSteps; i > -1 && callerIsVisible.get(); --i){
-						final int iKeep = i;
+		try{
+			if(dialog == null){
+				System.out.println(INFO + "dtkn: \"dialog\" reported as null. window will not automatically close");
+				return;
+			}
+			else if(animatedRegion == null){
+				new Thread(new Runnable()
+				{
+					@Override public void run(){
+						RiskUtils.sleep(AUTO_CLOSE_TIMEOUT);
 						Platform.runLater(new Runnable(){
 							@Override public void run(){
-								String output = messagesOut.get(iKeep);
-								animatedRegion.setText(output);
+								dialog.close();
 							}
 						});
-						RiskUtils.sleep((long)AUTO_CLOSE_TIMEOUT/discreteAnimSteps);
 					}
-					Platform.runLater(new Runnable(){
-						@Override public void run(){
-							dialog.close();
+				}).start();
+				return;
+			}
+			else if (callerIsVisible != null){
+				final ArrayList<String> messagesOut = new ArrayList<String>();
+				messagesOut.addAll(Arrays.asList("wait","no","don't leave","come back!","I LOVE YOU", "BE MY FRIEND", "...", "uh"));
+				final int discreteAnimSteps = 10 < (messagesOut.size()-1) ? 10 : (messagesOut.size()-1);
+				new Thread(new Runnable()
+				{
+					@Override public void run(){
+						if(!callerIsVisible.get()){
+							System.out.println(WARN + "dtkn: \"callerIsVisible\" reported as false. state of window should have been verified; issues may occur.");
 						}
-					});
-				}
-			}).start();
+						for (int i = discreteAnimSteps; i > -1 && callerIsVisible.get(); --i){
+							final int iKeep = i;
+							Platform.runLater(new Runnable(){
+								@Override public void run(){
+									String output = messagesOut.get(iKeep);
+									animatedRegion.setText(output);
+								}
+							});
+							RiskUtils.sleep((long)AUTO_CLOSE_TIMEOUT/discreteAnimSteps);
+						}
+						Platform.runLater(new Runnable(){
+							@Override public void run(){
+								dialog.close();
+							}
+						});
+					}
+				}).start();
+			}
+			else{
+				System.out.println(WARN + "dtkn: Conditions are not correct for dtkn to run, yet the call was made. No auto-closing will occur.");
+			}
+		}
+		catch(Exception e)
+		{
+			System.out.println(e.getStackTrace());
 		}
 	}
 	
@@ -1823,8 +1876,12 @@ public class FXUIGameMaster extends Application {
 		Runnable gameCode = new Runnable()
 		{
 			@Override public void run(){
-				runGameAndDisplayVictor();
-				priGameLogicThread = null;
+				int stateOut = displayGameSelector();
+				if(stateOut != IDLE_MODE){
+					createGameLogicThread();
+					runGameAndDisplayVictor();
+				}
+				FXUIGameMaster.priGameLogicThread = null;
 			}
 		};
 		Thread gameThread = new Thread(gameCode);
@@ -2254,10 +2311,7 @@ public class FXUIGameMaster extends Application {
 			@Override public void handle(ActionEvent t){
 				if(workingMode == IDLE_MODE)
 				{
-					int stateOut = displayGameSelector();
-					if(stateOut != IDLE_MODE){
-						createGameLogicThread();
-					}
+					createGameLogicThread();
 				}
 			}
 			
@@ -2268,10 +2322,7 @@ public class FXUIGameMaster extends Application {
 			@Override public void handle(KeyEvent t){
 				if(workingMode == IDLE_MODE)
 				{
-					int stateOut = displayGameSelector();
-					if(stateOut != IDLE_MODE){
-						createGameLogicThread();
-					}
+					createGameLogicThread();
 				}
 			}
 		});
@@ -2464,7 +2515,7 @@ public class FXUIGameMaster extends Application {
 		testStage = null;
 		/*End part where we get extra window size information*/
 		FXUIGameMaster.mainWindowResizeHandler = new WindowResizeHandler(stageIn, (double)DEFAULT_CONTENT_WIDTH/DEFAULT_CONTENT_HEIGHT, 0, windowDecorationHeight, DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
-		FXUIGameMaster.mainWindowResizeHandler.setCallerAsValid();
+		FXUIGameMaster.mainWindowResizeHandler.setCallerActive();
 	}
 	
 	/**
@@ -2475,6 +2526,7 @@ public class FXUIGameMaster extends Application {
 	 */
 	private void tryToExit(Stage primaryStage){
 		FXUIGameMaster.fullAppExit = true;
+		FXUIGameMaster.mainWindowResizeHandler.setCallerInactive();
 		crossbar.signalHumanEndingGame();
 		crossbar.tryCloseCurrentPlayerDialog();
 		FXUIGameMaster.endGame = true;
@@ -2516,7 +2568,7 @@ class About {
 		info2.setFont(Font.font("Arial", FontWeight.THIN, 12));
 		if(About.firstLaunch){
 			dialog.setTitle("about(basic)");
-			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\nwish someone \"Happy Birthday!\""); // TODO: Seth's BDay
+			info1.setText("\\(^.^\")/\n\nRISK!\nan open source way to\nSTEAL THE WORLD or something like that");
 			info2.setText("\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
 		}
 		
