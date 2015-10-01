@@ -39,8 +39,6 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -53,33 +51,24 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Hyperlink;
-import javafx.scene.control.Labeled;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
-import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseDragEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
-import javafx.scene.transform.Scale;
 import javafx.stage.FileChooser;
-import javafx.stage.Modality;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
-import javafx.stage.StageStyle;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
 import LogPlayer.LogPlayer;
@@ -101,7 +90,6 @@ import Response.ReinforcementResponse;
 import Util.Card;
 import Util.DiceRoller;
 import Util.FXUI_Crossbar;
-import Util.OSExitException;
 import Util.PlayerEliminatedException;
 import Util.WindowResizeHandler;
 import Util.RiskConstants;
@@ -126,7 +114,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Ch IWATA\nStamp 2015.07.12, 21:30\nStability:Alpha(01)"; //TODO: Iwata memorial removal
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Dh\nStamp 2015.09.30, 21:30\nStability:Alpha(01)";
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -327,7 +315,7 @@ public class FXUIGameMaster extends Application {
 			{
 				yeah.setText("[continue]");
 				layout.setStyle("-fx-background-color: black; -fx-padding: 30");
-				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\nRest well, satoru IWATA\n\n[window will close soon]"); //TODO: iwata memorial removal (added in 1xC)
+				queryText.setText("\"Good night, sweet prince.\"\n-Shakespeare. \"Hamlet\".\n\n - \n\n[window will close soon]");
 				queryText.setFill(Color.WHEAT);
 				querySymbol.setText("zZz (u_u?) zZz");
 				querySymbol.setFill(Color.WHEAT);
@@ -608,7 +596,7 @@ public class FXUIGameMaster extends Application {
 									animatedRegion.setText(output);
 								}
 							});
-							RiskUtils.sleep((long)AUTO_CLOSE_TIMEOUT/discreteAnimSteps);
+							RiskUtils.sleep(AUTO_CLOSE_TIMEOUT/discreteAnimSteps);
 						}
 						Platform.runLater(new Runnable(){
 							@Override public void run(){
@@ -2274,6 +2262,10 @@ public class FXUIGameMaster extends Application {
 		mainStatusTextElement.setFill(Color.WHITE);
 		
 		
+		Text windowSizeSliderLabel = new Text("Window size [%]");
+		windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 12));
+		windowSizeSliderLabel.setFill(Color.WHITE);
+		
 		Slider windowSizeSlider = new Slider(0.1f, 1.5f, 0.75f);
 		windowSizeSlider.setSnapToTicks(true);
 		windowSizeSlider.setShowTickMarks(true);
@@ -2281,12 +2273,16 @@ public class FXUIGameMaster extends Application {
 		windowSizeSlider.setMinorTickCount(0);
 		windowSizeSlider.setTooltip(new Tooltip("Window Size (percentage -- 10% to 150%)"));
 		windowSizeSlider.valueProperty().addListener(new ChangeListener<Number>() {
-            public void changed(ObservableValue<? extends Number> ov,
+            @Override
+			public void changed(ObservableValue<? extends Number> ov,
                     Number old_val, Number new_val) {
-                        System.out.println(new_val.doubleValue());
-                        //opacityValue.setText(String.format("%.2f", new_val));
+            			if(!windowSizeSlider.isDisabled()){
+            				//System.out.println("selected percentage: " + new_val.doubleValue());
+                            FXUIGameMaster.mainWindowResizeHandler.resizeByPercentage(new_val.doubleValue());
+            			}
                 }
             });
+		
 		
 		
 		//End the current game, but don't close the program.
@@ -2436,7 +2432,7 @@ public class FXUIGameMaster extends Application {
 		if(!fullAppExit){ //if we had no error
 			
 			primaryStatusButtonPanel.getChildren().addAll(/*windowSizeSlider,*/mainStatusTextElement,startBtn,
-					stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback);
+					stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback, windowSizeSliderLabel, windowSizeSlider);
 			
 			pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
 		}
@@ -2474,6 +2470,7 @@ public class FXUIGameMaster extends Application {
 		primaryStage.show();
 		
 		enableAutomaticResizingFunctionality(primaryStage);
+		FXUIGameMaster.mainWindowResizeHandler.attachResizeSlider(windowSizeSlider);
 		
 		
 		//go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
@@ -2508,7 +2505,7 @@ public class FXUIGameMaster extends Application {
 		testStage.show();
 		WindowResizeHandler.diagnosticPrintln("TestStage size:" + testStage.getWidth() + ":::" + testStage.getHeight());
 		WindowResizeHandler.diagnosticPrintln("TestScene height:: " + testScene.getHeight());
-		double windowDecorationHeight = (double)testStage.getHeight() - (double)testScene.getHeight();
+		double windowDecorationHeight = testStage.getHeight() - testScene.getHeight();
 		testStage.close();
 		testScene = null;
 		testPane = null;

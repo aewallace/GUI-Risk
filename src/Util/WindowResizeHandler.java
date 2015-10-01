@@ -8,6 +8,7 @@ import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.scene.Scene;
+import javafx.scene.control.Slider;
 import javafx.scene.transform.Scale;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -21,7 +22,7 @@ import javafx.stage.Stage;
 public class WindowResizeHandler {
 	/*Convenient class-level variables.*/
 	private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
-	private static final boolean diagnosticModeEnabled = true;
+	private static final boolean diagnosticModeEnabled = false;
 	private Stage activeStage = null;
 	private Scene activeScene = null;
 	private double desiredAspectRatio = 0.0;
@@ -34,6 +35,9 @@ public class WindowResizeHandler {
 	private double widthHistory = 0.0,  heightHistory = 0.0;
 	private double idealContentWidth = 0, idealContentHeight = 0;
 	private boolean assumeCallerIsActive = false;
+	//attach a slider object to receive feedback from resize operations (percentages only)
+	// also dynamically enables/disables during resize operations
+	private Slider sliderToAdjust = null;
 	
 	
 	/**
@@ -312,7 +316,35 @@ public class WindowResizeHandler {
 		this.activeScene.heightProperty().removeListener(this.heightPropertyListener);
 	}
 	
+	/**
+	 * Should a Slider be delegated to control (or display) the size of the window,
+	 * 	tell the Resize Handler about it so the value may be automatically updated.
+	 * 	(Value updates based on percentage of window size, from 0 to 1)
+	 * The slider may control the size of the window without using this;
+	 * 	it will simply receive no automatic feedback, nor will it be
+	 * 	dynamically enabled/disabled during resize operations.
+	 * @param sliderAttach the slider object to modify over time
+	 */
+	public void attachResizeSlider(Slider sliderAttached){
+		this.sliderToAdjust = sliderAttached;
+	}
 	
+	
+	/**
+	 * Allows setting the window size based on a percentage of the determined
+	 * 	ideal window size (determined when the program launches).
+	 * @param percentage : percentage of ideal window size to apply,
+	 * 		in a range from 0.00 not inclusive to 1.00 inclusive (representing 0% and 100&).
+	 */
+	public void resizeByPercentage(double percentage){
+		if (percentage <= 0){
+			return;
+		}
+		//detachResizeListeners();
+		activeStage.setWidth(percentage*this.idealContentWidth);
+		activeStage.setHeight(percentage*this.idealContentHeight);
+		//attachResizeListeners();
+	}
 	/**
 	 * Used to assist in resizing of the primary window at launch as well as after launch.
 	 * Attempts to keep the proper aspect ratio of the contents of the main window.
@@ -345,6 +377,11 @@ public class WindowResizeHandler {
 			return;
 		}
 		
+		//disable any attached slider to prevent accidents/overrides
+		if (this.sliderToAdjust != null){
+			this.sliderToAdjust.setDisable(true);
+		}
+		
 		long waitTime = 200;
 		
 		do{
@@ -355,6 +392,7 @@ public class WindowResizeHandler {
 			RiskUtils.sleep(2*waitTime);
 		}
 		while(this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
+		
 		
 		
 		/*Used in the future to determine what steps of the resizing process must occur.*/
@@ -439,6 +477,10 @@ public class WindowResizeHandler {
 				@Override public void run(){
 					activeStage.setWidth(newWidthCopy+windowDecorationWidth);
 					activeStage.setHeight(newHeightCopy+windowDecorationHeight);
+					if (sliderToAdjust != null){
+						sliderToAdjust.setValue(activeStage.getWidth()/idealContentWidth);
+						sliderToAdjust.getTooltip().setText("Current percentage of max screen size: " + String.format("%.2f", activeStage.getWidth()/idealContentWidth));
+					}
 					diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double)(activeScene.getWidth()/activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
 					diagnosticPrintln("new2!!! ...effective dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: "+ activeScene.getHeight());
 					stillRunningResize.set(false);
@@ -449,6 +491,7 @@ public class WindowResizeHandler {
 				diagnosticPrintln("Waiting at EXIT for RESIZE to finish.");
 			}
 			while(stillRunningResize.get() == true);
+			
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					attachResizeListeners();
@@ -459,6 +502,10 @@ public class WindowResizeHandler {
 		*	The app allows the thread to terminate to avoid permanent excess resource usage...in this case, at least.
 		*	Any further use should re-fire the thread elsewhere.*/
 		resizeThreadIsActive.set(false);
+		if (this.sliderToAdjust != null){
+			//this.sliderToAdjust.setValue(this.activeStage.getWidth()/this.idealContentWidth);
+			this.sliderToAdjust.setDisable(false);
+		}
 		diagnosticPrintln("Exit resize thread.");
 	}
 

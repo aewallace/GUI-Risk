@@ -8,6 +8,7 @@ import java.util.ArrayList;
 
 import Player.FXUIPlayer;
 import Player.Player;
+import javafx.application.Platform;
 import javafx.stage.Stage;
 
 
@@ -57,7 +58,13 @@ public class FXUI_Crossbar {
 	{
 		if (currentPlayerJFXStage != null)
 		{
-			currentPlayerJFXStage.close();
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					if(currentPlayerJFXStage != null){
+					currentPlayerJFXStage.close();
+					}
+				}
+			});
 		}
 	}
 	
