@@ -114,7 +114,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Dh\nStamp 2015.09.30, 21:30\nStability:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Eh\nStamp 2015.10.02, 14:45\nStability:Alpha(01)";
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String expectedMapBackground = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -149,7 +149,6 @@ public class FXUIGameMaster extends Application {
 	protected List<String> allPlayers;
 	protected int round, turnCount;
 	
-	//private ScrollPane scrollPane;
 	private Scene scene;
 	private static Pane pane;
 	private static Text subStatusTextElement;
@@ -2262,27 +2261,13 @@ public class FXUIGameMaster extends Application {
 		mainStatusTextElement.setFill(Color.WHITE);
 		
 		
-		Text windowSizeSliderLabel = new Text("Window size [%]");
-		windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 12));
-		windowSizeSliderLabel.setFill(Color.WHITE);
-		
-		Slider windowSizeSlider = new Slider(0.1f, 1.5f, 0.75f);
-		windowSizeSlider.setSnapToTicks(true);
-		windowSizeSlider.setShowTickMarks(true);
-		windowSizeSlider.setMajorTickUnit(0.25f);
-		windowSizeSlider.setMinorTickCount(0);
-		windowSizeSlider.setTooltip(new Tooltip("Window Size (percentage -- 10% to 150%)"));
-		windowSizeSlider.valueProperty().addListener(new ChangeListener<Number>() {
-            @Override
-			public void changed(ObservableValue<? extends Number> ov,
-                    Number old_val, Number new_val) {
-            			if(!windowSizeSlider.isDisabled()){
-            				//System.out.println("selected percentage: " + new_val.doubleValue());
-                            FXUIGameMaster.mainWindowResizeHandler.resizeByPercentage(new_val.doubleValue());
-            			}
-                }
-            });
-		
+		//Button to show the window size options
+		Button windowOptions = new Button("Window Size");
+		windowOptions.setOnAction(new EventHandler<ActionEvent>(){
+			@Override public void handle(ActionEvent t){
+				mainWindowResizeHandler.showSizeOptions();
+			}
+		});
 		
 		
 		//End the current game, but don't close the program.
@@ -2432,7 +2417,7 @@ public class FXUIGameMaster extends Application {
 		if(!fullAppExit){ //if we had no error
 			
 			primaryStatusButtonPanel.getChildren().addAll(/*windowSizeSlider,*/mainStatusTextElement,startBtn,
-					stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback, windowSizeSliderLabel, windowSizeSlider);
+					stopGameBtn,exitApp,lowerButtonPanel, saveMe, doLogging, logPlayback, windowOptions);
 			
 			pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
 		}
@@ -2470,7 +2455,7 @@ public class FXUIGameMaster extends Application {
 		primaryStage.show();
 		
 		enableAutomaticResizingFunctionality(primaryStage);
-		FXUIGameMaster.mainWindowResizeHandler.attachResizeSlider(windowSizeSlider);
+		
 		
 		
 		//go ahead and launch the "About" window, and tell it to autohide -- time until autohide set via the "About" class.
@@ -2537,7 +2522,7 @@ public class FXUIGameMaster extends Application {
 
 /**
 * Handles the "about" and "more" dialog windows
-* @author wallace162x11
+* @author A.E. Wallace
 *
 */
 class About {

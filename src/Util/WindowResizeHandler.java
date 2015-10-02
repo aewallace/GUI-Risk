@@ -2,16 +2,38 @@
 
 package Util;
 
+import java.awt.Desktop;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import LogPlayer.LogPlayer;
+import Master.FXUIGameMaster;
+import Player.FXUIPlayer;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Slider;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextAlignment;
 import javafx.scene.transform.Scale;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 
 /**
  * Handles target window resizing duties for a given JavaFX Stage object.
@@ -259,9 +281,49 @@ public class WindowResizeHandler {
 				attachResizeListeners();
 			}
 		});
+	}
+	
+	private void fitToFullScreen(){
+		checkIfOnJFXThread();
+		if(!getWindowObjectState()){
+			return;
+		}
+		diagnosticPrintln("Determining optimal window dimensions.");
+		double maxWidth = Screen.getPrimary().getVisualBounds().getWidth();
+		double maxHeight = Screen.getPrimary().getVisualBounds().getHeight();
 		
+		double usableScreenAspectRatio = maxWidth / maxHeight;
+		/* if the desired aspect ratio for the given window is greater than the usable aspect ratio for the screen,
+		 * then the desired aspect ratio is too wide. We will have to fit the window to the applicable height
+		 * using the content's desired aspect ratio.
+		 */
+		if(this.desiredAspectRatio > usableScreenAspectRatio){
+			final double newContentWidth = maxWidth;
+			final double newContentHeight = maxWidth/this.desiredAspectRatio;
+			final double xPositionToUse = (maxWidth - newContentWidth)/2;
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					activeStage.setWidth(maxWidth+windowDecorationWidth);
+					activeStage.setX(xPositionToUse);
+				}
+			});
+		}
+		/*	else, we need to use the maximum available height, then determine the width to which we should resize the window.*/
+		else{
+			final double newContentHeight = maxHeight + windowDecorationHeight;
+			final double newContentWidth = newContentHeight * this.desiredAspectRatio;
+			final double xPositionToUse = (maxWidth - newContentWidth)/2;
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					activeStage.setHeight(newContentHeight);
+					//activeStage.setHeight(maxHeight+windowDecorationHeight);
+					activeStage.setX(xPositionToUse);
+				}
+			});
+		}
 		
 	}
+	
 	
 	/**
 	 * Used to enable intelligent resizing of the main window (aka "Stage primaryStage")
@@ -502,7 +564,7 @@ public class WindowResizeHandler {
 		*	The app allows the thread to terminate to avoid permanent excess resource usage...in this case, at least.
 		*	Any further use should re-fire the thread elsewhere.*/
 		resizeThreadIsActive.set(false);
-		if (this.sliderToAdjust != null){
+		if (this.sliderToAdjust != null && !this.activeStage.isFullScreen()){
 			//this.sliderToAdjust.setValue(this.activeStage.getWidth()/this.idealContentWidth);
 			this.sliderToAdjust.setDisable(false);
 		}
@@ -514,4 +576,156 @@ public class WindowResizeHandler {
 			System.out.println(contentOut);
 		}
 	}
+
+	
+	/**
+	* Create a non-JavaFX thread (if necessary) to build & display size options
+	* 	 for the associated window (Stage)
+	* Tries to run the dialog's code on a non-JFX thread as much as possible.
+	*/
+	public int showSizeOptions(){
+		//represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
+		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+		
+		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
+			sizeOptionsHelper(true, dialogIsShowing);
+		}
+		else{ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					sizeOptionsHelper(false, dialogIsShowing);
+				}
+			});
+			
+			do{
+				RiskUtils.sleep(100);
+			}
+			while(dialogIsShowing.get());
+		}
+		return 0; // TODO decide on better return type
+	}
+	
+	/**
+	 * Build & show the dialog.
+	 * 
+	 * @param fxThread pass "true" if the method is being run on the JavaFX app thread (please avoid doing so)
+	 * @param dialogIsShowing used to control the flow of code; will be set to "false" when dialog is closed.
+	 */
+	private void sizeOptionsHelper(final boolean fxThread, AtomicBoolean dialogIsShowing)
+	{
+		Window owner = this.activeStage.getScene().getWindow();
+		try{
+			final Stage dialog = new Stage();
+			dialog.setTitle("bye bye?");
+			dialog.initOwner(owner);
+			dialog.setX(owner.getX());
+			dialog.setY(owner.getY() + 50);
+			
+			final VBox layout = new VBox(10);
+			layout.setAlignment(Pos.CENTER);
+			layout.setStyle("-fx-background-color: pink; -fx-padding: 30");
+			
+			final Text queryText = new Text("     Alter window settings?     ");
+			queryText.setTextAlignment(TextAlignment.CENTER);
+			
+			final Text querySymbol = new Text("[[[ --- ]]] ");
+			querySymbol.setTextAlignment(TextAlignment.CENTER);
+			querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+			
+
+			Text spaceBuffer = new Text("\n");
+			querySymbol.setTextAlignment(TextAlignment.CENTER);
+			querySymbol.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+			
+
+			final Button yeah = new Button("Accept Changes");
+			final Button nah = new Button("Revert Changes");
+			
+			yeah.setOnAction(new EventHandler<ActionEvent>() {
+				@Override public void handle(ActionEvent t) {
+					
+					dialogIsShowing.set(false);
+					dialog.close();
+				}
+			});
+			
+			nah.setDefaultButton(true);
+			nah.setOnAction(new EventHandler<ActionEvent>() {
+				@Override public void handle(ActionEvent t) {
+					dialogIsShowing.set(false);
+					dialog.close();
+				}
+			});
+			
+			
+			
+			Text windowSizeSliderLabel = new Text("Window size [%]");
+			windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 16));
+			windowSizeSliderLabel.setFill(Color.WHITE);
+			
+			
+			Slider windowSizeSlider = new Slider(0.1f, 1.5f, 0.75f);
+			windowSizeSlider.setSnapToTicks(false);
+			windowSizeSlider.setShowTickMarks(true);
+			windowSizeSlider.setMajorTickUnit(0.25f);
+			windowSizeSlider.setMinorTickCount(0);
+			windowSizeSlider.setTooltip(new Tooltip("Window Size (percentage -- 10% to 150%)"));
+			windowSizeSlider.valueProperty().addListener(new ChangeListener<Number>() {
+	            @Override
+				public void changed(ObservableValue<? extends Number> ov,
+	                    Number old_val, Number new_val) {
+	            			if(!windowSizeSlider.isDisabled()){
+	                            resizeByPercentage(new_val.doubleValue());
+	            			}
+	                }
+	        });
+			attachResizeSlider(windowSizeSlider);
+			
+			CheckBox doFullScreen = new CheckBox("Display in fullscreen?");
+			doFullScreen.setTooltip(new Tooltip("Enable or Disable fullscreen mode (enabled ignores screen sizing requests)"));
+			doFullScreen.setTextFill(Color.ANTIQUEWHITE);
+			doFullScreen.setOnAction(new EventHandler<ActionEvent>(){
+				@Override public void handle(ActionEvent t){
+					if(doFullScreen.isSelected()){
+						windowSizeSlider.setDisable(true);
+						activeStage.setFullScreen(true);
+						fitToFullScreen();
+					}
+					else if(!doFullScreen.isSelected()){
+						activeStage.setFullScreen(false);
+						windowSizeSlider.setDisable(false);
+					}
+					else{
+						//do nothing
+					}
+				}
+			});
+			doFullScreen.setSelected(activeStage.isFullScreen());
+			
+			layout.getChildren().setAll(
+					querySymbol, queryText, doFullScreen, windowSizeSliderLabel, windowSizeSlider, nah, yeah, spaceBuffer
+			);
+			
+			dialog.setOnCloseRequest(new EventHandler<WindowEvent>(){
+				@Override public void handle(WindowEvent t){
+					dialogIsShowing.set(false);
+				}
+			});
+			
+			dialog.setScene(new Scene(layout));
+			dialog.show();
+			/*if(fxThread){
+				dialog.showAndWait();
+				}
+			else{
+				dialog.show();
+			}*/
+		}
+		catch(Exception e){System.out.println("ERROR:"+"attempted exit failed:: " + e);}
+		attachResizeSlider(null);
+	}
+	
+	
+	
+
 }
