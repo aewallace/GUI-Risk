@@ -455,8 +455,6 @@ public class WindowResizeHandler {
 		}
 		while(this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
 		
-		
-		
 		/*Used in the future to determine what steps of the resizing process must occur.*/
 		stillRunningResize.set(true);
 		
@@ -487,7 +485,6 @@ public class WindowResizeHandler {
 			diagnosticPrintln("How did you get here? Nobody's s'pose to be here.");
 		}
 		
-		
 		diagnosticPrintln("calculated target aspect ratio: " + expectedAspectRatio + " ...versus expected: " + this.desiredAspectRatio);
 		/*Determine the relative amount by which we must scale the content -- the scene -- within the window (stage).
 			This makes the scene come close to appropriately fitting within the stage with a limited unsightly gap.*/
@@ -495,7 +492,6 @@ public class WindowResizeHandler {
 		Scale scale = new Scale(scalePercentageWidth, scalePercentageHeight);
 		diagnosticPrintln("acceptable new width:: " + newContentWidth);
 		diagnosticPrintln("acceptable new height:: " + newContentHeight);
-		
 		
 		/*Store the new width and/or height in variables that can be accessed in a separate runnable/thread.*/
 		final double newWidthCopy = newContentWidth;
@@ -587,13 +583,17 @@ public class WindowResizeHandler {
 		//represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
 		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
 		
+		if(!this.assumeCallerIsActive){
+			return -1;
+		}
+		
 		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
-			sizeOptionsHelper(true, dialogIsShowing);
+			sizeOptionsHelper(dialogIsShowing);
 		}
 		else{ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
-					sizeOptionsHelper(false, dialogIsShowing);
+					sizeOptionsHelper(dialogIsShowing);
 				}
 			});
 			
@@ -611,12 +611,12 @@ public class WindowResizeHandler {
 	 * @param fxThread pass "true" if the method is being run on the JavaFX app thread (please avoid doing so)
 	 * @param dialogIsShowing used to control the flow of code; will be set to "false" when dialog is closed.
 	 */
-	private void sizeOptionsHelper(final boolean fxThread, AtomicBoolean dialogIsShowing)
+	private void sizeOptionsHelper(AtomicBoolean dialogIsShowing)
 	{
 		Window owner = this.activeStage.getScene().getWindow();
 		try{
 			final Stage dialog = new Stage();
-			dialog.setTitle("bye bye?");
+			dialog.setTitle("Window Options");
 			dialog.initOwner(owner);
 			dialog.setX(owner.getX());
 			dialog.setY(owner.getY() + 50);
@@ -632,12 +632,10 @@ public class WindowResizeHandler {
 			querySymbol.setTextAlignment(TextAlignment.CENTER);
 			querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
 			
-
 			Text spaceBuffer = new Text("\n");
-			querySymbol.setTextAlignment(TextAlignment.CENTER);
-			querySymbol.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+			spaceBuffer.setTextAlignment(TextAlignment.CENTER);
+			spaceBuffer.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
 			
-
 			final Button yeah = new Button("Accept Changes");
 			final Button nah = new Button("Revert Changes");
 			
@@ -657,12 +655,9 @@ public class WindowResizeHandler {
 				}
 			});
 			
-			
-			
 			Text windowSizeSliderLabel = new Text("Window size [%]");
 			windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 16));
 			windowSizeSliderLabel.setFill(Color.WHITE);
-			
 			
 			Slider windowSizeSlider = new Slider(0.1f, 1.5f, 0.75f);
 			windowSizeSlider.setSnapToTicks(false);
@@ -714,18 +709,8 @@ public class WindowResizeHandler {
 			
 			dialog.setScene(new Scene(layout));
 			dialog.show();
-			/*if(fxThread){
-				dialog.showAndWait();
-				}
-			else{
-				dialog.show();
-			}*/
 		}
-		catch(Exception e){System.out.println("ERROR:"+"attempted exit failed:: " + e);}
+		catch(Exception e){System.out.println("ERROR: resize dialog display failed:: " + e);}
 		attachResizeSlider(null);
 	}
-	
-	
-	
-
 }
