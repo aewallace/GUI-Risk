@@ -114,7 +114,7 @@ import Util.TextNodes;
 *
 */
 public class FXUIGameMaster extends Application {
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Fh\nStamp 2015.10.09, 19:35\nStability:Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x10h\nStamp 2015.10.09, 21:35\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
 	public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
 	private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
 	private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -1878,7 +1878,11 @@ public class FXUIGameMaster extends Application {
 	* @return returns "true" so long as the game thread was started successfully; "false" otherwise.
 	*/
 	public boolean createGameLogicThread(){
-		
+		if(FXUIGameMaster.priGameLogicThread != null){
+			System.out.println("Primary logic thread invoked, but is already"
+					+ " running. Skipping duplicate invocation.");
+			return false;
+		}
 		setButtonAvailability();
 		Runnable gameCode = new Runnable()
 		{
