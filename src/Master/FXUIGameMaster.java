@@ -103,15 +103,15 @@ import javafx.stage.WindowEvent;
  * 
 *
  * UI elements are JavaFX, done with Java JDK 8. (By extension, elements were
- * done under JavaFX 8) Compatibility with JDK 7 / JRE1.7 was retroactively
- * restored. (source files with "Stamp" -- aka date/time stamp -- of Feb 21
- * 2015, 6:00 PM -- aka Y2015.M02.D21.HM1800 -- & later apply). JDK 7/JRE 1.7
- * will be the target until further notified.
+ * done under JavaFX 8). Build requires JDK8.
+ * (source files/build with "Stamp" -- aka date/time stamp -- of Feb 21
+ * 2015, 6:00 PM -- aka Y2015.M02.D21.HM1800 -- supported JDK7, but successive
+ * versions gradually made use of more JDK8 features).
  * 
 */
 public class FXUIGameMaster extends Application {
 
-    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Fh\nStamp 2015.10.11, 18:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
+    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Fh\nStamp 2015.10.18, 18:30\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -166,7 +166,6 @@ public class FXUIGameMaster extends Application {
     private static ArrayList<Node> buttonCache = null;
 
     private enum ButtonIndex {
-
         BTN_START,
         BTN_SAVE,
         BTN_HIGHLIGHT,
@@ -538,7 +537,7 @@ public class FXUIGameMaster extends Application {
     /**
      * Used to auto-close the final dialog when exiting the app. Also gives a
      * sort of ...ASCII animation to indicate closing process, if supported by
-     * dialog.
+     * dialog. Previously known as "deathKnell".
      *
      * @param dialog the dialog window to be closed (which permits the logic to
      * end)
@@ -709,7 +708,6 @@ public class FXUIGameMaster extends Application {
     private boolean loadFromSave(boolean testing, String potentialLocation) {
         boolean loadSucceeded = true;
         try {
-
             InputStream file = new FileInputStream(testing ? potentialLocation : FXUIGameMaster.loadfrom_filename);
             InputStream buffer = new BufferedInputStream(file);
             ObjectInput input = new ObjectInputStream(buffer);

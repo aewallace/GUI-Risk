@@ -32,12 +32,17 @@ import javafx.stage.WindowEvent;
  * Stage object should have been populated and put up for display BEFORE making
  * use of this class and its functions. (i.e., stage.isShowing() should return
  * true at this point, and stage.getScene() should return a valid Scene object.)
- * 11 October 2015, 11:50
+ * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    /*Convenient class-level variables.*/
+    /**Controls whether or not diagnostic information is printed through the
+     * associated {@link #diagnosticPrintln(string)} method. True: print
+     * diagnostic info. False: suppress display of diagnostic info.
+     * (Every call to diagnosticPrintln checks this, currently.) */
+	private static final boolean diagnosticModeEnabled = false;
+	
+	/*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
-    private static final boolean diagnosticModeEnabled = false;
     private Stage activeStage = null;
     private Scene activeScene = null;
     private double desiredAspectRatio = 0.0;
@@ -46,7 +51,7 @@ public class WindowResizeHandler {
     private ChangeListener<Number> widthPropertyListener = null;
     private ChangeListener<Number> heightPropertyListener = null;
     private AtomicBoolean resizeBlocked = new AtomicBoolean(true);
-    private AtomicBoolean stillRunningResize = new AtomicBoolean(false);
+    //private AtomicBoolean stillRunningResize = new AtomicBoolean(false);
     private AtomicBoolean resizeThreadIsActive = new AtomicBoolean(false);
     private double widthHistory = 0.0, heightHistory = 0.0;
     private double idealContentWidth = 0, idealContentHeight = 0;
@@ -179,8 +184,8 @@ public class WindowResizeHandler {
                     && currentCenterY > givenBounds.getMinY())
             {
                 //this screen being tested is the screen to use
-                activeScreenWidth = givenBounds.getWidth();
-                activeScreenHeight = givenBounds.getHeight();
+                this.activeScreenWidth = givenBounds.getWidth();
+                this.activeScreenHeight = givenBounds.getHeight();
                 screenFound = true;
                 diagnosticPrintln("Rendering on screen " + screenNo);
             }
@@ -188,8 +193,9 @@ public class WindowResizeHandler {
             diagnosticPrintln(screensIn.get(screenNo).getVisualBounds().toString());
         }
         if(!screenFound){
-            activeScreenWidth = FXUIGameMaster.DEFAULT_CONTENT_WIDTH;
-            activeScreenHeight = FXUIGameMaster.DEFAULT_CONTENT_HEIGHT;
+            this.activeScreenWidth = FXUIGameMaster.DEFAULT_CONTENT_WIDTH;
+            this.activeScreenHeight = FXUIGameMaster.DEFAULT_CONTENT_HEIGHT;
+            diagnosticPrintln("Using pixel-matched dimensions (DEFAULT CONTENT)");
         }
     }
 
@@ -315,12 +321,11 @@ public class WindowResizeHandler {
         if (!getWindowObjectState()) {
             return;
         }
-        diagnosticPrintln("Determining optimal window dimensions.");
+        diagnosticPrintln("FitToScreen started."
+        		+ "\nDetermining optimal window dimensions.");
         determineActiveScreenBounds();
         double maxWidth = activeScreenWidth; //TODO get rid of temp variable
         double maxHeight = activeScreenHeight;
-        //double maxWidth = Screen.getPrimary().getVisualBounds().getWidth();
-        //double maxHeight = Screen.getPrimary().getVisualBounds().getHeight();
         
         double newContentWidth = 0, newContentHeight = 0;
 
@@ -351,14 +356,14 @@ public class WindowResizeHandler {
         final double newHeightCopy = newContentHeight;
         /*finally, we actually set the size of the window*/
         detachResizeListeners();
-        activeScene.getRoot().getTransforms().setAll(scale);
         diagnosticPrintln("Snapping to dimensions...");
-        //activeStage.setWidth(newWidthCopy+windowDecorationWidth);
-        //activeStage.setHeight(newHeightCopy+windowDecorationHeight);
+        activeScene.getRoot().getTransforms().setAll(scale);
+        activeScene.getRoot().setLayoutX(0);
+        activeScene.getRoot().setLayoutY(0);
         activeStage.setWidth(newWidthCopy + windowDecorationWidth);
         activeStage.setHeight(newHeightCopy + windowDecorationHeight);
-        //activeStage.setX(xPositionToUse);
         activeStage.centerOnScreen();
+        diagnosticPrintln("FitToScreen complete.");
         attachResizeListeners();
             
     }
@@ -372,49 +377,53 @@ public class WindowResizeHandler {
         if (!getWindowObjectState()) {
             return;
         }
-        diagnosticPrintln("Determining optimal window dimensions."
-                + " (ENTERING FULLSCREEN SCALING MODE");
+        diagnosticPrintln("\n\nDetermining optimal window dimensions."
+                + " (ENTERING FULLSCREEN SCALING MODE)");
         determineActiveScreenBounds();
-        double maxWidth = activeScreenWidth; //TODO get rid of temp variable
-        double maxHeight = activeScreenHeight;
-        //double maxWidth = Screen.getPrimary().getVisualBounds().getWidth();
-        //double maxHeight = Screen.getPrimary().getVisualBounds().getHeight();
-
-        double usableScreenAspectRatio = maxWidth / maxHeight;
         
-        double scalePercentageHeight = maxHeight/ this.idealContentHeight;
-        double scalePercentageWidth = maxWidth / this.idealContentWidth;
-
-        diagnosticPrintln("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
-        Scale scale = new Scale(scalePercentageWidth, scalePercentageHeight);
-        /* if the desired aspect ratio for the given window is greater than the usable aspect ratio for the screen,
-         * then the desired aspect ratio is too wide. We will have to fit the window to the applicable height
-         * using the content's desired aspect ratio.
+        double maxWidth = activeStage.getWidth(); //TODO get rid of temp variable
+        double maxHeight = activeStage.getHeight();
+        
+        double usableScreenAspectRatio = maxWidth / maxHeight;
+        double newContentHeight, newContentWidth, scalePercentageHeight,
+        		scalePercentageWidth, xTranslate, yTranslate;
+        
+        /* if the desired aspect ratio for the given window is greater than the 
+         * usable aspect ratio for the screen, then the desired aspect ratio is 
+         * too wide. There will be bars at the top and/or bottom. We need to use
+         * the maximum available width, and figure out a better height to set.
          */
         if (this.desiredAspectRatio > usableScreenAspectRatio) {
-            final double newContentWidth = maxWidth;
-            final double newContentHeight = maxWidth / this.desiredAspectRatio;
-            final double xPositionToUse = (maxWidth - newContentWidth) / 2;
-            //activeStage.setWidth(maxWidth);
-            activeScene.getRoot().getTransforms().setAll(scale);
-            //activeStage.setWidth(maxWidth + windowDecorationWidth);
-            //activeStage.setX(xPositionToUse);
-            //activeStage.centerOnScreen();
+            newContentWidth = maxWidth;
+            newContentHeight = newContentWidth / this.desiredAspectRatio;
+            diagnosticPrintln("(A-type) newHeightDetermined: "
+            		+ newContentHeight + "\nIdeal content w vs h: " 
+            		+ this.idealContentWidth + " :: " + this.idealContentHeight);
         } /*	else, we need to use the maximum available height, 
         then determine the width to which we should resize the window.*/ 
         else {
-            final double newContentHeight = maxHeight/* + windowDecorationHeight*/;
-            final double newContentWidth = newContentHeight * this.desiredAspectRatio;
-            //final double xPositionToUse = (maxWidth - newContentWidth) / 2;
-            //activeStage.setHeight(newContentHeight);
-            activeScene.getRoot().getTransforms().setAll(scale);
-            //activeStage.setHeight(maxHeight+windowDecorationHeight);
-            //activeStage.setX(xPositionToUse); perma-disable
-            //activeStage.centerOnScreen(); perma-disable
+            newContentHeight = maxHeight/* + windowDecorationHeight*/;
+            newContentWidth = newContentHeight * this.desiredAspectRatio;
+            diagnosticPrintln("(B-type) newWidthDetermined: " 
+            		+ newContentWidth + "\nIdeal content w vs h: " 
+            		+ this.idealContentWidth + " :: " + this.idealContentHeight);
         }
+        scalePercentageHeight = newContentHeight / this.idealContentHeight;
+        scalePercentageWidth = newContentWidth / this.idealContentWidth;
+        diagnosticPrintln("Scales w vs h: " + scalePercentageWidth 
+        		+ " :: " + scalePercentageHeight);
+        if((xTranslate = (maxWidth - newContentWidth) / 2) < 0){
+        	xTranslate = 0;}
+        if((yTranslate = (maxHeight - newContentHeight) / 2) < 0){
+        	yTranslate = 0;}
+        activeScene.getRoot().getTransforms()
+        	.setAll(new Scale(scalePercentageWidth, scalePercentageHeight));
+        activeScene.getRoot().setLayoutX(xTranslate);
+        activeScene.getRoot().setLayoutY(yTranslate);
+        diagnosticPrintln("xTranslate and yTranslate? " + xTranslate + " ::: " +
+        		yTranslate);
         diagnosticPrintln("Scaling should be complete."
-                + " (EXITING FULLSCREEN SCALING MODE)");
-
+                + " (EXITING FULLSCREEN SCALING MODE)\n\n");
     }
 
     /**
@@ -552,22 +561,26 @@ public class WindowResizeHandler {
     }
 
     private void resizeHelper(int triggerType) {
-        diagnosticPrintln("Initial resizeHelper call stats (W:H:windowDecorationHeight): " + this.widthHistory + ":::" + this.heightHistory + ":::" + this.windowDecorationHeight);
+        diagnosticPrintln("Initial resizeHelper call stats "
+        	+ "(W:H:windowDecorationHeight): " + this.widthHistory 
+        	+ ":::" + this.heightHistory + ":::" + this.windowDecorationHeight);
         if (!getWindowObjectState()) {
-            return;
-        }
+            return; }
 
         //remember whether the window was fullscreen when this method was invoked
         final boolean stageIsFullscreen = activeStage.isFullScreen();
-        diagnosticPrintln("The app wwas set to fullscreen at the time of this "
+        long waitTime = 200;
+        diagnosticPrintln("The app was set to fullscreen at the time of this "
                 + "method call: " + stageIsFullscreen);
 
         //disable any attached slider to prevent accidents/overrides
         if (this.sliderToAdjust != null) {
-            this.sliderToAdjust.setDisable(true);
-        }
+            this.sliderToAdjust.setDisable(true); }
 
-        long waitTime = 200;
+        /*
+         * Wait for the user to stop tweaking the window; monitor the dimensions
+         * and when there are no more changes, proceed with resize checks.
+         */
 
         do {
             diagnosticPrintln("Waiting for user to stop altering dimensions.");
@@ -578,6 +591,7 @@ public class WindowResizeHandler {
         } while (this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
 
         /*Used in the future to determine what steps of the resizing process must occur.*/
+        AtomicBoolean stillRunningResize = new AtomicBoolean(false);
         stillRunningResize.set(true);
 
         double newContentWidth = 0.0d, newContentHeight = 0.0d;
@@ -620,12 +634,9 @@ public class WindowResizeHandler {
 
         //If we attempted to resize our content to a dimension beyond the screen's bounds, we just snap back to the max dimensions available.
         determineActiveScreenBounds(); //TODO get rid of commented code below if this works
-        if ((newWidthCopy > activeScreenWidth ||
-            newHeightCopy > activeScreenHeight)
+        if ((newWidthCopy >= activeScreenWidth ||
+            newHeightCopy >= activeScreenHeight)
             && !stageIsFullscreen)
-        /*if ((newWidthCopy > Screen.getPrimary().getVisualBounds().getWidth() ||
-                newHeightCopy > Screen.getPrimary().getVisualBounds().getHeight())
-                && !stageIsFullscreen)*/ 
         {
             Platform.runLater(new Runnable() {
                 @Override
@@ -637,12 +648,9 @@ public class WindowResizeHandler {
         } /*now handle the size calulation being outside acceptable bounds but
         the screen IS indeed fullscreen
         */
-        else if ((newWidthCopy > activeScreenWidth ||
-            newHeightCopy > activeScreenHeight)
+        else if ((newWidthCopy >= activeScreenWidth ||
+            newHeightCopy >= activeScreenHeight)
             && stageIsFullscreen)
-        /*if ((newWidthCopy > Screen.getPrimary().getVisualBounds().getWidth() ||
-                newHeightCopy > Screen.getPrimary().getVisualBounds().getHeight())
-                && !stageIsFullscreen)*/ 
         {
             Platform.runLater(new Runnable() {
                 @Override
@@ -677,6 +685,8 @@ public class WindowResizeHandler {
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
+                	activeScene.getRoot().setLayoutX(0);
+                    activeScene.getRoot().setLayoutY(0);
                     if (!stageIsFullscreen) {
                         activeStage.setWidth(newWidthCopy+windowDecorationWidth);
                         activeStage.setHeight(newHeightCopy+windowDecorationHeight);
@@ -720,7 +730,8 @@ public class WindowResizeHandler {
     /**
      * Enables a user to, with the flip of a particular boolean, control whether
      * verbose diagnostic information is printed. Calls to this method with the
-     * affected boolean set to "false" will result in the message being suppressed.
+     * affected boolean set to "false" will result in the message being
+     * suppressed. Affected boolean: {@link #diagnosticModeEnabled}.
      * @param contentOut the content to be conditionally displayed.
      */
     public static void diagnosticPrintln(String contentOut) {
@@ -840,9 +851,11 @@ public class WindowResizeHandler {
                 @Override
                 public void handle(ActionEvent t) {
                     if (doFullScreen.isSelected()) {
+                    	detachResizeListeners();
                         windowSizeSlider.setDisable(true);
                         activeStage.setFullScreen(true);
                         fitToFullScreen();
+                        attachResizeListeners();
                     } else if (!doFullScreen.isSelected()) {
                         activeStage.setFullScreen(false);
                         windowSizeSlider.setDisable(false);
