@@ -111,7 +111,7 @@ import javafx.stage.WindowEvent;
 */
 public class FXUIGameMaster extends Application {
 
-    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x0Fh\nStamp 2015.10.18, 18:30\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
+    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x10h\nStamp 2015.10.20, 17:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -151,6 +151,9 @@ public class FXUIGameMaster extends Application {
     private static Pane pane;
     private static Text subStatusTextElement;
     private static Text mainStatusTextElement;
+    private static Text extendedMessageDisplay;
+    private static ArrayList<String> extendedMessageCache;
+    private static int extendedMessageCachePos;
     private HBox playerDisplay = null;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
@@ -1096,10 +1099,10 @@ public class FXUIGameMaster extends Application {
                 writeStatsLn();
                 System.out.println(this.players.get(0) + " is the victor!");
                 writeLogLn(true, this.players.get(0) + " is the victor!");
-                showPassiveDialog(this.players.get(0) + " is the victor!");
+                displayExtendedMessage(this.players.get(0) + " is the victor!");
                 flashPlayerCountries(this.players.get(0));
             } else if (!FXUIGameMaster.fullAppExit) {
-                showPassiveDialog("Thanks for playing!");
+                displayExtendedMessage("Thanks for playing!");
                 System.out.println(WARN + "Game forced to exit by UI player; sorry 'bout it!");
             } else {
                 System.out.println(WARN + "Game forced to exit by UI player; sorry 'bout it!");
@@ -1683,7 +1686,7 @@ public class FXUIGameMaster extends Application {
         if (this.playerMap.containsKey(loser.getName())) {
             writeLogLn(true, loser.getName() + " Eliminated! " + reason);
             System.out.println(loser.getName() + " Eliminated! " + reason);
-            showPassiveDialog(loser.getName() + " Eliminated! " + reason);
+            displayExtendedMessage(loser.getName() + " Eliminated! " + reason);
             for (Country country : Country.values()) {
                 if (map.getCountryOwner(country).equals(loser.getName())) {
                     if (eliminator != null) {
@@ -2243,6 +2246,15 @@ public class FXUIGameMaster extends Application {
         //The vertical box to contain the major buttons and status.
         VBox primaryStatusButtonPanel = new VBox(10);
         HBox lowerButtonPanel = new HBox(15);
+        
+        //allow display of extended messages in the main window.
+        FXUIGameMaster.extendedMessageDisplay = new Text("-");
+        FXUIGameMaster.extendedMessageDisplay.setFont(Font.font("Verdana", FontWeight.NORMAL, 24));
+        FXUIGameMaster.extendedMessageDisplay.setFill(Color.WHITE);
+
+        //cache prior messages so we can display in a non-interactive dialog
+        extendedMessageCache = new ArrayList<String>();
+        extendedMessageCachePos = 0;
 
         primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
         primaryStatusButtonPanel.setLayoutX(29);
@@ -2409,9 +2421,9 @@ public class FXUIGameMaster extends Application {
         //****Add buttons to panel. Tweak these additions depending on whether there was an error
         lowerButtonPanel.getChildren().addAll(tellMe, tellMe2);
         if (!fullAppExit) { //if we had no error
-
             primaryStatusButtonPanel.getChildren().addAll(/*windowSizeSlider,*/mainStatusTextElement, startBtn,
-                    stopGameBtn, exitApp, lowerButtonPanel, saveMe, doLogging, logPlayback, windowOptions);
+                    stopGameBtn, exitApp, lowerButtonPanel, saveMe, doLogging,
+                    logPlayback, windowOptions, FXUIGameMaster.extendedMessageDisplay);
 
             pane.getChildren().addAll(flashCurrCountries, primaryStatusButtonPanel);
         } else { //if we had an error
@@ -2508,40 +2520,65 @@ public class FXUIGameMaster extends Application {
         doYouWantToMakeAnExit(true, 0);
         primaryStage.close();
     }
+    
+    /**
+    show a message on the screen in a nice, safe place.
+    clicking on that message will open it in full in a dialog.
+    */
+    private void displayExtendedMessage(String message){
+    	FXUIGameMaster.extendedMessageCache.add(message);
+    	int strLenToDisplay = 100;
+    	if (message == null){
+    		return;
+    	}
+    	else if (message.length() < 1){
+    		return;
+    	}
+    	else if (message.length() < strLenToDisplay){
+    		strLenToDisplay = message.length();
+    	}
+    	FXUIGameMaster.extendedMessageDisplay.setText(message.substring(0, strLenToDisplay));
+    	FXUIGameMaster.extendedMessageDisplay.setOnMouseClicked(
+    		new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent t) {
+                    showPassiveDialog(message);
+                    FXUIGameMaster.extendedMessageDisplay.setText("---");
+                }
+        });
+    }
 
     /**
      * Create a non-JavaFX thread (if necessary) to build & display a passive
      * dialog window (to inform a user of something). Tries to run the dialog's
      * code on a non-JFX thread as much as possible.
-     *
+     * @param textToShow the text...to be shown
      * @return for now, returns >=0 upon thread creation success, ??? otherwise
      */
     public static int showPassiveDialog(String textToShow) {
 		//for right now, this method isn't preferable, and we'll begin to put
         //messages in the main window where possible.
         //we will do an immediate return until that is possible.
-        return -1;
 
 		//represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
-		/*AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
-		
-         if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
-         passiveDialogHelper(textToShow, dialogIsShowing);
-         return 1;
-         }
-         else{ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
-         Platform.runLater(new Runnable(){
-         @Override public void run(){
-         passiveDialogHelper(textToShow, dialogIsShowing);
-         }
-         });
-			
-         do{
-         RiskUtils.sleep(100);
-         }
-         while(dialogIsShowing.get());
-         }
-         return 0;*/
+		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
+			passiveDialogHelper(textToShow, dialogIsShowing);
+			return 1;
+		}
+		else{ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					passiveDialogHelper(textToShow, dialogIsShowing);
+				}
+			});
+				
+			do{
+				RiskUtils.sleep(100);
+			}
+			while(dialogIsShowing.get());
+		}
+		return 0;
     }
 
     /**
@@ -2551,7 +2588,7 @@ public class FXUIGameMaster extends Application {
      * @param dialogIsShowing used to control the flow of code; will be set to
      * "false" when dialog is closed.
      */
-    private static void passiveDialogHelper(String textToShow, AtomicBoolean dialogIsShowing) {
+    private static void passiveDialogHelper(String textIn, AtomicBoolean dialogIsShowing) {
         Window owner = FXUIGameMaster.mainStage.getScene().getWindow();
         try {
             final Stage dialog = new Stage();
@@ -2567,6 +2604,16 @@ public class FXUIGameMaster extends Application {
             final Text querySymbol = new Text("[[[ ! ]]] ");
             querySymbol.setTextAlignment(TextAlignment.CENTER);
             querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+            
+            String textToShow = "";
+            for (int strIndex = 0; strIndex < textIn.length(); strIndex += 180){
+            	int charsToDo = 180;
+            	if (textIn.length() - strIndex < charsToDo){
+            		charsToDo = textIn.length() - strIndex;
+            	}
+            	textToShow += textIn.substring(strIndex,strIndex+charsToDo);
+            	textToShow+= "\n";
+            }
 
             final Text queryText = new Text("     " + textToShow + "     ");
             queryText.setTextAlignment(TextAlignment.CENTER);
