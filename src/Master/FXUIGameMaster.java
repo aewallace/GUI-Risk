@@ -111,7 +111,7 @@ import javafx.stage.WindowEvent;
 */
 public class FXUIGameMaster extends Application {
 
-    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x10h\nStamp 2015.10.20, 17:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
+    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x11h\nStamp 2015.10.21, 13:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -1834,12 +1834,12 @@ public class FXUIGameMaster extends Application {
                     + " running. Skipping duplicate invocation.");
             return false;
         }
-        setButtonAvailability();
         Runnable gameCode = new Runnable() {
             @Override
             public void run() {
                 int stateOut = displayGameSelector();
                 if (stateOut != IDLE_MODE) {
+                	setButtonAvailability();
                     runGameAndDisplayVictor();
                 }
                 FXUIGameMaster.priGameLogicThread = null;
@@ -2592,18 +2592,18 @@ public class FXUIGameMaster extends Application {
         Window owner = FXUIGameMaster.mainStage.getScene().getWindow();
         try {
             final Stage dialog = new Stage();
-            dialog.setTitle("HEY!");
+            dialog.setTitle(""); //TODO make use of this in the future
             dialog.initOwner(owner);
             dialog.setX(owner.getX());
             dialog.setY(owner.getY() + 50);
 
             final VBox layout = new VBox(10);
             layout.setAlignment(Pos.CENTER);
-            layout.setStyle("-fx-background-color: pink; -fx-padding: 30");
+            layout.setStyle("-fx-padding: 30");
 
-            final Text querySymbol = new Text("[[[ ! ]]] ");
-            querySymbol.setTextAlignment(TextAlignment.CENTER);
-            querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+            final Text headerText = new Text(""); //TODO make use of this in the future
+            headerText.setTextAlignment(TextAlignment.CENTER);
+            headerText.setFont(Font.font("Arial", FontWeight.BOLD, 24));
             
             String textToShow = "";
             for (int strIndex = 0; strIndex < textIn.length(); strIndex += 180){
@@ -2615,8 +2615,8 @@ public class FXUIGameMaster extends Application {
             	textToShow+= "\n";
             }
 
-            final Text queryText = new Text("     " + textToShow + "     ");
-            queryText.setTextAlignment(TextAlignment.CENTER);
+            final Text bodyText = new Text("     " + textToShow + "     ");
+            bodyText.setTextAlignment(TextAlignment.CENTER);
 
             Text spaceBuffer = new Text("\n");
             spaceBuffer.setTextAlignment(TextAlignment.CENTER);
@@ -2632,7 +2632,7 @@ public class FXUIGameMaster extends Application {
             });
 
             layout.getChildren().setAll(
-                    querySymbol, queryText, yeah, spaceBuffer
+                    headerText, bodyText, yeah, spaceBuffer
             );
 
             dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {
@@ -2713,7 +2713,6 @@ class About {
         final VBox layout = new VBox();
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-padding: 50;");
-        //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
         layout.getChildren().setAll(
                 info1, hlink, info2,
                 submitButton
@@ -2794,7 +2793,6 @@ class About {
         final VBox layout = new VBox(10);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-padding: 50;");
-        //old::: 	      layout.setStyle("-fx-background-color: azure; -fx-padding: 10;");
         layout.getChildren().setAll(
                 deepVersionInfo,
                 subVersionInfo,
