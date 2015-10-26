@@ -52,6 +52,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
@@ -63,6 +64,8 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -73,6 +76,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Hyperlink;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -111,7 +115,7 @@ import javafx.stage.WindowEvent;
 */
 public class FXUIGameMaster extends Application {
 
-    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x11h\nStamp 2015.10.21, 13:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
+    public static final String versionInfo = "FXUI-RISK-Master\nVersion 01x12h\nStamp 2015.10.25, 22:00\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.ser";
@@ -129,6 +133,7 @@ public class FXUIGameMaster extends Application {
     protected static final boolean LOGGING_OFF = false, LOGGING_ON = true;
     protected static boolean forceEnableLogging = false, forceLoggingIsIndeterminate = true;
     protected static boolean loggingEnabled = true; //this is the one that has the final say as to whether the log file is created
+    protected static boolean runBotsOnly = false;
     private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
     protected RiskMap map;
     protected Deque<Card> deck;
@@ -142,7 +147,7 @@ public class FXUIGameMaster extends Application {
     protected static int allocationIdx = 0;
 
     protected FileWriter log, stats;
-    protected ArrayList<String> internalLogCache = new ArrayList<String>();
+    protected static List<String> internalLogCache = Collections.synchronizedList(new ArrayList<String>());
     protected List<String> allPlayers;
     protected int round, turnCount;
 
@@ -389,6 +394,20 @@ public class FXUIGameMaster extends Application {
         final Text newGameText = new Text("\nStart a brand new game.");
         newGameText.setTextAlignment(TextAlignment.CENTER);
         newGameBtn.setTooltip(new Tooltip("Launch a brand new game, with the potential to overwrite\nprevious game saves."));
+        
+        final CheckBox botsOnly = new CheckBox("Bots only? (non-interactive play?)");
+        botsOnly.setTooltip(new Tooltip("Effective for new games only.\n"
+        		+ "CHECKED: the bots will automatically play without a human\n"
+                + "UNCHECKED: ...a human player will be set up to play against bots\n"
+                + "If enabling (CHECKED), remember the prior log will be overwritten!"));
+        botsOnly.setTextFill(Color.GREY);
+        botsOnly.setSelected(FXUIGameMaster.runBotsOnly);
+        /*botsOnly.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent t) {
+                
+            }
+        });*/
 
         final Button loadGameBtn = new Button("LOAD previous save.");
         final Text loadGameText = new Text();
@@ -467,6 +486,21 @@ public class FXUIGameMaster extends Application {
         newGameBtn.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
+            	/*
+            	 * Check to see whether we are using bots or not...
+            	 * Look at the state of the checkbox.
+            	 */
+            	if (botsOnly.isSelected()) {
+                    //tell it to enable logging
+                	FXUIGameMaster.runBotsOnly = true;
+                } else if (!botsOnly.isSelected()) {
+                    //tell it to forcefully disable logging
+                	FXUIGameMaster.runBotsOnly = false;
+                }
+            	
+            	/*
+            	 * Set us up to be in the new game mode, then close the dialog.
+            	 */
                 FXUIGameMaster.workingMode = NEW_GAME_MODE;
                 dialog.close();
             }
@@ -502,7 +536,7 @@ public class FXUIGameMaster extends Application {
         }
 
         layout.getChildren().setAll(
-                querySymbol, queryText, newGameText, newGameBtn, loadGameText, loadGameBtn, loadGameSubText, spaceBuffer, cnclBtn
+                querySymbol, queryText, newGameText, newGameBtn, botsOnly, loadGameText, loadGameBtn, loadGameSubText, spaceBuffer, cnclBtn
         );
         miniPane.getChildren().add(layout);
 
@@ -532,8 +566,9 @@ public class FXUIGameMaster extends Application {
         FXUIGameMaster.crossbar.setCurrentPlayerDialog(dialog);
         dialog.show();
         /*
-         *Don't forget to set the crossbar variable back to NULL when you are done!
-         * You can't safely do it here. 
+         *Don't forget to tell the crossbar there's no dialog
+         * when the window is closed!
+         * (In other words, .setCurrentPlayerDialog(NULL))
          */
     }
 
@@ -1063,7 +1098,10 @@ public class FXUIGameMaster extends Application {
                 this.turnCount++;
                 try {
                     for (int gameStep = 4; gameStep > -1 && !(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame); gameStep--) {
-                        refreshUIElements(canUpdateUIAndSave);
+                        refreshUIElements(canUpdateUIAndSave || FXUIGameMaster.runBotsOnly);
+                        if(FXUIGameMaster.runBotsOnly){
+                        	RiskUtils.sleep(750);
+                        }
                         switch (gameStep) {
                             case 4:
                                 reinforce(currentPlayer, true);
@@ -1078,7 +1116,7 @@ public class FXUIGameMaster extends Application {
                                 turn = (this.players.indexOf(currentPlayer.getName()) + 1) % this.players.size();
                                 break;
                             case 0:
-                                if (canUpdateUIAndSave) {
+                                if (canUpdateUIAndSave && !FXUIGameMaster.runBotsOnly) {
                                     prepareSave();
                                     performSave(false);
                                 }
@@ -1103,7 +1141,8 @@ public class FXUIGameMaster extends Application {
                 flashPlayerCountries(this.players.get(0));
             } else if (!FXUIGameMaster.fullAppExit) {
                 displayExtendedMessage("Thanks for playing!");
-                System.out.println(WARN + "Game forced to exit by UI player; sorry 'bout it!");
+                System.out.println(WARN + "Early game end by UI player "
+                		+ "(not a full exit); sorry 'bout it!");
             } else {
                 System.out.println(WARN + "Game forced to exit by UI player; sorry 'bout it!");
             }
@@ -1837,7 +1876,15 @@ public class FXUIGameMaster extends Application {
         Runnable gameCode = new Runnable() {
             @Override
             public void run() {
+            	/*
+            	 * Set the default to "BOTS vs HUMAN"
+            	 */
+            	FXUIGameMaster.runBotsOnly = false;
+            	
+            	//Allow the user to select game details...
                 int stateOut = displayGameSelector();
+                
+                //Depending on what's been selected there, run or don't run.
                 if (stateOut != IDLE_MODE) {
                 	setButtonAvailability();
                     runGameAndDisplayVictor();
@@ -1866,7 +1913,17 @@ public class FXUIGameMaster extends Application {
                 RiskConstants.resetTurnIn();
                 PlayerFactory.resetPlayerCounts();
                 boolean doWeLog = (!forceLoggingIsIndeterminate && forceEnableLogging) || (forceLoggingIsIndeterminate && i == numGames - 1 ? LOGGING_ON : LOGGING_OFF);
-                initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUIAsk, doWeLog);
+                /**
+                 * Be aware: "DEFAULT_PLAYERS" means various types of bots ONLY!
+                 * If there is ever a future version where this is untrue,
+                 * then this method of setting up players will be invalid!
+                 */
+                if(FXUIGameMaster.runBotsOnly){
+                	initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS, doWeLog);
+                }
+                else{
+                	initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUIAsk, doWeLog);
+                }
 
                 System.out.print((i + 1) + " - ");
 
@@ -2283,8 +2340,10 @@ public class FXUIGameMaster extends Application {
                     @Override
                     public void run() {
                         //crossbar.signalHumanEndingGame();
-                        crossbar.tryCloseCurrentPlayerDialog();
-                        //FXUIGameMaster.endGame = true;
+                        if(!crossbar.tryCloseCurrentPlayerDialog()){
+                        	if(FXUIGameMaster.doYouWantToMakeAnExit(false,0) <= 0)
+                        		FXUIGameMaster.endGame = true;
+                        }
                     }
                 });
             }
@@ -2417,9 +2476,17 @@ public class FXUIGameMaster extends Application {
                 }
             }
         });
+        
+        Button showLogBtn = new Button("Show log contents.");
+        showLogBtn.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent t) {
+                showLogContents();
+            }
+        });
 
         //****Add buttons to panel. Tweak these additions depending on whether there was an error
-        lowerButtonPanel.getChildren().addAll(tellMe, tellMe2);
+        lowerButtonPanel.getChildren().addAll(tellMe, tellMe2, showLogBtn);
         if (!fullAppExit) { //if we had no error
             primaryStatusButtonPanel.getChildren().addAll(/*windowSizeSlider,*/mainStatusTextElement, startBtn,
                     stopGameBtn, exitApp, lowerButtonPanel, saveMe, doLogging,
@@ -2562,21 +2629,16 @@ public class FXUIGameMaster extends Application {
 
 		//represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
 		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
-		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen, and use showAndWait
+		if(Platform.isFxApplicationThread()){ //if this is the FX thread, make it all happen!
 			passiveDialogHelper(textToShow, dialogIsShowing);
 			return 1;
 		}
-		else{ //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
+		else{ //if this isn't the FX thread, make it happen there!
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					passiveDialogHelper(textToShow, dialogIsShowing);
 				}
 			});
-				
-			do{
-				RiskUtils.sleep(100);
-			}
-			while(dialogIsShowing.get());
 		}
 		return 0;
     }
@@ -2604,18 +2666,10 @@ public class FXUIGameMaster extends Application {
             final Text headerText = new Text(""); //TODO make use of this in the future
             headerText.setTextAlignment(TextAlignment.CENTER);
             headerText.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-            
-            String textToShow = "";
-            for (int strIndex = 0; strIndex < textIn.length(); strIndex += 180){
-            	int charsToDo = 180;
-            	if (textIn.length() - strIndex < charsToDo){
-            		charsToDo = textIn.length() - strIndex;
-            	}
-            	textToShow += textIn.substring(strIndex,strIndex+charsToDo);
-            	textToShow+= "\n";
-            }
 
-            final Text bodyText = new Text("     " + textToShow + "     ");
+            final Text bodyText = new Text("     " 
+            		+ delineateAfter180Chars(textIn) 
+            		+ "     ");
             bodyText.setTextAlignment(TextAlignment.CENTER);
 
             Text spaceBuffer = new Text("\n");
@@ -2647,6 +2701,182 @@ public class FXUIGameMaster extends Application {
         } catch (Exception e) {
             System.out.println(ERROR + " passive dialog display failed:: " + e);
         }
+    }
+    
+    /**
+     * Create a non-JavaFX thread (if necessary) to build & display a passive
+     * dialog window containing the contents of the log.
+     * A bit easier than opening the log file directly elsewhere.
+     * @param textToShow the text...to be shown
+     * @return for now, returns >=0 upon thread creation success, ??? otherwise
+     */
+    public static int showLogContents() {
+
+		//represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
+		AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+		if(Platform.isFxApplicationThread()){ //if this is the FX thread...
+			passiveLogDisplayHelper(dialogIsShowing);
+			return 1;
+		}
+		else{ //if this isn't the FX thread, communicate with it to display dialog!
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					passiveLogDisplayHelper(dialogIsShowing);
+				}
+			});
+		}
+		return 0;
+    }
+
+    /**
+     * Build & show the dialog.
+     *
+     * @param textToShow the info text to show in the passive dialog
+     * @param dialogIsShowing used to control the flow of code; will be set to
+     * "false" when dialog is closed.
+     */
+    private static void passiveLogDisplayHelper(AtomicBoolean dialogIsShowing) {
+        Window owner = FXUIGameMaster.mainStage.getScene().getWindow();
+        try {
+            final Stage dialog = new Stage();
+            dialog.setTitle("-log-");
+            dialog.initOwner(owner);
+            dialog.setX(owner.getX());
+            dialog.setY(owner.getY() + 50);
+
+            final VBox innerlayout = new VBox(1);
+            innerlayout.setAlignment(Pos.TOP_LEFT);
+            innerlayout.setStyle("-fx-padding: 100");
+
+            final Text headerText = new Text("Le Log contents~~~");
+            headerText.setTextAlignment(TextAlignment.CENTER);
+            headerText.setFont(Font.font("Arial", FontWeight.LIGHT, 14));
+           
+            final Text bodyText = new Text("");
+            bodyText.setTextAlignment(TextAlignment.LEFT);
+
+            Text spaceBuffer = new Text("[No log yet! Start playing already!]");
+            spaceBuffer.setTextAlignment(TextAlignment.CENTER);
+            spaceBuffer.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+            
+            final AtomicBoolean pauseText = new AtomicBoolean(false);
+            final Button pauseBtn = new Button("pause auto-play");
+            pauseBtn.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent t) {
+                    pauseText.set(!pauseText.get());
+                    if(pauseText.get()){
+                    	pauseBtn.setText("resume auto-play");
+                    }
+                    else{
+                    	pauseBtn.setText("pause auto-play");
+                    }
+                }
+            });
+
+            final Button closeBtn = new Button("close log");
+            closeBtn.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent t) {
+                    dialogIsShowing.set(false);
+                    dialog.close();
+                }
+            });
+            
+
+            innerlayout.getChildren().setAll(
+            		bodyText, spaceBuffer
+            );
+
+            dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {
+                @Override
+                public void handle(WindowEvent t) {
+                    dialogIsShowing.set(false);
+                }
+            });
+            
+            ScrollPane siPane = new ScrollPane();
+            siPane.setContent(innerlayout);
+            siPane.setHvalue(0.50d);
+            
+            HBox lowButtonsHBox = new HBox(10);
+            lowButtonsHBox.setAlignment(Pos.CENTER);
+            lowButtonsHBox.getChildren().setAll(
+            		pauseBtn, closeBtn
+            );
+            
+            VBox outerVBox = new VBox(10);
+            outerVBox.setAlignment(Pos.CENTER);
+            outerVBox.getChildren().setAll(
+            		headerText, siPane, lowButtonsHBox
+            );
+            
+            dialog.setScene(new Scene(outerVBox));
+            dialog.show();
+            //refresh the contents so long as the window is open
+            //also, exit the while loop if the application is going to exit...
+            //otherwise the thread might try to stay alive and it's a big mess.
+            Thread refreshTextThread = 
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                	final AtomicInteger cachePosition = new AtomicInteger(0);
+                	while(dialogIsShowing.get() && !FXUIGameMaster.fullAppExit){
+                		int curLocation = cachePosition.get();
+                		String newTextOut = "";
+                		RiskUtils.sleep(1000);
+                		for (; curLocation < internalLogCache.size(); curLocation++){
+                			newTextOut += 
+                					delineateAfter180Chars(internalLogCache.get(curLocation));
+                		}
+                		if(!dialogIsShowing.get() || cachePosition.get() + 1 >=  internalLogCache.size() || pauseText.get()){
+                			RiskUtils.sleep(1000);
+                		}
+                		else{
+	                        cachePosition.set(curLocation);
+	                        final String newTextShare = newTextOut;
+	                        Platform.runLater(new Runnable() {
+	                            @Override
+	                            public void run() {
+	                            	spaceBuffer.setText("");
+	                            	bodyText.setText(bodyText.getText() + "\n" 
+	                            			+ newTextShare);
+	                            	siPane.setVvalue(1);
+	                            	//make sure to always display the last lines
+	                            	//of the log if we are already at the bottom
+	                            	
+	                            }
+	                        });
+                		}
+                	}
+                	WindowResizeHandler.diagnosticPrintln("log window thread done.");
+                	WindowResizeHandler.diagnosticPrintln("log window boolean: " + dialogIsShowing.get());
+                }
+            });
+            refreshTextThread.setDaemon(true);
+            refreshTextThread.start();
+        } catch (Exception e) {
+            System.out.println(ERROR + " display of log contents failed:: " + e);
+        }
+    }
+    
+    /**
+     * Break a string of text up onto lines, separated by the newline character,
+     * of 180 (or fewer) characters.
+     * @param textIn The text to potentially be split
+     * @return the String of text, with extra newlines added where necessary.
+     */
+    private static String delineateAfter180Chars(String textIn){
+        String textToShow = "";
+        for (int strIndex = 0; strIndex < textIn.length(); strIndex += 180){
+        	int charsToDo = 180;
+        	if (textIn.length() - strIndex < charsToDo){
+        		charsToDo = textIn.length() - strIndex;
+        	}
+        	textToShow += textIn.substring(strIndex,strIndex+charsToDo);
+        	textToShow+= "\n";
+        }
+        return textToShow;
     }
 } //end of main FXUIGameMaster class
 

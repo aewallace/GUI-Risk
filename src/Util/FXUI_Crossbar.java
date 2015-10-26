@@ -54,7 +54,7 @@ public class FXUI_Crossbar {
 		return currentPlayerJFXStage != null;
 	}
 	
-	public void tryCloseCurrentPlayerDialog()
+	public boolean tryCloseCurrentPlayerDialog()
 	{
 		if (currentPlayerJFXStage != null)
 		{
@@ -65,7 +65,9 @@ public class FXUI_Crossbar {
 					}
 				}
 			});
+			return true;
 		}
+		return false;
 	}
 	
 	public void setAppHiddenState(boolean isHidden)

@@ -23,7 +23,7 @@ public class SavePoint implements Serializable {
 	 * 
 	 */
 	private static final long serialVersionUID = 2015022600000001L;
-	public static final String versionInfo = "FXUI-RISK-Master\nVersion REL00-GH01\nStamp Y2015.M02.D26.HM1830\nType:MNT(00)";
+	public static final String versionInfo = "FXUI-RISK-SavePoint\nVersion 00x02h\nStamp Y2015.M10.D25.HM2200\nType:Alpha(01)";
 	public HashMap<String, String> countriesPlusOwners;
 	public HashMap<String, Integer> countriesPlusArmies;
 	public transient boolean readyToSave = false;
@@ -31,7 +31,7 @@ public class SavePoint implements Serializable {
 	public HashMap<String, ArrayList<String>> playersPlusCards;
 	public HashMap<String, String> activePlayersAndTheirTypes;
 	
-	public ArrayList<String> logCache;
+	public List<String> logCache;
 
 	public HashMap<String, Boolean> playerIsEliminatedMap;
 
@@ -67,7 +67,7 @@ public class SavePoint implements Serializable {
 
 	public int getRoundsPlayed(){return roundsPlayed;}
 	
-	public ArrayList<String> getLogCache(){return logCache;}
+	public List<String> getLogCache(){return logCache;}
 	
 
 	public Date getLatestSaveDate(){return latestGameSaveDate;}
@@ -163,20 +163,20 @@ public class SavePoint implements Serializable {
 		roundsPlayed = roundsCompleted;
 	}
 	
-	public void prepLogCache(ArrayList<String> logCacheIn){
-		logCache = logCacheIn;
+	public void prepLogCache(List<String> internalLogCache){
+		logCache = internalLogCache;
 	}
 	
 	public boolean prepareOverallSave(Date originalSDate, Date currentSDate, int roundIn, RiskMap map,
 			HashMap<String, Player> currentPlayers, List<String> originalPlayers,
-			ArrayList<String> logCacheIn,
+			List<String> internalLogCache,
 			List<String> players,
 			HashMap<String, Collection<Card>> playerCardsetMap)
 	{
 		updateSaveIdentificationInfo(originalSDate, currentSDate, roundIn);
 		prepAllCountryDetails(map);
 		prepAllPlayerDetails(currentPlayers, originalPlayers);
-		prepLogCache(logCacheIn);
+		prepLogCache(internalLogCache);
 		for (String player : players){
 			prepCardsForGivenPlayer(player, playerCardsetMap.get(player));
 		}
