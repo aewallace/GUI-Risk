@@ -1,4 +1,17 @@
-#Risk [original by Seth Denney]
+#Risk 
+#Updates [by Albert Wallace]
+###Available now: sample UI version of Risk
+You may now download a JAR file (Java 8 required) that allows you to play the UI implementation of Risk we've provided. (Note that available JARs will not necessarily be the latest version).
+###Risk UI code started!
+...The basis of the aforementioned JAR file is newly developed code. In addition to the LogPlayer UI by Seth (revised by myself in this branch), there is now code in place for a UI-capable GameMaster and a UI-capable player.
+Together, FXUIGameMaster and FXUIPlayer (with associated helper classes) now offer the luxury of playing through a game of Risk to get an idea of how things go. Basic ability are included, with enhancements to come.
+###LogPlayer UI "updated"
+...before starting the main Risk game UI, I took a look at Seth's original LogPlayer. I iterated upon it, not changing much of the feel (yet) but added some functionality. It is from this that I was able to start FXUIGameMaster, though only some remnants of initial setup from LogPlayer will catch your eye there. So please reviewing previously played games, whether just CPU from GameMaster or including YOU with FXUIGameMaster!
+##Total available entry points in this source branch
+...There are 3 executable targets: LogPlayer (to playback logged events from a game of Risk), GameMaster (the original version of the game that supports CPU players only -- or otherwise features no UI), and FXUIGameMaster (which is the focus of this branch: the UI-playable version of Risk).
+Keep this in mind during compilation. Depending on your environment/your IDE, you may be able to dynamically select which one to run. Or you may have to manually remove files. Do what's necessary.
+
+#original command-line bot reference [by Seth Denney]
 
 This project offers a platform for which multiple users can write bots to play Risk.
 
@@ -39,18 +52,3 @@ The new LogPlayer class allows developers to replay the events of the most recen
 One important note, this app is built on top of JavaFX, which comes as part of the JDK, so it should simply be a matter of adding that library to your project's classpath, and you'll be good to go!
 
 Feel free to clone the repo, write and test your own Players, and send them in (Pull Requests welcome!) to be pitted against others! You can always look at the other Player implementations, but it's highly recommended that you implement your own ideas first!
-
-#Updates [by Albert Wallace]
-###Available now: sample UI version of Risk
-You may now download a JAR file (Java 8 likely required) that allows you to play the UI implementation of Risk we've provided.
-###Risk UI code started!
-...The basis of the above JAR file is newly developed code. In addition to the LogPlayer UI by Seth (revised by myself in this branch), there is now code in place for a UI-capable GameMaster and a UI-capable player.
-Together, FXUIGameMaster and FXUIPlayer (with associated helper classes) now offer the luxury of playing through a game of Risk to get an idea of how things go. Basic ability are included, with enhancements to come.
-###LogPlayer UI "updated"
-...before starting the main Risk game UI, I took a look at Seth's original LogPlayer. I iterated upon it, not changing much of the feel (yet) but added some functionality. It is from this that I was able to start FXUIGameMaster, though only some remnants of initial setup from LogPlayer will catch your eye there. So please reviewing previously played games, whether just CPU from GameMaster or including YOU with FXUIGameMaster!
-##Total available entry points in this source branch
-...There are 3 executable targets: LogPlayer (to playback logged events from a game of Risk), GameMaster (the original version of the game that supports CPU players only -- or otherwise features no UI), and FXUIGameMaster (which is the focus of this branch: the UI-playable version of Risk).
-Keep this in mind during compilation. Depending on your environment/your IDE, you may be able to dynamically select which one to run. Or you may have to manually remove files. Do what's necessary.
-
-#Thank you!
-###Just a general thank you from me to Seth for all the work he did in the original version, and the enthusiasm he has shown as I have added my two cents on the project. I appreciate it, man.
