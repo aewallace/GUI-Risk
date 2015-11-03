@@ -17,6 +17,7 @@ import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -35,13 +36,9 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    /**Controls whether or not diagnostic information is printed through the
-     * associated {@link #diagnosticPrintln(string)} method. True: print
-     * diagnostic info. False: suppress display of diagnostic info.
-     * (Every call to diagnosticPrintln checks this, currently.) */
-	private static final boolean diagnosticModeEnabled = false;
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x15h\nStamp 2015.10.30, 22:00\nStability:Beta(02)";
 	
-	/*Remaining convenient class-level variables.*/
+    /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
     private Stage activeStage = null;
     private Scene activeScene = null;
@@ -66,25 +63,31 @@ public class WindowResizeHandler {
      * Assumes no window decorations are present. (If window decorations are
      * present, please use the alternate constructor). (In other words,
      * "windowDecorationWidth" & "windowDecorationHeight" parameter of
-     * {@link #ResizeHandler(Stage, double, double, double, double, double)} is
+     * {@link #WindowResizeHandler(Stage, double, double, double, double, double)} is
      * set to 0).
      *
      * @param desiredStage the stage which may or may not require resizing
      * @param aspectRatio target ratio of the content of the window (not
      * necessarily of the window itself!)
      * @param contentWidth ideal width of the content (Scene) of the window
-     * (Stage)
+     * (Stage). If placing something like an image as a background in the Scene,
+     * the local coordinates of the scene probably match the dimensions of 
+     * the image, and the image's width would be this value.
+     * @param contentHeight ideal height of the content (Scene) of the window
+     * (Stage). If placing something like an image as a background in the Scene,
+     * the local coordinates of the scene probably match the dimensions of 
+     * the image, and the image's height would be this value.
      */
     public WindowResizeHandler(Stage desiredStage, double aspectRatio, double contentWidth, double contentHeight) {
-        diagnosticPrintln("ResizeHandler constructor A");
-        constructorHelper(desiredStage, aspectRatio, 0.0, 0.0, contentWidth, contentHeight);
+    	this(desiredStage, aspectRatio, 0.0, 0.0, contentWidth, contentHeight);
+    	FXUIGameMaster.diagnosticPrintln("ResizeHandler constructor A ultimately called.");
     }
 
     /**
      * Class constructor which accepts more parameters. Creates an object
      * responsible for intelligent resizing of a single linked window (Stage),
      * taking window decorations into account. Compared to
-     * {@link #ResizeHandler(Stage, double)}, allows you to inform the object of
+     * {@link #WindowResizeHandler(Stage, double, double, double)}, allows you to inform the object of
      * the width and height of the window decorations. (The height of the window
      * decorations makes the height of a window/Stage technically be greater
      * than the height of the window contents/Scene.) (The same applies to the
@@ -96,43 +99,19 @@ public class WindowResizeHandler {
      * Contains the Scene which is treated as the "window contents".
      * @param aspectRatio target ratio of the content of the window (not
      * necessarily of the window itself!)
+     * @param windowDecorationWidth the amount of space taken up vertically by
+     * the OS's window decoration (borders, etc). e.g., if both sides are 5px,
+     * then the value passed in would be 10.
      * @param windowDecorationHeight the amount of space taken up vertically by
      * the OS's window decoration (window title, minimize/maximize/close
-     * buttons, etc)
+     * buttons, etc). e.g. if the top is 55px and the bottom is 5px, the passed
+     * in value would be 60.
      * @param contentWidth the ideal default width of the content (Scene),
      * assuming unlimited screen real estate.
      * @param contentHeight the ideal default height of the content (Scene),
      * assuming unlimited screen real estate.
      */
     public WindowResizeHandler(Stage desiredStage, double aspectRatio, double windowDecorationWidth, double windowDecorationHeight, double contentWidth, double contentHeight) {
-        diagnosticPrintln("ResizeHandler constructor B");
-        constructorHelper(desiredStage, aspectRatio, windowDecorationWidth, windowDecorationHeight, contentWidth, contentHeight);
-    }
-
-    /**
-     * Allows for multiple forms of the class constructor without having to
-     * repeat code.
-     *
-     * @param desiredStage [CHECKED: must not be null] the stage which may or
-     * may not require resizing
-     * @param aspectRatio [CHECKED: must be > 0] target ratio of the content of
-     * the window (not necessarily of the window itself!)
-     * @param windowDecorationWidth [CHECKED: must be > 0] the amount of space
-     * taken up horizontally by the OS's window decoration (window title,
-     * minimize/maximize/close buttons, borders, etc)
-     * @param windowDecorationHeight [CHECKED: must be > 0] the amount of space
-     * taken up vertically by the OS's window decoration (window title,
-     * minimize/maximize/close buttons, borders, etc)
-     * @param contentWidth [UNCHECKED (will be auto-set)] the ideal default
-     * width of the content (Scene), assuming unlimited screen real estate. If
-     * an invalid value (below 1) is supplied, the ideal size will be determined
-     * using the primary screen & the aspect ratio. 
-     * @param contentHeight [UNCHECKED (will be auto-set)] the ideal default 
-     * height of the content (Scene), assuming unlimited screen real estate. If 
-     * an invalid value (below 1) is supplied, the ideal size will be determined 
-     * using the primary screen & the aspect ratio.
-     */
-    private void constructorHelper(Stage desiredStage, double aspectRatio, double windowDecorationWidth, double windowDecorationHeight, double contentWidth, double contentHeight) {
         verifyIsFXThread();
         if (desiredStage == null || aspectRatio <= 0) {
             throw new UnsupportedOperationException("Select parameters detected as invalid. Status of potentially invalid parameters: desiredStage = "
@@ -151,6 +130,7 @@ public class WindowResizeHandler {
             }
             setCallerActive();
             this.desiredAspectRatio = aspectRatio;
+            this.windowDecorationWidth = windowDecorationWidth;
             this.windowDecorationHeight = windowDecorationHeight;
             storeIdealContentDimensions(1, 1, contentWidth, contentHeight);
             attachResizeListeners();
@@ -159,22 +139,30 @@ public class WindowResizeHandler {
     }
     
     /**
-     * Determines the bounds of the active screen (the screen currently
-     * displaying the majority of the application).
+     * Determines the bounds of the active screen (the screen on which the window 
+	 * representing the assigned Stage "activeStage" appears) and stores the values
+	 * in this class instance for later use by internal methods.
      * Necessary in multi-screen (multi-monitor) environments to assist with
      * proper automatic resizing.
      * 
-     * If no screens are detected due to a bug, the bounds are set to the
-     * default width and height of the app's content.
+     * If no screens are detected due to a bug, the stored bounds are set to the
+     * default width and height of the app's content, with adjustments made
+     * to consider the dimensions of any window decoration.
      */
-    private void determineActiveScreenBounds(){
+    private double[] determineActiveScreenBounds(){
+		if(activeStage == null){
+			 throw new UnsupportedOperationException("Attempted to get active "
+			 		+ "screen bounds before this class instance properly initialized. "
+			 		+ "(Why is there no Stage object assigned to me? The active "
+			 		+ "JavaFX window has an associated Stage object as a requirement for creation.)");
+		}
         double currentCenterX = activeStage.getX() + (activeStage.getWidth()/2);
         double currentCenterY = activeStage.getY() + (activeStage.getHeight()/2);
         boolean screenFound = false;
         Rectangle2D givenBounds;
         ObservableList<Screen> screensIn = Screen.getScreens();
         
-        for(int screenNo = 0; screenNo < screensIn.size() && !screenFound;
+        for(int screenNo = 0; screensIn != null && screenNo < screensIn.size() && !screenFound;
                 screenNo++)
         {
             givenBounds = screensIn.get(screenNo).getVisualBounds();
@@ -187,16 +175,69 @@ public class WindowResizeHandler {
                 this.activeScreenWidth = givenBounds.getWidth();
                 this.activeScreenHeight = givenBounds.getHeight();
                 screenFound = true;
-                diagnosticPrintln("Rendering on screen " + screenNo);
+                FXUIGameMaster.diagnosticPrintln("Rendering on screen " + screenNo);
             }
-            diagnosticPrintln("Screen: " + screenNo);
-            diagnosticPrintln(screensIn.get(screenNo).getVisualBounds().toString());
+            FXUIGameMaster.diagnosticPrintln("Screen: " + screenNo);
+            FXUIGameMaster.diagnosticPrintln(screensIn.get(screenNo).getVisualBounds().toString());
         }
         if(!screenFound){
-            this.activeScreenWidth = FXUIGameMaster.DEFAULT_CONTENT_WIDTH;
-            this.activeScreenHeight = FXUIGameMaster.DEFAULT_CONTENT_HEIGHT;
-            diagnosticPrintln("Using pixel-matched dimensions (DEFAULT CONTENT)");
+            this.activeScreenWidth = FXUIGameMaster.DEFAULT_CONTENT_WIDTH + this.windowDecorationWidth;
+            this.activeScreenHeight = FXUIGameMaster.DEFAULT_CONTENT_HEIGHT + this.windowDecorationHeight;
+            FXUIGameMaster.diagnosticPrintln("Using pixel-matched dimensions (DEFAULT CONTENT)");
         }
+        return new double[]{this.activeScreenWidth,this.activeScreenHeight};
+    }
+	
+	/**
+     * Determines the bounds of the given screen (the screen currently
+     * displaying the majority of the window assigned to a given Stage), 
+	 * and passively returns the value without storing.
+     * Necessary in multi-screen (multi-monitor) environments to assist with
+     * proper initial window sizing.
+     * 
+     * If no screens are detected due to a bug, the returned bounds are set 
+	 * to the default width and height of the app's content.
+	 *@param passiveStage the Stage object representing the Window to be checked
+	 *@return a Rectangle2D object representing the usable bounds.
+     */
+    public static Rectangle2D returnGivenScreenBounds(Stage passiveStage){
+        if(passiveStage == null){
+                 throw new UnsupportedOperationException("Attempted to analyze "
+                 		+ "a window with a null Stage object. "
+                 		+ "Cannot determine which screen thiis window appears "
+                 		+ "on, as we cannot determine the coordinates of the "
+                 		+ "window from a null Stage object. "
+                 		+ "(Did you mean to call me later in your "
+                 		+ "initialization process?)");
+        }
+        double currentCenterX = passiveStage.getX() + (passiveStage.getWidth()/2);
+        double currentCenterY = passiveStage.getY() + (passiveStage.getHeight()/2);
+        FXUIGameMaster.diagnosticPrintln("Center of window found at " + currentCenterX + " x <> y " + currentCenterY);
+        boolean screenFound = false;
+        Rectangle2D givenBounds = new Rectangle2D(0,0,0,0);
+        ObservableList<Screen> screensIn = Screen.getScreens();
+        FXUIGameMaster.diagnosticPrintln("Screen count: " + screensIn.size());	
+        for(int screenNo = 0; screensIn != null && screenNo < screensIn.size() && !screenFound;
+                screenNo++)
+        {
+            givenBounds = screensIn.get(screenNo).getVisualBounds();
+            if(currentCenterX < givenBounds.getMaxX()
+                    && currentCenterY < givenBounds.getMaxY()
+                    && currentCenterX > givenBounds.getMinX()
+                    && currentCenterY > givenBounds.getMinY())
+            {
+                //this screen being tested is the screen to use
+                screenFound = true;
+                FXUIGameMaster.diagnosticPrintln("Returning dimensions from screen " + screenNo);
+            }
+            FXUIGameMaster.diagnosticPrintln("Screen: " + screenNo);
+            FXUIGameMaster.diagnosticPrintln(screensIn.get(screenNo).getVisualBounds().toString());
+        }
+        if(!screenFound){
+            givenBounds = new Rectangle2D(0,0,FXUIGameMaster.DEFAULT_CONTENT_WIDTH,FXUIGameMaster.DEFAULT_CONTENT_HEIGHT);
+            FXUIGameMaster.diagnosticPrintln("Returning pixel-matched dimensions (DEFAULT CONTENT)");
+        }
+	return givenBounds;
     }
 
     /**
@@ -245,7 +286,7 @@ public class WindowResizeHandler {
      */
     private boolean getWindowObjectState() {
         if (this.activeScene == null || this.activeStage == null) {
-            diagnosticPrintln("There was either a faulty stage or faulty scene submitted for resizing. Please be wary...");
+            FXUIGameMaster.diagnosticPrintln("There was either a faulty stage or faulty scene submitted for resizing. Please be wary...");
             return setCallerInactive();
         } else {
             return this.assumeCallerIsActive;
@@ -284,27 +325,28 @@ public class WindowResizeHandler {
         
         //if we have some invalid input, we must do some calculation...
         if (idealWidth < minWidth || idealHeight < minHeight) {
-            diagnosticPrintln("Detecting ideal window size..." + idealWidth + " <<W ::: H>> " + idealHeight);
+            FXUIGameMaster.diagnosticPrintln("Detecting ideal window size..." + idealWidth + " <<W ::: H>> " + idealHeight);
             determineActiveScreenBounds();
-            double maxWidth = activeScreenWidth; //TODO get rid of temp variable
-            double maxHeight = activeScreenHeight;
+            double maxWindowWidth = activeScreenWidth;
+            double maxWindowHeight = activeScreenHeight;
 
-            double usableScreenAspectRatio = maxWidth / maxHeight;
+            double usableScreenAspectRatio = maxWindowWidth / maxWindowHeight;
             /* if the desired aspect ratio for the given window is greater than the usable aspect ratio for the screen,
              * then the desired aspect ratio is too wide. We will have to calculate the applicable height
              * using the content's desired aspect ratio.
              */
             if (this.desiredAspectRatio > usableScreenAspectRatio) {
-                this.idealContentWidth = maxWidth;
-                this.idealContentHeight = maxWidth / this.desiredAspectRatio;
+                this.idealContentWidth = maxWindowWidth;
+                this.idealContentHeight = maxWindowWidth / this.desiredAspectRatio;
             } /*	else, we need to use the maximum available height, then determine the width to apply.*/ else {
-                this.idealContentHeight = maxHeight;
-                this.idealContentWidth = maxHeight * this.desiredAspectRatio;
+                this.idealContentHeight = maxWindowHeight;
+                this.idealContentWidth = maxWindowHeight * this.desiredAspectRatio;
             }
         } //else, we just set the values directly.
         else {
             this.idealContentHeight = idealHeight;
             this.idealContentWidth = idealWidth;
+            FXUIGameMaster.diagnosticPrintln("IdealContentWidth < :: > IdealContentHeight: " + this.idealContentWidth + " < :: > " + this.idealContentHeight);
         }
     }
 
@@ -321,49 +363,58 @@ public class WindowResizeHandler {
         if (!getWindowObjectState()) {
             return;
         }
-        diagnosticPrintln("FitToScreen started."
+        FXUIGameMaster.diagnosticPrintln("FitToScreen started."
         		+ "\nDetermining optimal window dimensions.");
         determineActiveScreenBounds();
-        double maxWidth = activeScreenWidth; //TODO get rid of temp variable
-        double maxHeight = activeScreenHeight;
+        double maxWindowWidth = activeScreenWidth;
+        double maxWindowHeight = activeScreenHeight;
+        FXUIGameMaster.diagnosticPrintln("winDec width : height" + this.windowDecorationWidth + " : " + this.windowDecorationHeight);
         
         double newContentWidth = 0, newContentHeight = 0;
 
-        double usableScreenAspectRatio = maxWidth / maxHeight;
-        /* if the desired aspect ratio for the given window is greater than the usable aspect ratio for the screen,
-         * then the desired aspect ratio is too wide. We will have to fit the window to the applicable height
-         * using the content's desired aspect ratio.
+        double usableScreenAspectRatio = maxWindowWidth / maxWindowHeight;
+        /* if the desired aspect ratio for the given window is greater than the 
+         * usable aspect ratio for the screen, then the desired aspect ratio is 
+         * too wide. We find that the window's width is correct, and thus we can
+         * easily get the width of the CONTENT. When done with that, we must
+         * then calc & adjust the height to the to the applicable height
+         * using the content's desired aspect ratio and the CONTENT width.
          */
         if (this.desiredAspectRatio > usableScreenAspectRatio) {
-            newContentWidth = maxWidth - this.windowDecorationWidth;
-            newContentHeight = maxWidth / this.desiredAspectRatio;
-        } /*	else, we need to use the maximum available height, 
-        then determine the width to which we should resize the window.*/ 
+            newContentWidth = maxWindowWidth - this.windowDecorationWidth;
+            newContentHeight = newContentWidth / this.desiredAspectRatio;
+        } 
+        /* Else, we need to use the maximum available height, adjust for
+         *applicable window decoration/borders, then determine the width to 
+         * which we should resize the content in the window. We'll convert to
+         * correct WINDOW size later.
+         */ 
         else {
-            newContentHeight = maxHeight - this.windowDecorationHeight;
-            newContentWidth = maxHeight * this.desiredAspectRatio;
+            newContentHeight = maxWindowHeight - this.windowDecorationHeight;
+            newContentWidth = newContentHeight * this.desiredAspectRatio;
         }
-
+        
+        /*
+         *How to scale the CONTENT, not the window itself.
+         */
         double scalePercentageHeight = newContentHeight / this.idealContentHeight;
         double scalePercentageWidth = newContentWidth / this.idealContentWidth;
 
-        diagnosticPrintln("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
+        FXUIGameMaster.diagnosticPrintln("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
         Scale scale = new Scale(scalePercentageWidth, scalePercentageHeight);
 
-        //final double xPositionToUse = (maxWidth - newContentWidth) / 2;
+        //final double xPositionToUse = (maxWindowWidth - newContentWidth) / 2;
         //the above negated by use of built-in function to center on screen.
-        final double newWidthCopy = newContentWidth;
-        final double newHeightCopy = newContentHeight;
         /*finally, we actually set the size of the window*/
         detachResizeListeners();
-        diagnosticPrintln("Snapping to dimensions...");
+        FXUIGameMaster.diagnosticPrintln("Snapping to dimensions...");
         activeScene.getRoot().getTransforms().setAll(scale);
         activeScene.getRoot().setLayoutX(0);
         activeScene.getRoot().setLayoutY(0);
-        activeStage.setWidth(newWidthCopy + windowDecorationWidth);
-        activeStage.setHeight(newHeightCopy + windowDecorationHeight);
+        activeStage.setWidth(newContentWidth + windowDecorationWidth);
+        activeStage.setHeight(newContentHeight + windowDecorationHeight);
         activeStage.centerOnScreen();
-        diagnosticPrintln("FitToScreen complete.");
+        FXUIGameMaster.diagnosticPrintln("FitToScreen complete.");
         attachResizeListeners();
             
     }
@@ -377,52 +428,57 @@ public class WindowResizeHandler {
         if (!getWindowObjectState()) {
             return;
         }
-        diagnosticPrintln("\n\nDetermining optimal window dimensions."
+        FXUIGameMaster.diagnosticPrintln("\n\nDetermining optimal window dimensions."
                 + " (ENTERING FULLSCREEN SCALING MODE)");
         determineActiveScreenBounds();
         
-        double maxWidth = activeStage.getWidth(); //TODO get rid of temp variable
-        double maxHeight = activeStage.getHeight();
+        /*
+         * We can ask the active stage for its width/height directly this time
+         * around; no trying to figure out screens, etc.
+         */
+        double maxWindowWidth = activeStage.getWidth();
+        double maxWindowHeight = activeStage.getHeight();
         
-        double usableScreenAspectRatio = maxWidth / maxHeight;
+        double usableScreenAspectRatio = maxWindowWidth / maxWindowHeight;
         double newContentHeight, newContentWidth, scalePercentageHeight,
         		scalePercentageWidth, xTranslate, yTranslate;
         
-        /* if the desired aspect ratio for the given window is greater than the 
+        /* if the desired aspect ratio for the given content is greater than the 
          * usable aspect ratio for the screen, then the desired aspect ratio is 
          * too wide. There will be bars at the top and/or bottom. We need to use
-         * the maximum available width, and figure out a better height to set.
+         * the maximum available width, and figure out a better height so our
+         * resize(scale) of the content is correct.
          */
         if (this.desiredAspectRatio > usableScreenAspectRatio) {
-            newContentWidth = maxWidth;
+            newContentWidth = maxWindowWidth;
             newContentHeight = newContentWidth / this.desiredAspectRatio;
-            diagnosticPrintln("(A-type) newHeightDetermined: "
+            FXUIGameMaster.diagnosticPrintln("(A-type) newHeightDetermined: "
             		+ newContentHeight + "\nIdeal content w vs h: " 
             		+ this.idealContentWidth + " :: " + this.idealContentHeight);
         } /*	else, we need to use the maximum available height, 
-        then determine the width to which we should resize the window.*/ 
+        then determine the width to which we should resize(scale) the content.*/ 
         else {
-            newContentHeight = maxHeight/* + windowDecorationHeight*/;
+            newContentHeight = maxWindowHeight/* + windowDecorationHeight*/;
             newContentWidth = newContentHeight * this.desiredAspectRatio;
-            diagnosticPrintln("(B-type) newWidthDetermined: " 
+            FXUIGameMaster.diagnosticPrintln("(B-type) newWidthDetermined: " 
             		+ newContentWidth + "\nIdeal content w vs h: " 
             		+ this.idealContentWidth + " :: " + this.idealContentHeight);
         }
         scalePercentageHeight = newContentHeight / this.idealContentHeight;
         scalePercentageWidth = newContentWidth / this.idealContentWidth;
-        diagnosticPrintln("Scales w vs h: " + scalePercentageWidth 
+        FXUIGameMaster.diagnosticPrintln("Scales w vs h: " + scalePercentageWidth 
         		+ " :: " + scalePercentageHeight);
-        if((xTranslate = (maxWidth - newContentWidth) / 2) < 0){
-        	xTranslate = 0;}
-        if((yTranslate = (maxHeight - newContentHeight) / 2) < 0){
-        	yTranslate = 0;}
+        if((xTranslate = (maxWindowWidth - newContentWidth) / 2) < 0)
+        {xTranslate = 0;}
+        if((yTranslate = (maxWindowHeight - newContentHeight) / 2) < 0)
+        {yTranslate = 0;}
         activeScene.getRoot().getTransforms()
         	.setAll(new Scale(scalePercentageWidth, scalePercentageHeight));
         activeScene.getRoot().setLayoutX(xTranslate);
         activeScene.getRoot().setLayoutY(yTranslate);
-        diagnosticPrintln("xTranslate and yTranslate? " + xTranslate + " ::: " +
+        FXUIGameMaster.diagnosticPrintln("xTranslate and yTranslate? " + xTranslate + " ::: " +
         		yTranslate);
-        diagnosticPrintln("Scaling should be complete."
+        FXUIGameMaster.diagnosticPrintln("Scaling should be complete."
                 + " (EXITING FULLSCREEN SCALING MODE)\n\n");
     }
 
@@ -443,7 +499,7 @@ public class WindowResizeHandler {
     private void attachResizeListeners() {
         verifyIsFXThread();
         if (this.resizeBlocked.get() == false) {
-            diagnosticPrintln("Resizing listeners already on!");
+            FXUIGameMaster.diagnosticPrintln("Resizing listeners already on!");
             return;
         }
         this.widthPropertyListener = new ChangeListener<Number>() {
@@ -464,7 +520,7 @@ public class WindowResizeHandler {
         this.activeScene.widthProperty().addListener(this.widthPropertyListener);
         this.activeScene.heightProperty().addListener(this.heightPropertyListener);
         this.resizeBlocked.set(false);
-        diagnosticPrintln("Resizing listeners: ON!");
+        FXUIGameMaster.diagnosticPrintln("Resizing listeners: ON!");
     }
 
     /**
@@ -479,15 +535,14 @@ public class WindowResizeHandler {
      */
     private void detachResizeListeners() {
         if (this.resizeBlocked.get() == true) {
-            diagnosticPrintln("Resizing listeners already off!");
+            FXUIGameMaster.diagnosticPrintln("Resizing listeners already off!");
             return;
         }
-
-        diagnosticPrintln("Resizing listeners: OFF!");
         verifyIsFXThread();
         this.resizeBlocked.set(true);
         this.activeScene.widthProperty().removeListener(this.widthPropertyListener);
         this.activeScene.heightProperty().removeListener(this.heightPropertyListener);
+        FXUIGameMaster.diagnosticPrintln("Resizing listeners: OFF!");
     }
 
     /**
@@ -509,6 +564,11 @@ public class WindowResizeHandler {
      * ideal window size (determined when the program launches).
      * 
      * Please run on the JavaFX thread.
+     * 
+     * TODO overhaul this method; it is unusable for fullscreen purposes, even
+     * though code seems to indicate it SHOULD be usable. Either fix that so it
+     * applies a Scale (rather than setting width & height), or remove it, and
+     * ensure the code for windowed mode is correct.
      *
      * @param percentage : percentage of ideal window size to apply, in a range
      * from 0.00 not inclusive to 1.00 inclusive (representing 0% and 100%).
@@ -545,33 +605,33 @@ public class WindowResizeHandler {
      */
     private void resize(int triggerType) {
         if (this.activeStage == null || this.activeScene == null) {
-            diagnosticPrintln("skipping resize...(invalid Stage or invalid Scene)");
+            FXUIGameMaster.diagnosticPrintln("skipping resize...(invalid Stage or invalid Scene)");
             return;
         } else {
-            diagnosticPrintln("making resize thread.");
+            FXUIGameMaster.diagnosticPrintln("making resize thread.");
             this.widthHistory = this.activeStage.getWidth();
             this.heightHistory = this.activeStage.getHeight();
-            new Thread(new Runnable() {
+            new Thread(null, new Runnable() {
                 @Override
                 public void run() {
                     resizeHelper(triggerType);
                 }
-            }).start();
+            }, "WRH.resize").start();
         }
     }
 
     private void resizeHelper(int triggerType) {
-        diagnosticPrintln("Initial resizeHelper call stats "
+        FXUIGameMaster.diagnosticPrintln("Initial resizeHelper call stats "
         	+ "(W:H:windowDecorationHeight): " + this.widthHistory 
         	+ ":::" + this.heightHistory + ":::" + this.windowDecorationHeight);
         if (!getWindowObjectState()) {
             return; }
 
         //remember whether the window was fullscreen when this method was invoked
-        final boolean stageIsFullscreen = activeStage.isFullScreen();
         long waitTime = 200;
-        diagnosticPrintln("The app was set to fullscreen at the time of this "
-                + "method call: " + stageIsFullscreen);
+        FXUIGameMaster.diagnosticPrintln("The app was set to fullscreen at the time of this "
+                + "method call: " + activeStage.isFullScreen());
+        boolean waitForFullScreenTransition = activeStage.isFullScreen();
 
         //disable any attached slider to prevent accidents/overrides
         if (this.sliderToAdjust != null) {
@@ -583,16 +643,23 @@ public class WindowResizeHandler {
          */
 
         do {
-            diagnosticPrintln("Waiting for user to stop altering dimensions.");
-            RiskUtils.sleep(2 * waitTime);
+            FXUIGameMaster.diagnosticPrintln("Waiting for user to stop altering dimensions.");
+            //RiskUtils.sleep(2 * waitTime);
             this.widthHistory = this.activeStage.getWidth();
             this.heightHistory = this.activeStage.getHeight();
-            RiskUtils.sleep(2 * waitTime);
+            if(waitForFullScreenTransition){
+            	RiskUtils.sleep(4 * waitTime);
+            }
+            else{
+            	RiskUtils.sleep(2 * waitTime);
+            }
+            FXUIGameMaster.diagnosticPrintln("The is now set to fullscreen at the end of this "
+                    + "waiting process: " + activeStage.isFullScreen());
         } while (this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
+        final boolean stageIsFullscreen = activeStage.isFullScreen();
 
         /*Used in the future to determine what steps of the resizing process must occur.*/
-        AtomicBoolean stillRunningResize = new AtomicBoolean(false);
-        stillRunningResize.set(true);
+        AtomicBoolean stillRunningResize = new AtomicBoolean(true);
 
         double newContentWidth = 0.0d, newContentHeight = 0.0d;
         double scalePercentageWidth = 1.0d;
@@ -601,112 +668,109 @@ public class WindowResizeHandler {
 
         //if we modified the height manually, keep that height property and calculate the new width that must be set
         if (triggerType == TRIG_BY_HEIGHT) {
-            diagnosticPrintln("Trigger type: height (so will calc and fix width)");
+            FXUIGameMaster.diagnosticPrintln("Trigger type: height (so will calc and fix width)");
             newContentHeight = this.heightHistory - this.windowDecorationHeight;
             newContentWidth = newContentHeight * this.desiredAspectRatio;
-            scalePercentageHeight = newContentHeight / this.idealContentHeight;
-            scalePercentageWidth = newContentWidth / this.idealContentWidth;
-            expectedAspectRatio = newContentWidth / newContentHeight;
         } //else if the width, keep that width and programmatically set the height
         else if (triggerType == TRIG_BY_WIDTH) {
-            diagnosticPrintln("Trigger type: width (so will calc and fix height)");
+            FXUIGameMaster.diagnosticPrintln("Trigger type: width (so will calc and fix height)");
             newContentWidth = this.widthHistory - this.windowDecorationWidth;
             newContentHeight = newContentWidth / this.desiredAspectRatio;
-            scalePercentageHeight = newContentHeight / this.idealContentHeight;
-            scalePercentageWidth = newContentWidth / this.idealContentWidth;
-            expectedAspectRatio = newContentWidth / newContentHeight;
         } else {
-            diagnosticPrintln("How did you get here? Nobody's s'pose to be here.");
+            FXUIGameMaster.diagnosticPrintln("How did you get here? Nobody's s'pose to be here.");
         }
+        scalePercentageHeight = newContentHeight / this.idealContentHeight;
+        scalePercentageWidth = newContentWidth / this.idealContentWidth;
+        expectedAspectRatio = newContentWidth / newContentHeight;
 
-        diagnosticPrintln("calculated target aspect ratio: " + expectedAspectRatio + " ...versus expected: " + this.desiredAspectRatio);
+        FXUIGameMaster.diagnosticPrintln("calculated target aspect ratio: " + expectedAspectRatio + " ...versus expected: " + this.desiredAspectRatio);
         /*Determine the relative amount by which we must scale the content -- the scene -- within the window (stage).
          This makes the scene come close to appropriately fitting within the stage with a limited unsightly gap.*/
-        diagnosticPrintln("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
+        FXUIGameMaster.diagnosticPrintln("Scales w vs h: " + scalePercentageWidth + " :: " + scalePercentageHeight);
         Scale scale = new Scale(scalePercentageWidth, scalePercentageHeight);
-        diagnosticPrintln("acceptable new width:: " + newContentWidth);
-        diagnosticPrintln("acceptable new height:: " + newContentHeight);
+        FXUIGameMaster.diagnosticPrintln("acceptable new width:: " + newContentWidth);
+        FXUIGameMaster.diagnosticPrintln("acceptable new height:: " + newContentHeight);
 
-        /*Store the new width and/or height in variables that can be accessed in a separate runnable/thread.*/
-        final double newWidthCopy = newContentWidth;
-        final double newHeightCopy = newContentHeight;
-        final double attemptedAspectRatio = newContentWidth / newContentHeight;
-
+        
         //If we attempted to resize our content to a dimension beyond the screen's bounds, we just snap back to the max dimensions available.
-        determineActiveScreenBounds(); //TODO get rid of commented code below if this works
-        if ((newWidthCopy >= activeScreenWidth ||
-            newHeightCopy >= activeScreenHeight)
-            && !stageIsFullscreen)
-        {
-            Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                    diagnosticPrintln("Choosing the \"fitToScreen\" path.");
-                    fitToScreen();
-                }
-            });
-        } /*now handle the size calulation being outside acceptable bounds but
-        the screen IS indeed fullscreen
-        */
-        else if ((newWidthCopy >= activeScreenWidth ||
-            newHeightCopy >= activeScreenHeight)
-            && stageIsFullscreen)
-        {
-            Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                    diagnosticPrintln("Choosing the \"fitToFullscreen\" path.");
-                    fitToFullScreen();
-                }
-            });
+        determineActiveScreenBounds();
+        if (newContentWidth >= activeScreenWidth - this.windowDecorationWidth ||
+            newContentHeight >= activeScreenHeight - this.windowDecorationHeight)
+        {   /*In this case, handle the size calulation being outside acceptable 
+            bounds, while the app is in windowed mode (not fullscreen)
+            */
+            if(!stageIsFullscreen){
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        FXUIGameMaster.diagnosticPrintln("Choosing the \"fitToScreen\" path.");
+                        fitToScreen();
+                    }
+                });
+            } /*now handle the size calulation being outside acceptable bounds but
+            the screen IS indeed fullscreen
+            */
+            else /*if(stageIsFullscreen)*/{
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        FXUIGameMaster.diagnosticPrintln("Choosing the \"fitToFullscreen\" path.");
+                        fitToFullScreen();
+                    }
+                });
+            }
         } 
         else {
-            /*Perform the actual changes using the JavaFX thread. At a bare minimum, content scaling is performed.*/
+            /*Store the new width and/or height in variables that can be 
+            accessed in a separate runnable/thread.*/
+            final double newWidthCopy = newContentWidth;
+            final double newHeightCopy = newContentHeight;
+            final double attemptedAspectRatio = newContentWidth / newContentHeight;
+
+            /*Perform the actual changes using the JavaFX thread. 
+            At a bare minimum, content scaling is performed.*/
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                    diagnosticPrintln("Target scene height  ::: target scene width");
-                    diagnosticPrintln(newHeightCopy + ";;;" + newWidthCopy);
+                    FXUIGameMaster.diagnosticPrintln("Target scene(content) height  ::: target scene(content) width");
+                    FXUIGameMaster.diagnosticPrintln(newHeightCopy + ";;;" + newWidthCopy);
                     //activeStage.sizeToScene();
-                    diagnosticPrintln("Attempting to scale.\nCan this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
+                    FXUIGameMaster.diagnosticPrintln("Attempting to scale.\nCan this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
                     activeScene.getRoot().getTransforms().setAll(scale);
+                    activeScene.getRoot().setLayoutX(0);
+                    activeScene.getRoot().setLayoutY(0);
                     stillRunningResize.set(false);
-                }
+                    }
             });
-
             do {
                 RiskUtils.sleep(waitTime);
-                diagnosticPrintln("Pausing for SCALE to finish.");
+                FXUIGameMaster.diagnosticPrintln("Waiting for SCALE to finish.");
             } while (stillRunningResize.get() == true);
-
-            /*Now resize the window to fit the new scaling
-             * ...yes, we must make this thread wait on other actions to complete. Again.*/
-            stillRunningResize.set(true);
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                	activeScene.getRoot().setLayoutX(0);
-                    activeScene.getRoot().setLayoutY(0);
                     if (!stageIsFullscreen) {
                         activeStage.setWidth(newWidthCopy+windowDecorationWidth);
                         activeStage.setHeight(newHeightCopy+windowDecorationHeight);
                     }
-                    else{
-                    activeStage.setWidth(newWidthCopy);
-                    activeStage.setHeight(newHeightCopy);
+                    else{ 
+                        FXUIGameMaster.diagnosticPrintln("You should never make it here, but...");
+                        activeStage.setWidth(newWidthCopy);
+                        activeStage.setHeight(newHeightCopy);
                     }
                     if (sliderToAdjust != null) {
-                        sliderToAdjust.setValue(activeStage.getWidth() / idealContentWidth);
-                        sliderToAdjust.getTooltip().setText("Current percentage of max screen size: " + String.format("%.2f", activeStage.getWidth() / idealContentWidth));
+                        sliderToAdjust.setValue(activeScene.getWidth() / idealContentWidth);
+                        sliderToAdjust.getTooltip().setText("Current percentage of max size: " + String.format("%.2f", activeScene.getWidth() / idealContentWidth));
                     }
-                    diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double) (activeScene.getWidth() / activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
-                    diagnosticPrintln("new2!!! ...effective dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: " + activeScene.getHeight());
+                    FXUIGameMaster.diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double) (activeScene.getWidth() / activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
+                    FXUIGameMaster.diagnosticPrintln("new2!!! ...effective content (Scene) dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: " + activeScene.getHeight());
+                    FXUIGameMaster.diagnosticPrintln("new2!!! ...effective screen (Stage) dimens set to... " + activeStage.getWidth() + "::<W ::: H>:: " + activeStage.getHeight());
                     stillRunningResize.set(false);
                 }
             });
             do {
                 RiskUtils.sleep(waitTime);
-                diagnosticPrintln("Waiting at EXIT for RESIZE to finish.");
+                FXUIGameMaster.diagnosticPrintln("Waiting at EXIT for RESIZE to finish.");
             } while (stillRunningResize.get() == true);
         }
         //enable the resize listeners
@@ -724,22 +788,9 @@ public class WindowResizeHandler {
             //this.sliderToAdjust.setValue(this.activeStage.getWidth()/this.idealContentWidth);
             this.sliderToAdjust.setDisable(false);
         }
-        diagnosticPrintln("Exit resize thread.");
+        FXUIGameMaster.diagnosticPrintln("Exit resize thread.");
     }
     
-    /**
-     * Enables a user to, with the flip of a particular boolean, control whether
-     * verbose diagnostic information is printed. Calls to this method with the
-     * affected boolean set to "false" will result in the message being
-     * suppressed. Affected boolean: {@link #diagnosticModeEnabled}.
-     * @param contentOut the content to be conditionally displayed.
-     */
-    public static void diagnosticPrintln(String contentOut) {
-        if (WindowResizeHandler.diagnosticModeEnabled) {
-            System.out.println(contentOut);
-        }
-    }
-
     /**
      * Create a non-JavaFX thread (if necessary) to build & display size options
      * for the associated window (Stage) Tries to run the dialog's code on a
@@ -786,23 +837,25 @@ public class WindowResizeHandler {
             dialog.initOwner(owner);
             dialog.setX(owner.getX());
             dialog.setY(owner.getY() + 50);
-
-            final VBox layout = new VBox(10);
+            
+            final VBox layout = new VBox(15);
             layout.setAlignment(Pos.CENTER);
-            layout.setStyle("-fx-background-color: pink; -fx-padding: 30");
+            layout.setStyle("-fx-background-color: brown; -fx-padding: 5");
 
             final Text queryText = new Text("     Alter window settings?     ");
             queryText.setTextAlignment(TextAlignment.CENTER);
+            queryText.setFill(Color.WHITE);
 
-            final Text querySymbol = new Text("[[[ --- ]]] ");
+            final Text querySymbol = new Text("px+/px-");
             querySymbol.setTextAlignment(TextAlignment.CENTER);
             querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24));
+            querySymbol.setFill(Color.WHITE);
 
             Text spaceBuffer = new Text("\n");
             spaceBuffer.setTextAlignment(TextAlignment.CENTER);
             spaceBuffer.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
 
-            final Button yeah = new Button("Accept Changes");
+            final Button yeah = new Button("OK");
             final Button nah = new Button("Revert Changes");
 
             yeah.setOnAction(new EventHandler<ActionEvent>() {
@@ -847,6 +900,7 @@ public class WindowResizeHandler {
             CheckBox doFullScreen = new CheckBox("Display in fullscreen?");
             doFullScreen.setTooltip(new Tooltip("Enable or Disable fullscreen mode (enabled ignores screen sizing requests)"));
             doFullScreen.setTextFill(Color.ANTIQUEWHITE);
+            doFullScreen.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
             doFullScreen.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent t) {
@@ -864,10 +918,46 @@ public class WindowResizeHandler {
                     }
                 }
             });
+            
             doFullScreen.setSelected(activeStage.isFullScreen());
+            windowSizeSlider.setDisable(activeStage.isFullScreen());
+            activeStage.fullScreenProperty().addListener(new ChangeListener<Boolean>(){
+				@Override
+				public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+					final boolean isFullScreen = true;
+					if(newValue.booleanValue() == isFullScreen){
+						windowSizeSlider.setDisable(true);
+						doFullScreen.setSelected(true);
+					}
+					else{
+						windowSizeSlider.setDisable(false);
+						doFullScreen.setSelected(false);
+					}
+					
+				}
+            	
+            });
+            
+            double widthOfLines = 180d;
+            double strokeWidthOfLines = 3.0d;
+            Color colorOfLines = Color.CHOCOLATE;
+            Line bufferLineOne = new Line(0,0,widthOfLines,0);
+            Line bufferLineTwo = new Line(0,0,widthOfLines,0);
+            Line bufferLineThree = new Line(0,0,widthOfLines,0);
+            Line bufferLineFour = new Line(0,0,widthOfLines,0);
+            bufferLineOne.setStrokeWidth(strokeWidthOfLines);
+            bufferLineTwo.setStrokeWidth(strokeWidthOfLines);
+            bufferLineThree.setStrokeWidth(strokeWidthOfLines);
+            bufferLineFour.setStrokeWidth(strokeWidthOfLines);
+            bufferLineOne.setStroke(colorOfLines);
+            bufferLineTwo.setStroke(colorOfLines);
+            bufferLineThree.setStroke(colorOfLines);
+            bufferLineFour.setStroke(colorOfLines);
 
             layout.getChildren().setAll(
-                    querySymbol, queryText, doFullScreen, windowSizeSliderLabel, windowSizeSlider, nah, yeah, spaceBuffer
+                    querySymbol, queryText, bufferLineOne, doFullScreen,
+                    bufferLineTwo, windowSizeSliderLabel, windowSizeSlider,
+                    bufferLineThree, /*nah,*/ yeah, spaceBuffer
             );
 
             dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {

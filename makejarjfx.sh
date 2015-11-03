@@ -51,6 +51,8 @@ echo Main-Class: Master.FXUIGameMaster >manifest.txt
 #to the Jar file. Output will be noisy.
 echo "   Copying resources to build folder. (benign errors may occur)."
 cp **/RiskBoard*.jpg RiskBoard*.jpg **/TextNodes.txt TextNodes.txt manifest.txt build
+cp **/Icon.jpg Icon.jpg build
+cp *.m4a **/*.m4a **/**/*.m4a **/**/**/*.m4a build
 
 #move into the build folder for proper compilation
 cd build
@@ -58,11 +60,11 @@ cd build
 #package everything into an easy-to-use Jar file.
 #includes additional resources such as the map & list of countries.
 echo "   Attempting to create runnable Jar..."
-jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg
+jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg *.m4a
 if [ ! $? -eq 0 ]
 then
-	printf "$JDKERR"
-	echo "   ...?"
+	printf "Minor error occurred. Might have been major. We’ll see."
+	echo "   ..."
 else
 	echo -e "   ...OK!"
 fi

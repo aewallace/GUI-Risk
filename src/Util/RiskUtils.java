@@ -11,6 +11,7 @@ import java.util.Set;
 import Map.Continent;
 import Map.Country;
 import Map.RiskMap;
+import javafx.application.Platform;
 
 public class RiskUtils {
 	
@@ -219,11 +220,14 @@ public class RiskUtils {
 	 * expected to occur. Not advised for use on JavaFX threads, 
 	 * as Thread.sleep() will make UI (or the entire app) frozen until all sleeps are done!
 	 * @param millisecs the length of time, in milliseconds, to sleep the thread. Type: 'long'.
-	 * @return "true" if the sleep succeeded, "false" if an exception was caught.
+	 * @return "true" if the sleep succeeded, "false" if an exception was caught
+	 * or no sleeping occurred.
 	 */
 	public static boolean sleep(long millisecs){
+		if(millisecs < 1){
+			return false;
+		}
 		boolean didSucceed = false;
-		
 		try {
 			Thread.sleep(millisecs);
 			didSucceed = true;
@@ -234,7 +238,44 @@ public class RiskUtils {
 			System.out.println("Input must be positive. Attempted value: " + millisecs);
 			e.printStackTrace();
 		}
-		
 		return didSucceed;
 	}
+	
+	/**
+     * Equivalent to the default 
+     * {@link javafx.application.Platform #runLater(Runnable)} method,
+     * with the addition of doing a specific delay of some milliseconds before
+     * the {@link java.lang.Runnable Runnable} is queued for execution.
+     * 
+     * @param delayTime time, in milliseconds, to delay before execution attempt
+     * @param newRunnable Runnable to be executed in the future
+     * @return -1 if input is invalid (will not run), -2 if exception occurred 
+     * during setup (will not run), 0 if runnable is setup to run (should run)
+     */
+    public static int runLaterWithDelay(final long delayTime, final Runnable newRunnable){
+    	if (newRunnable == null || delayTime < 0){
+    		return -1;
+    	}
+    	try{
+	    	Thread futureRun = new Thread(new Runnable() {
+	            @Override
+	            public void run() {
+	            	try{
+	                RiskUtils.sleep(delayTime);
+	                Platform.runLater(newRunnable);
+	            	}
+	            	catch (Exception e){
+	            		e.printStackTrace();
+	            	}
+	            }
+	        });
+	    	futureRun.setDaemon(true);
+	    	futureRun.start();
+    	}
+    	catch (Exception e){
+    		e.printStackTrace();
+    		return -2;
+    	}
+    	return 0;
+    }
 }

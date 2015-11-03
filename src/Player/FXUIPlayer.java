@@ -52,7 +52,7 @@ import Util.FXUI_Crossbar;
 import Util.RiskConstants;
 import Util.RiskUtils;
 
-// TODO revise handling of "system exits". Consider updating the crossbar, so FXUIGameMaster can response appropriately with a well-placed check?
+// TODO revise handling of "system exits". Consider updating the crossbar, so FXUIGameMaster can respond appropriately with a well-placed check?
 
 
 /**
@@ -235,7 +235,9 @@ public class FXUIPlayer implements Player {
 		}
 		//String desiredCharSet = "[a-zA-Z0-9]{1-21}\\s[a-zA-Z0-9]{1-21}|[a-zA-Z0-9]{1,21}"; //chars with one space inbetween
 		String desiredCharSet = "[a-zA-Z0-9]{1,"+MAX_NAME_LENGTH+"}((\\s)?[a-zA-Z0-9]{0,"+MAX_NAME_LENGTH+"})?"; //chars with one space in between
-		Pattern patternToFind = Pattern.compile(desiredCharSet);
+		Pattern patternToFind = Pattern.compile(desiredCharSet); 
+		// TODO optimize the above line; maybe relocate it to the functions which
+		// would likely call this method. That way, it's only compiled once.
 		Matcher matchContainer = patternToFind.matcher(potentialName);
 		return matchContainer.matches() && potentialName.length() < MAX_NAME_LENGTH+1;
 	}
@@ -441,7 +443,7 @@ public class FXUIPlayer implements Player {
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
 					
-					guideText.setText("You have been assigned initial countries\nand " + reinforcements + " initial troops;"
+					guideText.setText("You have been assigned starting countries (seen below)\nand " + reinforcements + " initial troops;"
 					+ "\nplease allocate those troops now.\nOne troop per country minimum;\nMust use all available troops.");
 					guideText.setTextAlignment(TextAlignment.CENTER);
 					layout.getChildren().add(guideText);
