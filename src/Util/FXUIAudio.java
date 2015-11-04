@@ -53,7 +53,7 @@ import javafx.util.Duration;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio 0.1.3\n30 Oct 2015";
+	public static final String shortVersion = "FXUIAudio 0.1.5\n03 Nov 2015";
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	private static final String srcResourceFolderLocation = "src/resources/Audio/";
 	private static final List<String> audioFileNames = Arrays.asList(
@@ -76,7 +76,7 @@ public class FXUIAudio {
 	/**
 	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
 	 */
-	private static double audioVolumePercent = 1.0d;
+	private static double audioVolumePercent = 0.3d;
 	private static MediaPlayer bootAudioMP = null;
 	private static LinkedList<MediaPlayer> playList = new LinkedList<MediaPlayer>();
 	private static Node visualIndicator = null;
@@ -97,6 +97,7 @@ public class FXUIAudio {
 					!= null )
 			{
 				mediaPlayer.setStopTime(new Duration(3700));
+				mediaPlayer.setVolume(audioVolumePercent);
 				mediaPlaybackMap.put(audioFileNames.get(i), mediaPlayer);
 			}
 			else{
@@ -322,12 +323,11 @@ public class FXUIAudio {
 	 * @return true if can load and play audio, false if cannot load audio file
 	 */
 	private boolean bootJingleHelper(){
-		loadingMethod = 0;
 		MediaPlayer mediaPlayer = null;
 		if( (mediaPlayer = loadAudioFileToMediaPlayer(FXUIAudio.bootAudioFileName))
 				!= null )
 		{
-			//mediaPlayer.setVolume(0.5d);
+			mediaPlayer.setVolume(audioVolumePercent);
 			mediaPlayer.setStartTime(new Duration(3500));
 			mediaPlayer.setStopTime(new Duration(11500));
 			mediaPlayer.play();

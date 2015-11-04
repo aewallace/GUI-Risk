@@ -144,7 +144,7 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x15h\nStamp 2015.10.31, 22:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x15h\nStamp 2015.11.03, 22:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -1265,6 +1265,7 @@ public class FXUIGameMaster extends Application {
                 System.out.println(this.players.get(0) + " is the victor!");
                 writeLogLn(true, this.players.get(0) + " is the victor!");
                 displayExtendedMessage(this.players.get(0) + " is the victor!");
+				winnerScreen(this.players.get(0));
                 FXUIGameMaster.workingMode = IDLE_MODE;
                 flashPlayerCountries(this.players.get(0));
             } else if (!FXUIGameMaster.fullAppExit) {
@@ -3011,9 +3012,9 @@ public class FXUIGameMaster extends Application {
         /*
          * Do other "welcome" things: About, audio chime.
          */
-        nAbout.launch(mainWindowPane.getScene().getWindow(), true);
         audioManager = new FXUIAudio();
         audioManager.playBootJingle();
+		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
 
         /*
          * Print to output that we're ready. This is the end of the process.
@@ -3117,6 +3118,99 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void exitSplashHelper(Text splashText, Rectangle splashBackground){
+		final int discreteSteps = 135;
+		final AtomicBoolean complete = new AtomicBoolean(false);
+		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
+			complete.set(false);
+			final int input = i;
+			Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                	splashText.setOpacity((double)input/discreteSteps);
+    	        	splashBackground.setOpacity((double)input/discreteSteps);
+    	        	complete.set(true);
+                }
+            });
+			while(!complete.get() && !FXUIGameMaster.fullAppExit){
+				RiskUtils.sleep(5);
+			}
+		}
+		
+	}
+	
+	/**
+     * Upon win, show a splash screen over the regular screen contents.
+     */
+    private void winnerScreen(String winnerName){
+		if(winnerName == null)
+		{
+			FXUIGameMaster.diagnosticPrintln("Cannot display winner splash screen");
+		}
+    	final Rectangle backgroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	backgroundRectangle.setFill(Color.GREY);
+		backgroundRectangle.setOpacity(0.3d);
+    	final Text textGoodbye = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "v i c t o r y");
+    	textGoodbye.setTextAlignment(TextAlignment.CENTER);
+        textGoodbye.setFont(Font.font("Arial", FontWeight.BOLD, 128));
+        textGoodbye.setFill(Color.ALICEBLUE);
+        textGoodbye.setStroke(Color.CORAL);
+		final Text textInstructions= new Text(DEFAULT_CONTENT_WIDTH/4, DEFAULT_CONTENT_HEIGHT/1.9, "[click to close]");
+    	textInstructions.setTextAlignment(TextAlignment.CENTER);
+        textInstructions.setFont(Font.font("Arial", FontWeight.BOLD, 32));
+        textInstructions.setFill(Color.BLACK);
+        textInstructions.setStroke(Color.ALICEBLUE);
+		textInstructions.setEffect(new GaussianBlur(5));
+    	final Rectangle foregroundRectangle = new Rectangle(0,DEFAULT_CONTENT_HEIGHT/4,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT/2.6);
+		try{
+			foregroundRectangle.setFill(playerColorMap.get(winnerName));
+		}
+		catch (Exception e){
+			foregroundRectangle.setFill(Color.BLACK);
+		}
+    	final Text textRisk = new Text(0, DEFAULT_CONTENT_HEIGHT/2.5, winnerName + "\nis victorious");
+    	textRisk.setTextAlignment(TextAlignment.LEFT);
+        textRisk.setFont(Font.font("Arial", FontWeight.BOLD, 128));
+        textRisk.setFill(Color.ALICEBLUE);
+        textRisk.setStroke(Color.BLACK);
+        GaussianBlur gBlur = new GaussianBlur(5);
+        Glow gGlow = new Glow(1.0d);
+        gGlow.setInput(gBlur);
+    	textRisk.setEffect(gGlow);
+        textRisk.setOpacity(0);
+        foregroundRectangle.setOpacity(0);
+		
+		EventHandler<MouseEvent> clickToClose = new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent t) {
+                    mainWindowPane.getChildren().removeAll(backgroundRectangle, textGoodbye, foregroundRectangle, textRisk, textInstructions);
+                }
+        };
+		backgroundRectangle.setOnMouseClicked(clickToClose);
+		textGoodbye.setOnMouseClicked(clickToClose);
+		foregroundRectangle.setOnMouseClicked(clickToClose);
+		textRisk.setOnMouseClicked(clickToClose);
+		textInstructions.setOnMouseClicked(clickToClose);
+		
+		Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                	mainWindowPane.getChildren().addAll(backgroundRectangle, textGoodbye, foregroundRectangle, textRisk, textInstructions);
+                }
+            });
+        //mainWindowPane.getChildren().addAll(backgroundRectangle, textGoodbye, foregroundRectangle,textRisk);
+
+        Thread pulse = new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+            	winnerScreenHelper(textRisk, foregroundRectangle);
+            }
+	    }, "exitSplashScreen");
+	    pulse.setDaemon(true);
+	    pulse.start();
+    }
+    
+	
+	private static void winnerScreenHelper(Text splashText, Rectangle splashBackground){
 		final int discreteSteps = 135;
 		final AtomicBoolean complete = new AtomicBoolean(false);
 		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
