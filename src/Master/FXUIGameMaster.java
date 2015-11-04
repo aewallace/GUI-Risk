@@ -144,7 +144,7 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x15h\nStamp 2015.11.03, 22:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.03, 22:17\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -1267,7 +1267,7 @@ public class FXUIGameMaster extends Application {
                 displayExtendedMessage(this.players.get(0) + " is the victor!");
 				winnerScreen(this.players.get(0));
                 FXUIGameMaster.workingMode = IDLE_MODE;
-                flashPlayerCountries(this.players.get(0));
+                //flashPlayerCountries(this.players.get(0));
             } else if (!FXUIGameMaster.fullAppExit) {
                 displayExtendedMessage("Thanks for playing!");
                 System.out.println(WARN + "Early game end by UI player "
@@ -2114,25 +2114,41 @@ public class FXUIGameMaster extends Application {
     	{
     		return -1;
     	}
-    	for(Entry<String, Node[]> entry : this.playerIndicatorMap.entrySet()) {
-    		Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                	entry.getValue()[0].setVisible(false);
-                	Text playerText = (Text) entry.getValue()[1];
-                	playerText.setFont(Font.font("Verdana", FontWeight.THIN, 16));
-                }
-    		});
-    	}
+    	final AtomicBoolean doneUpdating = new AtomicBoolean(false);
+		Platform.runLater(new Runnable() {
+			@Override
+			public void run() {
+				try{
+					for(Entry<String, Node[]> entry : playerIndicatorMap.entrySet()) { // TODO fix concurrent modification potential for this.
+						if(playerToHilite != null && entry.getKey() == playerToHilite.getName()){
+							entry.getValue()[0].setVisible(true);
+							Text playerText = (Text) entry.getValue()[1];
+							playerText.setFont(Font.font("Verdana", FontWeight.THIN, FXUIGameMaster.DEFAULT_PLAYER_NAME_FONT_SIZE));
+						}
+						else{
+							entry.getValue()[0].setVisible(false);
+							Text playerText = (Text) entry.getValue()[1];
+							playerText.setFont(Font.font("Verdana", FontWeight.THIN, 16));
+						}
+					}
+				}
+				catch(Exception e){
+					e.printStackTrace();
+					/*
+					* Try again...
+					*/
+					highlightCurrentPlayer(playerToHilite);
+				}
+				finally{
+					doneUpdating.set(true);
+				}
+			}
+		});
+    	
+		while(!doneUpdating.get()){
+			RiskUtils.sleep(50);
+		}
     	if(playerToHilite != null){
-    		Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                	playerIndicatorMap.get(playerToHilite.getName())[0].setVisible(true);
-                	Text playerText = (Text) playerIndicatorMap.get(playerToHilite.getName())[1];
-                	playerText.setFont(Font.font("Verdana", FontWeight.THIN, FXUIGameMaster.DEFAULT_PLAYER_NAME_FONT_SIZE));
-                }
-    		});
     		return 0;
     	}
     	return 1;
@@ -2240,7 +2256,7 @@ public class FXUIGameMaster extends Application {
 
                 System.out.println(INFO + "Hi user!!! game execute was successfully!!!!"); //yes very successfully!!!!
                 if (victor != null) {
-                    setPlayStatus("Victor: " + victor);
+                    setPlayStatus("I D L E (game ended due to victory)");
                     if (!winLog.containsKey(victor)) {
                         winLog.put(victor, 0);
                     }
@@ -3013,7 +3029,6 @@ public class FXUIGameMaster extends Application {
          * Do other "welcome" things: About, audio chime.
          */
         audioManager = new FXUIAudio();
-        audioManager.playBootJingle();
 		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
 
         /*
@@ -3172,7 +3187,7 @@ public class FXUIGameMaster extends Application {
         textRisk.setFont(Font.font("Arial", FontWeight.BOLD, 128));
         textRisk.setFill(Color.ALICEBLUE);
         textRisk.setStroke(Color.BLACK);
-        GaussianBlur gBlur = new GaussianBlur(5);
+        GaussianBlur gBlur = new GaussianBlur(2);
         Glow gGlow = new Glow(1.0d);
         gGlow.setInput(gBlur);
     	textRisk.setEffect(gGlow);

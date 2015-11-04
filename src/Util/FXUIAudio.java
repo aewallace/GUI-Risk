@@ -4,6 +4,7 @@
  */
 package Util;
 
+import Master.FXUIGameMaster;
 import java.io.File;
 import java.net.URL;
 import java.util.Arrays;
@@ -14,8 +15,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import Master.FXUIGameMaster;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -53,7 +52,8 @@ import javafx.util.Duration;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio 0.1.5\n03 Nov 2015";
+	public static final String shortVersion = "FXUIAudio 0.1.6.2127\n03 Nov 2015";
+	private static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	private static final String srcResourceFolderLocation = "src/resources/Audio/";
 	private static final List<String> audioFileNames = Arrays.asList(
@@ -64,7 +64,7 @@ public class FXUIAudio {
 			);
 	private static final String bootAudioFileName = "xylophone.rosewood.roll.ff.F4B4.m4a";
 	private static int positionInList = 0;
-	private static int listSize = audioFileNames.size();
+	private static int listSize = 0;
 	private static Map<String, MediaPlayer> mediaPlaybackMap = new HashMap<String, MediaPlayer>();
 	private static Random rand = new Random();
 	private static int loadingMethod = 0;
@@ -83,35 +83,61 @@ public class FXUIAudio {
 	private static boolean hasVisualIndicator = false;
 
 	public FXUIAudio() {
-		FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + this.getClass().getCanonicalName()
-				+ " version " + shortVersion +". Please wait.");
-		loadingMethod = 0;
-		for(int i = 0; i < listSize; i++){
-			/*
-			 * Depending on compilation type, either load from base directory 
-			 * or load from source location. Base directory: compilation into jar
-			 * puts resources into base directory, because: why not.
-			 */
-			MediaPlayer mediaPlayer = null;
-			if( (mediaPlayer = loadAudioFileToMediaPlayer(audioFileNames.get(i)))
-					!= null )
-			{
-				mediaPlayer.setStopTime(new Duration(3700));
-				mediaPlayer.setVolume(audioVolumePercent);
-				mediaPlaybackMap.put(audioFileNames.get(i), mediaPlayer);
-			}
-			else{
-				audioLoadSuccess = false;
-			}
+		canonicalClassName = this.getClass().getCanonicalName();
+		playBootJingle();
+		delayedLoadFiles();
+	}
+	
+	/**
+	* Loads all other audio files associated with this audio manager...
+	* Does so after a slight delay.
+	* @return returns "true" if thread to run is started without issue,
+	* or "false" if the thread couldn't be started.
+	*/
+	private boolean delayedLoadFiles(){
+		try{
+		Thread delayedLoadAudioFiles = new Thread(null, new Runnable() {
+                @Override
+                public void run() {
+					RiskUtils.sleep(5000);
+					FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + FXUIAudio.canonicalClassName
+						+ " version " + shortVersion +". Please wait.");
+                	for(int i = 0; i < audioFileNames.size(); i++){
+						/*
+						 * Depending on compilation type, either load from base directory 
+						 * or load from source location. Base directory: compilation into jar
+						 * puts resources into base directory, because: why not.
+						 */
+						MediaPlayer mediaPlayer = null;
+						if( (mediaPlayer = loadAudioFileToMediaPlayer(audioFileNames.get(i)))
+								!= null )
+						{
+							mediaPlayer.setStopTime(new Duration(3700));
+							mediaPlayer.setVolume(audioVolumePercent);
+							mediaPlaybackMap.put(audioFileNames.get(i), mediaPlayer);
+						}
+						else{
+							audioLoadSuccess = false;
+						}
+					}
+					if(!audioLoadSuccess){
+						FXUIGameMaster.diagnosticPrintln("Couldn't access necessary audio files."
+								+ " No extra audio will be played.");
+					}
+					else{
+						FXUIAudio.listSize = FXUIAudio.mediaPlaybackMap.size();
+						FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudio.listSize);
+					}
+                }
+        }, "delayedLoadAudioFiles");
+		delayedLoadAudioFiles.setDaemon(true);
+		delayedLoadAudioFiles.start();
 		}
-		if(!audioLoadSuccess){
-			FXUIGameMaster.diagnosticPrintln("Couldn't access necessary audio files."
-					+ " No extra audio will be played.");
+		catch(Exception e){
+			e.printStackTrace();
+			return false;
 		}
-		else{
-			FXUIAudio.listSize = FXUIAudio.mediaPlaybackMap.size();
-			FXUIGameMaster.diagnosticPrintln("Audio manager loaded.");
-		}
+		return true;
 	}
 	
 	/**
@@ -498,7 +524,7 @@ public class FXUIAudio {
 
             final Slider audioVolSlider = new Slider(0.1f, 1.0f, FXUIAudio.audioVolumePercent);
             final CheckBox doPlayAudio = new CheckBox("Play audio?");
-            final Text audioSliderLabel = new Text("Audio Volume [%]");
+            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudio.audioVolumePercent) + "%]");
             
             audioVolSlider.setSnapToTicks(false);
             audioVolSlider.setShowTickMarks(true);
@@ -513,12 +539,7 @@ public class FXUIAudio {
                         Number old_val, Number new_val) 
                 {
                 	yeah.setDisable(false);
-                	if(new_val.doubleValue() == 0){
-                		doPlayAudio.setSelected(false);
-                	}
-                	else{
-                		doPlayAudio.setSelected(true);
-                	}
+					audioSliderLabel.setText("Audio Volume [" + String.format("%.2f", new_val.doubleValue()) + "%]");
                 }
             });
             
