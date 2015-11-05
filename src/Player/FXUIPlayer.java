@@ -62,14 +62,11 @@ import Util.RiskUtils;
 * Requires FXUI GameMaster. Not compatible with original GameMaster;
 * 	implemented UI elements require triggering from active JavaFX application.
 * 
-* UI elements are JavaFX, done with Java JDK 8. (By extension, elements were done under JavaFX 8)
-* Compatibility with JDK 7 / JRE1.7 was retroactively restored. 
-* (source files with "Stamp" -- aka date/time stamp -- of Feb 21 2015, 6:00 PM -- aka Y2015.M02.D21.HM1800 -- & later apply).
-* JDK 7/JRE 1.7 will be the target until further notified.
+* UI elements are JavaFX, done with Java JDK 8.
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x01h\nStamp 2015.04.25, 18:22\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x02h\nStamp 2015.11.04, 19:30\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
@@ -100,7 +97,7 @@ public class FXUIPlayer implements Player {
 	private String name;
 	private static final int MAX_NAME_LENGTH = 22;
 	private int reinforcementsApplied = 0;
-	private int maxDiceAvailable = 0;
+	private int maxAtkDiceAvailable = 0;
 	private boolean passTurn = false;
 	private final String blankText = "-----";
 	private String attackTarget = blankText, attackSource = blankText;
@@ -953,7 +950,9 @@ public class FXUIPlayer implements Player {
 					statusText.setTextAlignment(TextAlignment.CENTER);
 					
 					sourceCountriesVBox.setAlignment(Pos.CENTER);
+					sourceCountriesVBox.setFillWidth(true);
 					targetCountriesVBox.setAlignment(Pos.CENTER);
+					targetCountriesVBox.setFillWidth(true);
 					sourceCountriesVBox.getChildren().add(new Text("Source:"));
 					
 					//pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
@@ -965,10 +964,10 @@ public class FXUIPlayer implements Player {
 					//the actions for the increment and decrement buttons, when buttons are available
 					diceCountInc.setOnAction(new EventHandler<ActionEvent>(){
 						@Override public void handle(ActionEvent t){
-							if (rsp.getNumDice() < maxDiceAvailable)
+							if (rsp.getNumDice() < maxAtkDiceAvailable)
 							{
 								rsp.setNumDice(rsp.getNumDice()+1);
-								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
 							}
 						}
 					});
@@ -978,7 +977,7 @@ public class FXUIPlayer implements Player {
 							if (rsp.getNumDice() > 1)
 							{
 								rsp.setNumDice(rsp.getNumDice()-1);
-								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
 							}
 						}
 					});
@@ -992,9 +991,9 @@ public class FXUIPlayer implements Player {
 						ctSrcBtn.setOnAction(new EventHandler<ActionEvent>(){
 							@Override public void handle(ActionEvent t){
 								rsp.setAtkCountry(source);
-								int maxDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
-								rsp.setNumDice(maxDiceAvailable); //default to the max dice available for an attack
-								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDiceAvailable, diceCountDec, diceCountInc);
+								maxAtkDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+								rsp.setNumDice(maxAtkDiceAvailable); //default to the max dice available for an attack
+								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
 								attackSource = source.getName();
 								attackTarget = blankText;
 								statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
@@ -1026,7 +1025,6 @@ public class FXUIPlayer implements Player {
 						@Override public void handle(ActionEvent t){
 							if (rsp.getAtkCountry() != null && rsp.getDfdCountry() != null)
 							{
-								//rsp.setNumDice(maxDiceAvailable);
 								if(!AttackResponse.isValidResponse(rsp, map, getName()))
 								{
 									statusText.setText("Not a valid response; try another combo.");
@@ -1064,6 +1062,10 @@ public class FXUIPlayer implements Player {
 					spaneLeft.setPrefWidth(200);
 					spaneRight.setPrefHeight(400);
 					spaneRight.setPrefWidth(200);
+					spaneLeft.setFitToHeight(true);
+					spaneLeft.setFitToWidth(true);
+					spaneRight.setFitToHeight(true);
+					spaneRight.setFitToWidth(true);
 					
 					spaneLeft.setContent(sourceCountriesVBox);
 					spaneRight.setContent(targetCountriesVBox);
@@ -1117,20 +1119,21 @@ public class FXUIPlayer implements Player {
 	* @param incBtn the button to increment the dice count (disabled under select circumstances, re-enabled otherwise)
 	*/
 	private void updateDiceDisplay(Text diceStatusDisplay, int currentDiceCount, int maxDiceCount, Button decBtn, Button incBtn){
-		if (currentDiceCount == 1){
-			diceStatusDisplay.setText("Rolling 1 die.\n(" + maxDiceCount + " allowed)");
-			decBtn.setDisable(true);
-		}
-		else{
-			diceStatusDisplay.setText("Rolling " + currentDiceCount + " dice.\n(" + maxDiceCount + " allowed)");
-			decBtn.setDisable(false);
-		}
-		
+		final String dieOrDice = currentDiceCount == 1 ? "die" : "dice";
+		diceStatusDisplay.setText("Rolling " + currentDiceCount + " " 
+				+ dieOrDice + ".\n(" + maxDiceCount + " allowed)");
+		decBtn.setDisable(false);
 		if(maxDiceCount > currentDiceCount){
 			incBtn.setDisable(false);
 		}
 		else{
 			incBtn.setDisable(true);
+		}
+		if(currentDiceCount == 1){
+			decBtn.setDisable(true);
+		}
+		else{
+			decBtn.setDisable(false);
 		}
 	}
 	
@@ -1546,14 +1549,146 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
+		
 		DefendResponse rsp = new DefendResponse();
+		//else...make the window and keep displaying until the user has confirmed selection
+		this.keepRunning = false;
+		
 		int numDice = map.getCountryArmies(dfdCountry);
 		if (numDice > RiskConstants.MAX_DFD_DICE) {
 			numDice = RiskConstants.MAX_DFD_DICE;
 		}
-		rsp.setNumDice(numDice);
+		final int maxDfdDiceAvailable = numDice;
+		rsp.setNumDice(maxDfdDiceAvailable);
+		
+		do{
+			Platform.runLater(new Runnable(){
+				@Override public void run(){
+					
+					/***********
+					* Begin mandatory processing on FX thread. (Required for Stage objects.)
+					*/
+					
+					ScrollPane spane = new ScrollPane();
+					final Stage dialog = new Stage();
+					final VBox layout = new VBox(10);
+					
+					Text guideText = new Text();
+					final Text statusText = new Text();
+					
+					Text diceCountStatus = new Text("Dice Count: " + rsp.getNumDice() + "\n(" + maxDfdDiceAvailable + " allowed)");
+					final Button diceCountDec = new Button ("Dice--");
+					final Button diceCountInc = new Button ("Dice++");
+					final HBox diceDisplay = new HBox(10);
+					
+					Button acceptIt = new Button ("Accept/OK");
+					
+					HBox acceptanceBtns = new HBox(10);
+					Text buttonDivider = new Text("***********");
+					
+					//now that things have been placed in memory, let's set it all up...
+					
+					dialog.setTitle("Defend! (?)");
+					if(FXUIPlayer.owner != null){
+						dialog.initOwner(FXUIPlayer.owner);
+					}
+					
+					
+					layout.setAlignment(Pos.CENTER);
+					layout.setStyle("-fx-padding: 20;");
+					putWindowAtLastKnownLocation(dialog);
+					
+					//Generic instructions for attacking (the act of which is always optional, technically)
+					final String guideTextContents = "You are being attacked!"
+							+ "\nAn anemo--err, an enemy--"
+							+ "\nhas chosen to attack you at"
+							+ "\n" + dfdCountry.getName() + "!"
+							+ "\nThe attacker is attacking from " + atkCountry.getName() + "."
+							+ "\nYou must decide how to defend yourself!"
+							+ "\n\nYou roll dice to defend. Roll the die"
+							+ "\n(or two dice, if you own enough countries)"
+							+ "\n(more dice = better chance of good defense)"
+							+ "\n(more dice = more troops lost if you lose)"
+							+ "\nYour attacker is rolling " + numAtkDice +"."
+							+ "\nYOU can roll a maximum of " + maxDfdDiceAvailable + "."
+							+ "\n...How many will you roll?";
+					guideText.setText(guideTextContents);
+					guideText.setTextAlignment(TextAlignment.CENTER);
+					
+					//status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
+					statusText.setText("~~~");
+					statusText.setTextAlignment(TextAlignment.CENTER);
+					
+					
+					//pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
+					diceCountStatus.setTextAlignment(TextAlignment.CENTER);
+					diceDisplay.getChildren().addAll(diceCountDec, diceCountStatus, diceCountInc);
+					diceDisplay.setAlignment(Pos.CENTER);
+					//the actions for the increment and decrement buttons, when buttons are available
+					diceCountInc.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							if (rsp.getNumDice() < maxDfdDiceAvailable)
+							{
+								rsp.setNumDice(rsp.getNumDice()+1);
+								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDfdDiceAvailable, diceCountDec, diceCountInc);
+							}
+						}
+					});
+					
+					diceCountDec.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							if (rsp.getNumDice() > 1)
+							{
+								rsp.setNumDice(rsp.getNumDice()-1);
+								updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxDfdDiceAvailable, diceCountDec, diceCountInc);
+							}
+						}
+					});
+					
+					//button to attempt to accept final reinforcement allocation
+					acceptIt.setOnAction(new EventHandler<ActionEvent>(){
+						@Override public void handle(ActionEvent t){
+							passTurn = false;
+							exitDecider.setAsNonSystemClose();
+							saveLastKnownWindowLocation(dialog);
+							dialog.close();
+						}
+					});
+					
+					acceptanceBtns.getChildren().addAll(acceptIt);
+					acceptanceBtns.setAlignment(Pos.CENTER);
+					
+					//add status and buttons to layout
+					buttonDivider.setTextAlignment(TextAlignment.CENTER);
+					layout.getChildren().addAll(guideText, statusText, buttonDivider, diceDisplay, acceptanceBtns);
+					layout.setAlignment(Pos.CENTER);
+					
+					//formally add linear layout to scene through the use of a scroll pane, and display the dialog
+					spane.setContent(layout);
+					dialog.setScene(new Scene(spane));
+					FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+					FXUIPlayer.crossbar.setCurrentHumanName(getName());
+					dialog.show();
+				}
+			});
+			
+			/**
+			* End mandatory FX thread processing.
+			* Immediately after this, pause the non-UI thread (which you should be back on) and wait for the dialog to close!
+			*/
+			waitForDialogToClose(FXUIPlayer.crossbar);
+			checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
+			//if we have completed all business within the dialog, cleanup and return as required.
+			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+		}
+		while(this.keepRunning);
+		if(passTurn){
+			passTurn = false;
+			return null;
+		}
+		
+		
 		return rsp;
-		// TODO this stolen from seth's cpu. must find a way to jiggle & juggle these bits later if necessary.
 	}
 	
 	/**

@@ -1,10 +1,13 @@
 #!/bin/bash
-#JavaFX RISK build-building script v1.1
+SCRIPTTITLE="JavaFX RISK build-building script v1.3";
 JDKERR="Did you add the JDK location to your \$PATH variables?\nsomething like...\nexport PATH=\$PATH:\"/cygdrive/C/Program Files/Java/jdk1.8.0_45/bin/\""
 
 #Depending on platform, this may be used to compile + run the JavaFX version of Risk.
 #If it doesn't work for your platform, it still gives you guidance on what needs to happen
 #in order to compile/archive (create a Jar) + run the JavaFX version of Risk from the command line.
+printf "\n"
+printf "$SCRIPTTITLE"
+printf "\n"
 
 #rudimentary check for correct folder.
 echo "   Validating script location..."
@@ -31,7 +34,7 @@ mkdir build
 #list of files found in srcFiles.txt
 #flags: "-g": required to generate debugging info due to obscure bug
 # introduced by using "final String" variables in source code at select spots.
-echo "   Preparing source files for compilation..."
+echo "   Preparing source files for compilation. . ."
 javac -g -d build @srcFiles.txt
 if [ ! $? -eq 0 ]
 then
@@ -59,7 +62,7 @@ cd build
 
 #package everything into an easy-to-use Jar file.
 #includes additional resources such as the map & list of countries.
-echo "   Attempting to create runnable Jar..."
+echo "   Attempting to create runnable Jar . . ."
 jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg *.m4a
 if [ ! $? -eq 0 ]
 then
@@ -73,8 +76,25 @@ fi
 cd ..
 
 #run the application from the newly-created Jar file.
-echo "   If successful, launching game!"
+printf "   If successful, launching game!\n\n\n"
 java -jar App.jar
 
-echo "   Good-bye!"
+#ask if the user wants to clean the extraneous build files
+printf "\n\n\n   Would you like to remove the build files?\n"
+printf "   (Executable will be left in place) :: y/n: "
+read cleanBFiles
+
+approvalStr="y";
+if [[ $cleanBFiles =~ $approvalStr ]]
+then
+    printf "   removing extraneous build-related files. . .\n"
+    printf "   application jar left in place. \n"
+    rm -rf build
+    rm -r manifest.txt
+    rm -r srcFiles.txt
+else
+    printf "   build files left in place.\n"
+fi
+
+printf "   Thank you & Good-bye!\n"
 fi

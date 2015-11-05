@@ -939,16 +939,16 @@ public class WindowResizeHandler {
             });
             
             double widthOfLines = 180d;
-            double strokeWidthOfLines = 3.0d;
+            double strokeThicknessOfLines = 3.0d;
             Color colorOfLines = Color.CHOCOLATE;
             Line bufferLineOne = new Line(0,0,widthOfLines,0);
             Line bufferLineTwo = new Line(0,0,widthOfLines,0);
             Line bufferLineThree = new Line(0,0,widthOfLines,0);
             Line bufferLineFour = new Line(0,0,widthOfLines,0);
-            bufferLineOne.setStrokeWidth(strokeWidthOfLines);
-            bufferLineTwo.setStrokeWidth(strokeWidthOfLines);
-            bufferLineThree.setStrokeWidth(strokeWidthOfLines);
-            bufferLineFour.setStrokeWidth(strokeWidthOfLines);
+            bufferLineOne.setStrokeWidth(strokeThicknessOfLines);
+            bufferLineTwo.setStrokeWidth(strokeThicknessOfLines);
+            bufferLineThree.setStrokeWidth(strokeThicknessOfLines);
+            bufferLineFour.setStrokeWidth(strokeThicknessOfLines);
             bufferLineOne.setStroke(colorOfLines);
             bufferLineTwo.setStroke(colorOfLines);
             bufferLineThree.setStroke(colorOfLines);

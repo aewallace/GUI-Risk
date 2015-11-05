@@ -140,7 +140,7 @@ public class SavePoint implements Serializable {
 		}
 	}
 	
-	public void prepAllPlayerDetails(HashMap<String, Player> currentPlayers, List<String> originalPlayers){
+	public void prepAllPlayerDetails(Map<String, Player> currentPlayers, List<String> originalPlayers){
 		for (String playerName : originalPlayers){
 			if(currentPlayers.containsKey(playerName)){
 				activePlayersAndTheirTypes.put(playerName, currentPlayers.get(playerName).getClass().toString());
@@ -183,10 +183,10 @@ public class SavePoint implements Serializable {
 	}
 	
 	public boolean prepareOverallSave(Date originalSDate, Date currentSDate, int roundIn, RiskMap map,
-			HashMap<String, Player> currentPlayers, List<String> originalPlayers,
+			Map<String, Player> currentPlayers, List<String> originalPlayers,
 			List<String> internalLogCache,
 			List<String> players,
-			HashMap<String, Collection<Card>> playerCardsetMap)
+			Map<String, Collection<Card>> playerCardsetMap)
 	{
 		updateSaveIdentificationInfo(originalSDate, currentSDate, roundIn);
 		prepAllCountryDetails(map);

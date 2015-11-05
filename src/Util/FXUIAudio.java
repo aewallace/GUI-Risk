@@ -52,7 +52,7 @@ import javafx.util.Duration;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio 0.1.6.2347\n03 Nov 2015";
+	public static final String shortVersion = "FXUIAudio 0.1.7.1409\n04 Nov 2015";
 	private static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	private static final String srcResourceFolderLocation = "src/resources/Audio/";
@@ -81,7 +81,7 @@ public class FXUIAudio {
 	private static LinkedList<MediaPlayer> playList = new LinkedList<MediaPlayer>();
 	private static Node visualIndicator = null;
 	private static boolean hasVisualIndicator = false;
-	private static AtomicBoolean bulkAnimLock = new AtomicBoolean(true);
+	private static AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
 
 	public FXUIAudio() {
 		canonicalClassName = this.getClass().getCanonicalName();
@@ -179,18 +179,16 @@ public class FXUIAudio {
 	}
 	
 	private static void toTheBeatHelper(){
-		int discreteSteps = 10, startingStep = 1;
-		long sleepTime = 110;
+		int discreteSteps = 30, startingStep = 1;
+		long sleepTime = 30;
 		final AtomicBoolean returnSoon = new AtomicBoolean(false);
-		final AtomicBoolean steppingLock = new AtomicBoolean(false);
-		while(!bulkAnimLock.get()){
+		final AtomicBoolean nextInnerAnimStepAllowed = new AtomicBoolean(false);
+		while(!nextOuterAnimStepAllowed.get()){
 			RiskUtils.sleep(50);
 		}
-		bulkAnimLock.set(false);
+		nextOuterAnimStepAllowed.set(false);
 		for (int i = startingStep; i < discreteSteps; i++){
-			if(discreteSteps < 15){
-				RiskUtils.sleep(sleepTime);
-			}
+			RiskUtils.sleep(sleepTime);
 			final int input = i;
 			final boolean lastStroke = (i == discreteSteps - 1);
 			Platform.runLater(new Runnable() {
@@ -200,26 +198,24 @@ public class FXUIAudio {
         				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
         				FXUIAudio.visualIndicator.setEffect(new Glow((double)input/discreteSteps));
 						if(lastStroke){
-							steppingLock.set(true);
+							nextInnerAnimStepAllowed.set(true);
 						}
         			}
         			catch(Exception e){
         				e.printStackTrace();
         				returnSoon.set(true);
-						steppingLock.set(true);
+						nextInnerAnimStepAllowed.set(true);
         			}
                 }
             });
 			if(returnSoon.get()){ return; }
 		}
-		while(!steppingLock.get()){
+		while(!nextInnerAnimStepAllowed.get()){
 			RiskUtils.sleep(50);
 		}
 		for (int i = discreteSteps; i > startingStep; i--){
-			steppingLock.set(false);
-			if(discreteSteps < 15){
-				RiskUtils.sleep(sleepTime);
-			}
+			nextInnerAnimStepAllowed.set(false);
+			RiskUtils.sleep(sleepTime);
 			final int input = i;
 			final boolean lastStroke = (i == startingStep + 1);
 			Platform.runLater(new Runnable() {
@@ -229,22 +225,22 @@ public class FXUIAudio {
         				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
         				FXUIAudio.visualIndicator.setEffect(new Glow((double)input/discreteSteps));
 						if(lastStroke){
-							steppingLock.set(true);
+							nextInnerAnimStepAllowed.set(true);
 						}
         			}
         			catch(Exception e){
         				e.printStackTrace();
         				returnSoon.set(true);
-						steppingLock.set(true);
+						nextInnerAnimStepAllowed.set(true);
         			}
                 }
             });
 			if(returnSoon.get()){ return; }
 		}
-		while(!steppingLock.get()){
+		while(!nextInnerAnimStepAllowed.get()){
 			RiskUtils.sleep(50);
 		}
-		bulkAnimLock.set(true);
+		nextOuterAnimStepAllowed.set(true);
 	}
 	
 	/**
@@ -533,10 +529,10 @@ public class FXUIAudio {
             queryText.setFill(Color.WHITE);
 
             double widthOfLines = 250d;
-            double strokeWidthOfLines = 3.0d;
+            double strokeThicknessOfLines = 3.0d;
             Color colorOfLines = Color.WHEAT;
             Line bufferLine = new Line(0,0,widthOfLines,0);
-            bufferLine.setStrokeWidth(strokeWidthOfLines);
+            bufferLine.setStrokeWidth(strokeThicknessOfLines);
             bufferLine.setStroke(colorOfLines);
 
             Text spaceBuffer = new Text("\n");

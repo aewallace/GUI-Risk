@@ -144,7 +144,7 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.03, 23:46\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.04, 20:20\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -170,9 +170,9 @@ public class FXUIGameMaster extends Application {
     protected Deque<Card> deck;
     protected static String desiredPlayersForGame = null;
     protected List<String> players;
-    protected Map<String, Player> playerMap;
-    protected Map<String, Collection<Card>> playerCardMap;
-    protected Map<String, Node[]> playerIndicatorMap;
+    protected Map<String, Player> playerNameToPlayerObjHMap;
+    protected Map<String, Collection<Card>> playerToCardDeckHMap;
+    protected Map<String, Node[]> playerToIndicatorHMap;
     private static final int DEFAULT_PLAYER_NAME_FONT_SIZE = 22;
     protected static final long DEFAULT_DELAY_BETWEEN_MOVES = 750;
     protected static long delayTimeBetweenBots = DEFAULT_DELAY_BETWEEN_MOVES;
@@ -200,6 +200,7 @@ public class FXUIGameMaster extends Application {
     private static boolean fullAppExit = false;
     private static List<Country> countriesToUpdateOwner = Collections.synchronizedList(new LinkedList<Country>());
     private static List<Country> countriesToUpdateCount = Collections.synchronizedList(new LinkedList<Country>());
+    private static Date gameStartTime = new Date();
 
     private static WindowResizeHandler mainWindowResizeHandler = null;
     
@@ -436,12 +437,13 @@ public class FXUIGameMaster extends Application {
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: coral;");
         
+        final String infoStripCSSFormatting = "-fx-background-color: darkred; -fx-padding: 5";
         final VBox topInfoStrip = new VBox(10);
         topInfoStrip.setAlignment(Pos.CENTER);
-        topInfoStrip.setStyle("-fx-background-color: tomato; -fx-padding: 5");
+        topInfoStrip.setStyle(infoStripCSSFormatting);
         final VBox bottomInfoStrip = new VBox(10);
         bottomInfoStrip.setAlignment(Pos.CENTER);
-        bottomInfoStrip.setStyle("-fx-background-color: tomato; -fx-padding: 5");
+        bottomInfoStrip.setStyle(infoStripCSSFormatting);
 
         final Text queryText = new Text("     Greetings, Human!     \nWhat would you like to do?\n-\n");
         queryText.setTextAlignment(TextAlignment.CENTER);
@@ -469,16 +471,16 @@ public class FXUIGameMaster extends Application {
         botsOnly.setSelected(FXUIGameMaster.runBotsOnly);
         
         double widthOfLines = 250d;
-        double strokeWidthOfLines = 3.0d;
+        double strokeThicknessOfLines = 5.0d;
         Color colorOfLines = Color.TOMATO;
         Line bufferLineOne = new Line(0,0,widthOfLines,0);
         Line bufferLineTwo = new Line(0,0,widthOfLines,0);
         Line bufferLineThree = new Line(0,0,widthOfLines,0);
         Line bufferLineFour = new Line(0,0,widthOfLines,0);
-        bufferLineOne.setStrokeWidth(strokeWidthOfLines);
-        bufferLineTwo.setStrokeWidth(strokeWidthOfLines);
-        bufferLineThree.setStrokeWidth(strokeWidthOfLines);
-        bufferLineFour.setStrokeWidth(strokeWidthOfLines);
+        bufferLineOne.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineTwo.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineThree.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineFour.setStrokeWidth(strokeThicknessOfLines);
         bufferLineOne.setStroke(colorOfLines);
         bufferLineTwo.setStroke(colorOfLines);
         bufferLineThree.setStroke(colorOfLines);
@@ -812,7 +814,7 @@ public class FXUIGameMaster extends Application {
         saveIsReady = activeSaveData.prepareOverallSave(
                 originalSaveDate, new Date(), this.round,
                 this.map,
-                (HashMap<String, Player>) playerMap, this.allPlayers,
+                (Map<String, Player>) playerNameToPlayerObjHMap, this.allPlayers,
                 FXUIGameMaster.internalLogCache,
                 this.players,
                 playerCardsetMap
@@ -955,11 +957,11 @@ public class FXUIGameMaster extends Application {
         //clear the player list...just in case.
         writeLogLn(true, "Loading players...");
         try {
-            this.playerMap.clear();
+            this.playerNameToPlayerObjHMap.clear();
             this.allPlayers.clear();
             this.players.clear();
         } catch (Exception e) {
-            this.playerMap = new HashMap<String, Player>();
+            this.playerNameToPlayerObjHMap = Collections.synchronizedMap(new HashMap<String, Player>());
             this.allPlayers = new ArrayList<String>();
             this.players = new ArrayList<String>();
         }
@@ -995,15 +997,15 @@ public class FXUIGameMaster extends Application {
                             + " as a valid player. (Attempted type: " + loadedSave.getActivePlayersAndTheirTypes().get(playerIn.getKey()) + "...Is the Player type know to the GameMaster?)");
                     success = false;
                 } else {
-                    this.playerMap.put(playerIn.getKey(), playerObjectToCast);
+                    this.playerNameToPlayerObjHMap.put(playerIn.getKey(), playerObjectToCast);
                     this.players.add(playerIn.getKey());
                 }
             }
         }
 
         //rebuild the card deck the players had at the time of the save
-        this.playerCardMap = new HashMap<String, Collection<Card>>();
-        for (Player playerM : this.playerMap.values()) {
+        this.playerToCardDeckHMap = Collections.synchronizedMap(new HashMap<String, Collection<Card>>());
+        for (Player playerM : this.playerNameToPlayerObjHMap.values()) {
             ArrayList<Card> newCards = new ArrayList<Card>();
             if (loadedSave.getPlayersAndTheirCards().get(playerM.getName()) != null) {
                 for (String cardRepresentation : loadedSave.getPlayersAndTheirCards().get(playerM.getName())) {
@@ -1016,7 +1018,7 @@ public class FXUIGameMaster extends Application {
                     }
                 }
             }
-            this.playerCardMap.put(playerM.getName(), newCards);
+            this.playerToCardDeckHMap.put(playerM.getName(), newCards);
         }
 
         //Make sure we have the right number of players and there was no issue.
@@ -1215,7 +1217,7 @@ public class FXUIGameMaster extends Application {
                     }
                 }
                 FXUIAudio.playNextNote();
-                FXUIGameMaster.currentPlayer = this.playerMap.get(this.players.get(turn));
+                FXUIGameMaster.currentPlayer = this.playerNameToPlayerObjHMap.get(this.players.get(turn));
                 boolean canUpdateUIAndSave = FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
                 writeLogLn(true, FXUIGameMaster.currentPlayer.getName() + " is starting their turn.");
                 writeStatsLn();
@@ -1310,7 +1312,7 @@ public class FXUIGameMaster extends Application {
         int playerIndex = 0;
         //get initial troop allocation
         while (playerIndex < this.players.size() && !crossbar.isHumanEndingGame()) {
-            Player player = this.playerMap.get(this.players.get(playerIndex));
+            Player player = this.playerNameToPlayerObjHMap.get(this.players.get(playerIndex));
             writeLogLn(true, "Getting initial troop allocation from " + player.getName() + "...");
             int reinforcements;
             valid = false;
@@ -1365,7 +1367,7 @@ public class FXUIGameMaster extends Application {
      * @throws PlayerEliminatedException
      */
     protected void validatePlayerName(Player player) throws PlayerEliminatedException {
-        if (!(this.playerMap.containsKey(player.getName()) && this.playerMap.get(player.getName()) == player)) {
+        if (!(this.playerNameToPlayerObjHMap.containsKey(player.getName()) && this.playerNameToPlayerObjHMap.get(player.getName()) == player)) {
             eliminate(player, null, "Players who hide their true identity are not welcome here. BEGONE!");
         }
     }
@@ -1438,6 +1440,7 @@ public class FXUIGameMaster extends Application {
             if (FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame) {
                 return;
             }
+            this.refreshUIElements(true);
             if (valid = ReinforcementResponse.isValidResponse(rsp, this.map, currentPlayer.getName(), reinforcements)) {
                 for (Map.Entry<Country, Integer> entry : rsp.getAllocation().entrySet()) {
                     this.mapAddToCountryArmyCount(entry.getKey(), entry.getValue());
@@ -1461,6 +1464,7 @@ public class FXUIGameMaster extends Application {
             attempts++;
             resetTurn = false;
             AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
+            this.refreshUIElements(true);
             if (atkRsp != null) {
                 if (AttackResponse.isValidResponse(atkRsp, this.map, currentPlayer.getName())) {
                     writeLogLn(true, currentPlayer.getName() + " is attacking "
@@ -1498,6 +1502,7 @@ public class FXUIGameMaster extends Application {
         while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
             attempts++;
             rsp = tryDefend(defender, createCardSetCopy(defender.getName()), oppCards, new AttackResponse(atkRsp));
+            this.refreshUIElements(true);
             valid = DefendResponse.isValidResponse(rsp, this.map, atkRsp.getDfdCountry());
         }
         if (!valid) {
@@ -1560,7 +1565,7 @@ public class FXUIGameMaster extends Application {
     protected void awardCard(String playerName) {
         writeLogLn(true, "Awarding " + playerName + " one card.");
         if (this.deck.size() > 0) {
-            this.playerCardMap.get(playerName).add(this.deck.removeFirst());
+            this.playerToCardDeckHMap.get(playerName).add(this.deck.removeFirst());
         }
     }
 
@@ -1583,7 +1588,7 @@ public class FXUIGameMaster extends Application {
         } catch (PlayerEliminatedException defenderException) {
 			//this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call or the game ended.
             //also, player can only reinforce after eliminating another player if (s)he is forced to turn in cards
-            if (allowReinforce && this.playerCardMap.get(attacker.getName()).size() >= RiskConstants.FORCE_TURN_IN && this.players.size() > 1) {
+            if (allowReinforce && this.playerToCardDeckHMap.get(attacker.getName()).size() >= RiskConstants.FORCE_TURN_IN && this.players.size() > 1) {
                 reinforce(attacker, false);//note that if the current player fails to reinforce, the player can be eliminated here and an exception thrown back up to begin()
             }
         }
@@ -1601,6 +1606,7 @@ public class FXUIGameMaster extends Application {
         while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
             attempts++;
             FortifyResponse rsp = tryFortify(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
+            this.refreshUIElements(true);
             if (rsp != null) {
                 if (valid = FortifyResponse.isValidResponse(rsp, this.map, currentPlayer.getName())) {
                     writeLogLn(true, currentPlayer.getName() + " is transferring " + rsp.getNumArmies() + " from " + rsp.getFromCountry() + " to " + rsp.getToCountry() + ".");
@@ -1742,7 +1748,7 @@ public class FXUIGameMaster extends Application {
         while (!valid && attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
             CardTurnInResponse rsp = tryTurnIn(currentPlayer, createCardSetCopy(currentPlayer.getName()), oppCards, turnInRequired);
             if (rsp != null) {
-                if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerCardMap.get(currentPlayer.getName()))) {
+                if (valid = CardTurnInResponse.isValidResponse(rsp, this.playerToCardDeckHMap.get(currentPlayer.getName()))) {
                     cardBonus = RiskConstants.advanceTurnIn();
                     writeLogLn(true, currentPlayer.getName() + " turned in cards for " + cardBonus + " additional reinforcements!");
                     if (rsp.getBonusCountry() != null) {
@@ -1751,7 +1757,7 @@ public class FXUIGameMaster extends Application {
                         }
                     }
                     for (Card card : rsp.getCards()) {
-                        this.playerCardMap.get(currentPlayer.getName()).remove(card);
+                        this.playerToCardDeckHMap.get(currentPlayer.getName()).remove(card);
                         this.deck.addLast(card);
                     }
                 }
@@ -1771,7 +1777,7 @@ public class FXUIGameMaster extends Application {
 
     protected Collection<Card> createCardSetCopy(String playerName) {
         Collection<Card> copy = new ArrayList<Card>();
-        for (Card card : this.playerCardMap.get(playerName)) {
+        for (Card card : this.playerToCardDeckHMap.get(playerName)) {
             copy.add(new Card(card.getType(), card.getCountry()));
         }
         return copy;
@@ -1783,7 +1789,7 @@ public class FXUIGameMaster extends Application {
     }
 
     protected Player getPlayerObject(String playerName) {
-        for (Player player : this.playerMap.values()) {
+        for (Player player : this.playerNameToPlayerObjHMap.values()) {
             if (player.getName().equals(playerName)) {
                 return player;
             }
@@ -1793,8 +1799,8 @@ public class FXUIGameMaster extends Application {
 
     protected Map<String, Integer> getPlayerCardCounts() {
         Map<String, Integer> playerCardCounts = new HashMap<String, Integer>();
-        for (String playerName : this.playerMap.keySet()) {
-            playerCardCounts.put(playerName, this.playerCardMap.get(playerName).size());
+        for (String playerName : this.playerNameToPlayerObjHMap.keySet()) {
+            playerCardCounts.put(playerName, this.playerToCardDeckHMap.get(playerName).size());
         }
         return playerCardCounts;
     }
@@ -1830,7 +1836,7 @@ public class FXUIGameMaster extends Application {
             return false;
         }
         writeLogLn(true, "Loading players...");
-        this.playerMap = new HashMap<String, Player>();
+        this.playerNameToPlayerObjHMap = Collections.synchronizedMap(new HashMap<String, Player>());
         if (players == null) {
             players = RiskConstants.DEFAULT_PLAYERS;
         }
@@ -1840,18 +1846,18 @@ public class FXUIGameMaster extends Application {
         FXUIPlayer.setCrossbar(FXUIGameMaster.crossbar);
 
         for (Player player : playerList) {
-            this.playerMap.put(player.getName(), player);
+            this.playerNameToPlayerObjHMap.put(player.getName(), player);
         }
 
-        this.players = new ArrayList<String>(this.playerMap.keySet());
-        this.allPlayers = new ArrayList<String>(this.playerMap.keySet());
+        this.players = new ArrayList<String>(this.playerNameToPlayerObjHMap.keySet());
+        this.allPlayers = new ArrayList<String>(this.playerNameToPlayerObjHMap.keySet());
 
         shufflePlayers(this.players);//choose a random turn order
 
-        this.playerCardMap = new HashMap<String, Collection<Card>>();
+        this.playerToCardDeckHMap = Collections.synchronizedMap(new HashMap<String, Collection<Card>>());
 
-        for (Player player : this.playerMap.values()) {
-            this.playerCardMap.put(player.getName(), new ArrayList<Card>());
+        for (Player player : this.playerNameToPlayerObjHMap.values()) {
+            this.playerToCardDeckHMap.put(player.getName(), new ArrayList<Card>());
         }
 
         if (this.players.size() < RiskConstants.MIN_PLAYERS || this.players.size() > RiskConstants.MAX_PLAYERS) {
@@ -1883,7 +1889,7 @@ public class FXUIGameMaster extends Application {
             writeLogLn(true, "Re-allocating eliminated player's countries...");
             for (Country country : Country.values()) {
                 if (map.getCountryOwner(country) == null) {
-                    mapSetCountryOwner(country, this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+                    mapSetCountryOwner(country, this.playerNameToPlayerObjHMap.get(this.players.get(allocationIdx % this.players.size())).getName());
                     if (this.round > 0) {
 						//If these countries are being eliminated during a game,
                         //it is due to a player being eliminated by the Master,
@@ -1902,7 +1908,7 @@ public class FXUIGameMaster extends Application {
             writeLogLn(true, "Allocating countries...");
             for (Card card : this.deck) {
                 if (!card.getType().equals(RiskConstants.WILD_CARD)) {
-                    mapSetCountryOwner(card.getCountry(), this.playerMap.get(this.players.get(allocationIdx % this.players.size())).getName());
+                    mapSetCountryOwner(card.getCountry(), this.playerNameToPlayerObjHMap.get(this.players.get(allocationIdx % this.players.size())).getName());
                     allocationIdx++;
                 }
             }
@@ -1910,7 +1916,7 @@ public class FXUIGameMaster extends Application {
     }
 
     protected void eliminate(Player loser, Player eliminator, String reason) throws PlayerEliminatedException {
-        if (this.playerMap.containsKey(loser.getName())) {
+        if (this.playerNameToPlayerObjHMap.containsKey(loser.getName())) {
             writeLogLn(true, loser.getName() + " Eliminated! " + reason);
             System.out.println(loser.getName() + " Eliminated! " + reason);
             displayExtendedMessage(loser.getName() + " Eliminated! " + reason);
@@ -1924,13 +1930,13 @@ public class FXUIGameMaster extends Application {
                 }
             }
             if (eliminator != null) {
-                for (Card card : this.playerCardMap.get(loser.getName())) {
-                    this.playerCardMap.get(eliminator.getName()).add(card);
+                for (Card card : this.playerToCardDeckHMap.get(loser.getName())) {
+                    this.playerToCardDeckHMap.get(eliminator.getName()).add(card);
                 }
-                this.playerCardMap.get(loser.getName()).clear();
+                this.playerToCardDeckHMap.get(loser.getName()).clear();
             }
             this.players.remove(loser.getName());
-            this.playerMap.remove(loser.getName());
+            this.playerNameToPlayerObjHMap.remove(loser.getName());
             allocateUnownedCountries();
             throw new PlayerEliminatedException(loser.getName() + " Eliminated! " + reason);
         } else {
@@ -2029,11 +2035,11 @@ public class FXUIGameMaster extends Application {
             if (this.playerDisplay != null) {
                 FXUIGameMaster.mainWindowPane.getChildren().remove(this.playerDisplay);
             }
-            if(this.playerIndicatorMap == null){
-            	this.playerIndicatorMap = new HashMap<String, Node[]>();
+            if(this.playerToIndicatorHMap == null){
+            	this.playerToIndicatorHMap = Collections.synchronizedMap(new HashMap<String, Node[]>());
             }
             else{
-            	this.playerIndicatorMap.clear();
+            	this.playerToIndicatorHMap.clear();
             }
 
             ArrayList<Color> colors = new ArrayList<Color>();
@@ -2043,17 +2049,17 @@ public class FXUIGameMaster extends Application {
             colors.add(Color.GREENYELLOW);
             colors.add(Color.CORAL);
             colors.add(Color.VIOLET);
-            this.playerColorMap = new HashMap<String, Color>();
+            this.playerColorMap = Collections.synchronizedMap(new HashMap<String, Color>());
             int i = -1;
 
             HBox namesOfPlayers = new HBox(40);
             namesOfPlayers.setLayoutX(50);
             namesOfPlayers.setLayoutY(5);
 
-            if (this.playerMap == null || this.playerMap.size() == 0) {
+            if (this.playerNameToPlayerObjHMap == null || this.playerNameToPlayerObjHMap.size() == 0) {
                 System.out.println(ERROR + "Player map not populated; please fix logic!");
             }
-            for (String playerName : this.playerMap.keySet()) {
+            for (String playerName : this.playerNameToPlayerObjHMap.keySet()) {
             	VBox playerBox = new VBox();
             	playerBox.setAlignment(Pos.CENTER);
                 this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
@@ -2089,7 +2095,7 @@ public class FXUIGameMaster extends Application {
                 
                 playerBox.getChildren().addAll(txt, arcIndicator);
                 namesOfPlayers.getChildren().add(playerBox);
-                this.playerIndicatorMap.put(playerName, new Node[] {arcIndicator, txt});
+                this.playerToIndicatorHMap.put(playerName, new Node[] {arcIndicator, txt});
             }
             FXUIGameMaster.mainWindowPane.getChildren().add(namesOfPlayers);
             this.playerDisplay = namesOfPlayers;
@@ -2109,8 +2115,8 @@ public class FXUIGameMaster extends Application {
      * 1 if all indicators cleared but no new indicator applied.
      */
     private int highlightCurrentPlayer(Player playerToHilite){
-    	if(this.playerIndicatorMap == null || 
-    			this.playerIndicatorMap.size() == 0)
+    	if(this.playerToIndicatorHMap == null || 
+    			this.playerToIndicatorHMap.size() == 0)
     	{
     		return -1;
     	}
@@ -2119,7 +2125,7 @@ public class FXUIGameMaster extends Application {
 			@Override
 			public void run() {
 				try{
-					for(Entry<String, Node[]> entry : playerIndicatorMap.entrySet()) { // TODO fix concurrent modification potential for this.
+					for(Entry<String, Node[]> entry : playerToIndicatorHMap.entrySet()) {
 						if(playerToHilite != null && entry.getKey() == playerToHilite.getName()){
 							entry.getValue()[0].setVisible(true);
 							Text playerText = (Text) entry.getValue()[1];
@@ -2200,7 +2206,14 @@ public class FXUIGameMaster extends Application {
             	 */
             	FXUIGameMaster.runBotsOnly = false;
             	
-            	//Allow the user to select game details...
+            	/*
+            	 * Set the date and time of this newly running game.
+            	 */
+            	FXUIGameMaster.gameStartTime = new Date();
+            	
+            	/*
+            	 * Allow the user to select game details...
+            	 */
                 int stateOut = displayGameSelector();
                 
                 //Depending on what's been selected there, run or don't run.
@@ -2658,17 +2671,17 @@ public class FXUIGameMaster extends Application {
         /*
          * The pulse line for the bottom of the screen.
          */
-        double strokeWidthOfLines = 4d;
+        double strokeThicknessOfLines = 4d;
         Color colorOfLines = Color.WHITE;
         Line musicPulseIndicator = new Line(0,DEFAULT_CONTENT_HEIGHT-10,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT-10);
         //Rectangle accentLine = new Rectangle(4,4,DEFAULT_CONTENT_WIDTH-8,DEFAULT_CONTENT_HEIGHT-8);
-        musicPulseIndicator.setStrokeWidth(strokeWidthOfLines);
+        musicPulseIndicator.setStrokeWidth(strokeThicknessOfLines);
         musicPulseIndicator.setStroke(colorOfLines);
         musicPulseIndicator.setFill(Color.TRANSPARENT);
         FXUIAudio.setVisualIndicator(musicPulseIndicator);
         
         Line musicPulseIndicatorS = new Line(0,0,0,40);
-        musicPulseIndicatorS.setStrokeWidth(strokeWidthOfLines);
+        musicPulseIndicatorS.setStrokeWidth(strokeThicknessOfLines);
         musicPulseIndicatorS.setStroke(colorOfLines);
         musicPulseIndicatorS.setFill(colorOfLines);
         musicPulseIndicator.opacityProperty().addListener(new ChangeListener<Number>(){
@@ -2681,13 +2694,13 @@ public class FXUIGameMaster extends Application {
 
         
         Line activeGameIndic = new Line(0,4,DEFAULT_CONTENT_WIDTH,4);
-        activeGameIndic.setStrokeWidth(strokeWidthOfLines);
+        activeGameIndic.setStrokeWidth(strokeThicknessOfLines);
         activeGameIndic.setStroke(colorOfLines);
         activeGameIndic.setFill(colorOfLines);
         this.setGameRunningIndicator(activeGameIndic);
         
         Line activeGameIndicS = new Line(0,0,0,40);
-        activeGameIndicS.setStrokeWidth(strokeWidthOfLines);
+        activeGameIndicS.setStrokeWidth(strokeThicknessOfLines);
         activeGameIndicS.setStroke(colorOfLines);
         activeGameIndicS.setFill(colorOfLines);
         activeGameIndic.opacityProperty().addListener(new ChangeListener<Number>(){
@@ -3067,7 +3080,7 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void bootSplashHelper(Text splashText, Rectangle splashBackground){
-		final int discreteSteps = 135;
+		final int discreteSteps = 75;
 		final AtomicBoolean complete = new AtomicBoolean(false);
         RiskUtils.sleep(2400);
 		for (int i = discreteSteps; i > (int)(discreteSteps/2); i--){
@@ -3133,7 +3146,7 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void exitSplashHelper(Text splashText, Rectangle splashBackground){
-		final int discreteSteps = 135;
+		final int discreteSteps = 75;
 		final AtomicBoolean complete = new AtomicBoolean(false);
 		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
 			complete.set(false);
@@ -3226,7 +3239,7 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void winnerScreenHelper(Text splashText, Rectangle splashBackground){
-		final int discreteSteps = 135;
+		final int discreteSteps = 75;
 		final AtomicBoolean complete = new AtomicBoolean(false);
 		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
 			complete.set(false);
@@ -3275,11 +3288,16 @@ public class FXUIGameMaster extends Application {
 	}
 	
 	private static void gameRunningVisualIndicatorHelper(Node visualIndicator){
-		int discreteSteps = 20, startingStep = 1;
-		long sleepTime = 110;
+		int discreteSteps = 40, startingStep = 1;
+		final Date runToAnimate = FXUIGameMaster.gameStartTime;
+		final long sleepTime = 55;
+		final long timeBetweenPulses = 2000;
 		final AtomicBoolean returnSoon = new AtomicBoolean(false);
 		final AtomicBoolean proceed = new AtomicBoolean(true);
-		while(FXUIGameMaster.priGameLogicThread != null && !FXUIGameMaster.endGame && !FXUIGameMaster.fullAppExit){
+		while(FXUIGameMaster.priGameLogicThread != null 
+				&& !FXUIGameMaster.endGame 
+				&& !FXUIGameMaster.fullAppExit
+				&& runToAnimate == FXUIGameMaster.gameStartTime){
 			for (int i = startingStep; i < discreteSteps; i++){
 				do{
 					RiskUtils.sleep(sleepTime);
@@ -3335,9 +3353,9 @@ public class FXUIGameMaster extends Application {
 				if(returnSoon.get()){ return; }
 			}
 			do{
-			RiskUtils.sleep(2500);
+				RiskUtils.sleep(timeBetweenPulses);
 			}
-			while(proceed.get());
+			while(!proceed.get());
 		}
 	}
 	
@@ -3422,7 +3440,6 @@ public class FXUIGameMaster extends Application {
     * @param message the message to be shown (potentially truncated)
     */
     private static void displayExtendedMessage(String message){
-    	FXUIGameMaster.extendedMessageCache.add(message);
     	int strLenToDisplay = 100;
     	if (message == null){
     		return;
@@ -3433,15 +3450,22 @@ public class FXUIGameMaster extends Application {
     	else if (message.length() < strLenToDisplay){
     		strLenToDisplay = message.length();
     	}
-    	FXUIGameMaster.extendedMessageDisplay.setText(message.substring(0, strLenToDisplay));
-    	FXUIGameMaster.extendedMessageDisplay.setOnMouseClicked(
-    		new EventHandler<MouseEvent>() {
-                @Override
-                public void handle(MouseEvent t) {
-                    showPassiveDialog(message);
-                    FXUIGameMaster.extendedMessageDisplay.setText("---");
-                }
+    	final String lineToShow = message.substring(0, strLenToDisplay);
+    	Platform.runLater(new Runnable() {
+            @Override
+            public void run() {
+            	FXUIGameMaster.extendedMessageDisplay.setText(lineToShow);
+            	FXUIGameMaster.extendedMessageDisplay.setOnMouseClicked(
+            		new EventHandler<MouseEvent>() {
+                        @Override
+                        public void handle(MouseEvent t) {
+                            showPassiveDialog(message);
+                            FXUIGameMaster.extendedMessageDisplay.setText("---");
+                        }
+                });
+            }
         });
+    	FXUIGameMaster.extendedMessageCache.add(message);
     }
 
     /**
@@ -3767,10 +3791,10 @@ public class FXUIGameMaster extends Application {
         }
         
         double widthOfLines = 250d;
-        double strokeWidthOfLines = 3.0d;
+        double strokeThicknessOfLines = 3.0d;
         Color colorOfLines = Color.WHEAT;
         Line bufferLine = new Line(0,0,widthOfLines,0);
-        bufferLine.setStrokeWidth(strokeWidthOfLines);
+        bufferLine.setStrokeWidth(strokeThicknessOfLines);
         bufferLine.setStroke(colorOfLines);
         
         layout.getChildren().addAll(bufferLine,closeButton);
