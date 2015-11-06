@@ -1,36 +1,27 @@
-/**
- * Originally created 28 October 2015
- * by Albert Wallace
- */
 package Util;
 
-import Master.FXUIGameMaster;
 import java.io.File;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import Master.FXUIGameMaster;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
-import javafx.scene.effect.Glow;
 import javafx.scene.layout.VBox;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.AudioClip;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Font;
@@ -40,59 +31,15 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
-import javafx.util.Duration;
 
-/**
- * Audio files courtesy of University of Iowa Electronic Music Studios.
- * URL at last retrieval: http://theremin.music.uiowa.edu/MISpiano.html
- * and http://theremin.music.uiowa.edu/MIS-Pitches-2012/MISFlute2012.html
- * and http://theremin.music.uiowa.edu/MIS-Pitches-2012/MISViolin2012.html
- * and http://theremin.music.uiowa.edu/MISxylophone.html
- * 
- * Class used to play notes as the game progresses.
- */
-public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio MP/AC 0.1.8.1300\n06 Nov 2015";
-	protected static String canonicalClassName;
-	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
-	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
-	protected static List<String> audioFileNames = Arrays.asList(
-			"Piano.mf.D2.m4a", "Piano.mf.Db2.m4a", "Piano.mf.D3.m4a", "Piano.mf.Db3.m4a", 
-			"Piano.mf.D4.m4a", "Piano.mf.Db4.m4a", "Piano.mf.D5.m4a", "Piano.mf.Db5.m4a",
-			"Piano.mf.D6.m4a", "Piano.mf.Db6.m4a", "Piano.mf.D7.m4a", "Piano.mf.Db7.m4a"
-			);
-	protected static List<String> xtraAudioFileNames = Arrays.asList(
-			"Piano.mf.A5.m4a", "Piano.mf.Ab5.m4a", "Piano.mf.B5.m4a", "Piano.mf.Bb5.m4a",
-			"Piano.mf.E4.m4a", "Piano.mf.Eb4.m4a"
-			);
-	protected static final String bootAudioFileName = "xylophone.rosewood.roll.ff.F4B4.m4a";
-	protected static int positionInList = 0;
-	protected static int listSize = 0;
-	private static Map<String, MediaPlayer> mediaPlaybackMap = new HashMap<String, MediaPlayer>();
-	protected static Random rand = new Random();
-	protected static int loadingMethod = 0;
-	protected static boolean playAudio = true;
-	protected static boolean audioLoadSuccess = true;
-	protected static AtomicBoolean blockNextPlay = new AtomicBoolean(false);
-	protected static long delayBetweenNextPlayMS = 1500;
-	
-	protected static boolean initialized = false;
-	/**
-	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
-	 */
-	protected static double audioVolumePercent = 0.3d;
-	private static MediaPlayer bootAudioMP = null;
-	protected static int maxConcurrentClipCount = 1;
-	private static LinkedList<MediaPlayer> playList = new LinkedList<MediaPlayer>();
-	protected static Node visualIndicator = null;
-	protected static boolean hasVisualIndicator = false;
-	protected static AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
+public class FXUIAudioAC extends FXUIAudio {
+	private static Map<String, AudioClip> mediaPlaybackMap = new HashMap<String, AudioClip>();
+	private static AudioClip bootAudioAC = null;
+	protected static int maxConcurrentClipCount = 3;
+	private static LinkedList<AudioClip> playList = new LinkedList<AudioClip>();
+	protected static long delayBetweenNextPlayMS = 900;
 
-	public FXUIAudio() {
-		canonicalClassName = this.getClass().getCanonicalName();
-		this.playBootJingle();
-		this.delayedLoadFiles();
-		initialized = true;
+	public FXUIAudioAC() {
 	}
 	
 	/**
@@ -107,21 +54,24 @@ public class FXUIAudio {
                 @Override
                 public void run() {
 					RiskUtils.sleep(5000);
-					FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + FXUIAudio.canonicalClassName
-						+ " version " + shortVersion +". Please wait.");
-                	for(int i = 0; i < audioFileNames.size(); i++){
+					FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + FXUIAudioAC.canonicalClassName
+						+ " version " + FXUIAudioAC.shortVersion +". Please wait.");
+					FXUIGameMaster.diagnosticPrintln("Note that the full audio file"
+							+ " is going to be played, unless stopped"
+							+ " by internal logic or user interaction.");
+                	for(int i = 0; i < FXUIAudioAC.audioFileNames.size(); i++){
 						/*
 						 * Depending on compilation type, either load from base directory 
 						 * or load from source location. Base directory: compilation into jar
 						 * puts resources into base directory, because: why not.
 						 */
-						MediaPlayer mediaPlayer = null;
-						if( (mediaPlayer = loadAudioFileToMediaPlayer(audioFileNames.get(i)))
+						AudioClip mediaPlayer = null;
+						if( (mediaPlayer = loadAudioFileToAudioClip(FXUIAudioAC.audioFileNames.get(i)))
 								!= null )
 						{
-							mediaPlayer.setStopTime(new Duration(3700));
+							//mediaPlayer.setStopTime(new Duration(3700));
 							mediaPlayer.setVolume(audioVolumePercent);
-							mediaPlaybackMap.put(audioFileNames.get(i), mediaPlayer);
+							mediaPlaybackMap.put(FXUIAudioAC.audioFileNames.get(i), mediaPlayer);
 						}
 						else{
 							audioLoadSuccess = false;
@@ -132,8 +82,8 @@ public class FXUIAudio {
 								+ " No extra audio will be played.");
 					}
 					else{
-						FXUIAudio.listSize = FXUIAudio.mediaPlaybackMap.size();
-						FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudio.listSize);
+						FXUIAudioAC.listSize = FXUIAudioAC.mediaPlaybackMap.size();
+						FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudioAC.listSize);
 					}
                 }
         }, "delayedLoadAudioFiles");
@@ -155,117 +105,19 @@ public class FXUIAudio {
 	 * (null accepted); should more than one be passed in, all will be 
 	 * simultaneously modified during each call to {@link toTheBeat}.
 	 */
-	public static void setVisualIndicators(Node ne, Node[] nds){
-		if(ne != null){
-			if(Platform.isFxApplicationThread()){
-				ne.setOpacity(0.5d);
-				ne.setEffect(new Glow(1.0d));
-			}
-			FXUIAudio.visualIndicator = ne;
-			FXUIAudio.hasVisualIndicator = true;
-			if (nds != null){
-				final int otherIndicCount = nds.length;
-				ne.opacityProperty().addListener(new ChangeListener<Number>(){
-					@Override
-					public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
-						for (int i = 0; i < otherIndicCount; i++){
-							try{
-								nds[i].setOpacity(newValue.doubleValue());
-							}
-							catch(Exception e){
-							}
-						}
-					}
-		        });
-			}
-
-		}
-		else{
-			FXUIAudio.hasVisualIndicator = false;
-		}
-	}
+	/*public static void setVisualIndicators(Node ne, Node[] nds){
+		FXUIAudio.setVisualIndicators(ne, nds);
+	}*/
 	
 	/**
 	 * Flash/pulse visual indicator. Pair with the start of an audio clip
 	 * to produce a sort of "to the beat" visual effect.
 	 */
+	/*
 	protected static void toTheBeat()
 	{
-		Thread pulse = new Thread(null, new Runnable() {
-            @Override
-            public void run() {
-            	if(FXUIAudio.hasVisualIndicator == true){
-            		toTheBeatHelper();
-        		}
-            }
-	    }, "FXUIA.toTheBeat");
-	    pulse.setDaemon(true);
-	    pulse.start();
-	}
-	
-	protected static void toTheBeatHelper(){
-		int animTime = 650;
-		int discreteSteps = 20, startingStep = 10, stoppingStep = 1;
-		long sleepTime = animTime/discreteSteps;
-		final AtomicBoolean returnSoon = new AtomicBoolean(false);
-		final AtomicBoolean nextInnerAnimStepAllowed = new AtomicBoolean(false);
-		while(!nextOuterAnimStepAllowed.get()){
-			RiskUtils.sleep(50);
-		}
-		nextOuterAnimStepAllowed.set(false);
-		for (int i = startingStep; i < discreteSteps; i++){
-			RiskUtils.sleep(sleepTime);
-			final int input = i;
-			final boolean lastStroke = (i == discreteSteps - 1);
-			Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                	try{
-        				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
-						if(lastStroke){
-							nextInnerAnimStepAllowed.set(true);
-						}
-        			}
-        			catch(Exception e){
-        				e.printStackTrace();
-        				returnSoon.set(true);
-						nextInnerAnimStepAllowed.set(true);
-        			}
-                }
-            });
-			if(returnSoon.get()){ return; }
-		}
-		while(!nextInnerAnimStepAllowed.get()){
-			RiskUtils.sleep(50);
-		}
-		for (int i = discreteSteps; i > stoppingStep; i--){
-			nextInnerAnimStepAllowed.set(false);
-			RiskUtils.sleep(sleepTime);
-			final int input = i;
-			final boolean lastStroke = (i == stoppingStep + 1);
-			Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                	try{
-        				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
-						if(lastStroke){
-							nextInnerAnimStepAllowed.set(true);
-						}
-        			}
-        			catch(Exception e){
-        				e.printStackTrace();
-        				returnSoon.set(true);
-						nextInnerAnimStepAllowed.set(true);
-        			}
-                }
-            });
-			if(returnSoon.get()){ return; }
-		}
-		while(!nextInnerAnimStepAllowed.get()){
-			RiskUtils.sleep(50);
-		}
-		nextOuterAnimStepAllowed.set(true);
-	}
+		FXUIAudio.toTheBeat();
+	}*/
 	
 	/**
 	 * Plays the next musical note from the list of notes to play.
@@ -275,26 +127,31 @@ public class FXUIAudio {
 	 * play
 	 */
 	public static boolean playNextNote(){
+		FXUIGameMaster.diagnosticPrintln("Next Note being played");
 		try{
-			if(FXUIAudio.bootAudioMP != null){
-				FXUIAudio.bootAudioMP.stop();
+			if(FXUIAudioAC.bootAudioAC != null){
+				FXUIAudioAC.bootAudioAC.stop();
 			}
 			if(audioLoadSuccess == false){
+				FXUIGameMaster.diagnosticPrintln("Next Note: audio load success FALSE");
 				return false;
 			}
-			if(FXUIAudio.blockNextPlay.get() || !FXUIAudio.playAudio){
+			if(FXUIAudioAC.blockNextPlay.get() || !FXUIAudioAC.playAudio){
+				FXUIGameMaster.diagnosticPrintln("Next Note: playback blocked[time delay]");
 				return false;
 			}
-			if(!FXUIAudio.initialized){
+			if(!FXUIAudioAC.initialized){
+				FXUIGameMaster.diagnosticPrintln("Next Note: not INITIALIZED!");
 				return false;
 			}
-			positionInList++;
-			if(positionInList >= FXUIAudio.listSize){
-				positionInList = 0;
+			positionInList--;
+			if(positionInList < 0){
+				positionInList = FXUIAudioAC.listSize - 1;
 			}
 			
 			final int indexToPlay = positionInList;
-			FXUIAudio.blockNextPlay.set(true);
+			FXUIAudioAC.blockNextPlay.set(true);
+			FXUIGameMaster.diagnosticPrintln(audioFileNames.get(positionInList));
 			if (!Platform.isFxApplicationThread()) {
 				Platform.runLater(new Runnable() {
 	                @Override
@@ -307,11 +164,11 @@ public class FXUIAudio {
 				playFileAtIndex(indexToPlay);
 			}
 			toTheBeat();
-			RiskUtils.runLaterWithDelay(FXUIAudio.delayBetweenNextPlayMS,
+			RiskUtils.runLaterWithDelay(FXUIAudioAC.delayBetweenNextPlayMS,
 			new Runnable() {
 	            @Override
 	            public void run() {
-	            	FXUIAudio.blockNextPlay.set(false);
+	            	FXUIAudioAC.blockNextPlay.set(false);
 	            }
 	        });
 		}
@@ -322,22 +179,23 @@ public class FXUIAudio {
 	}
 	
 	/**
-	 * Play an ending jingle of pseudorandom notes from the list of possible
-	 * notes. ... This may also be used as the starting jingle in the future.
+	 * Play an ending jingle of 2 specific notes from the list of possible
+	 * notes. (Currently last two notes)
+	 *  ... This may also be used as the starting jingle in the future.
 	 */
 	public static void playEndJingle(){
-		if(!FXUIAudio.initialized){
+		if(!FXUIAudioAC.initialized){
 			return;
 		}
 		try{
 			Thread jingle = new Thread(null, new Runnable() {
 	            @Override
 	            public void run() {
-	            	for(int i = 0; i < 4; i++){
+	            	final int startingPosition = audioFileNames.size()-2;
+	            	for(int i = 0; i < 7; i++){
 	            		try{
-		            		//int positionToUse = rand.nextInt((listSize - 1) + 1);
-		            		playFileAtIndex(i);
-		            		RiskUtils.sleep(1000);
+		            		playFileAtIndex(startingPosition + (i%2));
+		            		RiskUtils.sleep(550*(1+(i/3)));
 	            		} catch(Exception e) {
 	            			e.printStackTrace();
 	            		}
@@ -354,10 +212,9 @@ public class FXUIAudio {
 	
 	protected static boolean playFileAtIndex(int indexToPlay){
 		try{
-			FXUIAudio.playList.add(mediaPlaybackMap.get(audioFileNames.get(indexToPlay)));
+			FXUIAudioAC.playList.add(mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)));
 			limitFilePlaybackCount();
-			//FXUIAudio.mediaPlaybackMap.get(audioFileNames.get(indexToPlay)).stop();
-			FXUIAudio.mediaPlaybackMap.get(audioFileNames.get(indexToPlay)).play();
+			FXUIAudioAC.mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)).play();
 		}
 		catch(Exception e){
 			return false;
@@ -372,25 +229,9 @@ public class FXUIAudio {
 	 * @param currentAudioIdx
 	 */
 	protected static void limitFilePlaybackCount(){
-		if(FXUIAudio.playList.size() > maxConcurrentClipCount){
-			FXUIAudio.playList.removeFirst().stop();
+		if(FXUIAudioAC.playList.size() > maxConcurrentClipCount){
+			FXUIAudioAC.playList.removeFirst().stop();
 		}
-	}
-	
-	public boolean playBootJingle(){
-		if (!Platform.isFxApplicationThread()) {
-			FXUIGameMaster.diagnosticPrintln("I'm not going to play the joyful sound you"
-					+ " wanted STRICTLY BECAUSE you didn't code me properly."
-					+ " If you really wanted me to play, you would be en-"
-					+ "suring that I run on the JavaFX thread. Instead, you"
-					+ "hit \"select all\" on the contents of this code block"
-					+ " (which has begun to take up over 5 lines since you"
-					+ " started writing this comment) and hit backspace. Happy?");
-        }
-		else{
-			bootJingleHelper();
-		}
-		return true && audioLoadSuccess;
 	}
 	
 	/**
@@ -398,16 +239,26 @@ public class FXUIAudio {
 	 * manager can load & play the associated audio files correctly.
 	 * @return true if can load and play audio, false if cannot load audio file
 	 */
-	protected boolean bootJingleHelper(){
-		MediaPlayer mediaPlayer = null;
-		if( (mediaPlayer = loadAudioFileToMediaPlayer(FXUIAudio.bootAudioFileName))
+	public boolean playBootJingle(){
+		AudioClip mediaPlayer = null;
+		if( (mediaPlayer = loadAudioFileToAudioClip(FXUIAudioAC.bootAudioFileName))
 				!= null )
 		{
 			mediaPlayer.setVolume(audioVolumePercent);
-			mediaPlayer.setStartTime(new Duration(3500));
-			mediaPlayer.setStopTime(new Duration(11500));
+			FXUIGameMaster.diagnosticPrintln("Note that the full boot audio file"
+					+ " is going to be played, unless stopped"
+					+ " by internal logic or user interaction.");
 			mediaPlayer.play();
-			bootAudioMP = mediaPlayer;
+			bootAudioAC = mediaPlayer;
+			RiskUtils.runLaterWithDelay(7300, new Runnable(){
+
+				@Override
+				public void run() {
+					bootAudioAC.stop();
+					bootAudioAC = null;
+				}
+				
+			});
 			return true;
 		}
 		return false;
@@ -415,21 +266,20 @@ public class FXUIAudio {
 	
 	/**
 	 * Take a file with given file name (not file path), attempt to open it,
-	 * and (if can be open) create an associated MediaPlayer object for
-	 * play back. From there, use the returned {@link MediaPlayer} object with 
+	 * and (if can be open) create an associated AudioClip object for
+	 * play back. From there, use the returned {@link AudioClip} object with 
 	 * the stock play(), stop(), etc. calls to control play back.
 	 * @param fileName the name of the file to be opened
-	 * @return "null" if the file could not be opened, or a {@link MediaPlayer} 
+	 * @return "null" if the file could not be opened, or a {@link AudioClip} 
 	 * object associated with the audio file if it could be opened.
 	 */
-	protected MediaPlayer loadAudioFileToMediaPlayer(String fileName){
-		Media mDia = null;
-		MediaPlayer mediaPlayer = null;
-		if(loadingMethod == 0){
+	protected AudioClip loadAudioFileToAudioClip(String fileName){
+		AudioClip mediaPlayer = null;
+		if(loadingMethod == 0){ //loading from within the jar
 			try{ 
 				URL mFia = this.getClass().getResource("/".concat(fileName));
-				mDia = new Media(mFia.toString());
-				mediaPlayer = new MediaPlayer(mDia);
+				FXUIGameMaster.diagnosticPrintln("mFIA to string: " + mFia.toString());
+				mediaPlayer = new AudioClip(mFia.toString());
 			}
 			catch (Exception e){
 				//e.printStackTrace();
@@ -439,11 +289,11 @@ public class FXUIAudio {
 						+ "\n********************************************");
 			}
 		}
-		if(loadingMethod == 1){
+		if(loadingMethod == 1){ //loading from the outside file system
 			try{
 				File mBia = new File(srcResourceFolderLocation.concat(fileName));
-				mDia = new Media(mBia.toURI().toString());
-				mediaPlayer = new MediaPlayer(mDia);
+				FXUIGameMaster.diagnosticPrintln("mBia to string: " + mBia.toString());
+				mediaPlayer = new AudioClip(mBia.toURI().toString());
 			}
 			catch (Exception e){
 				//e.printStackTrace();
@@ -479,23 +329,22 @@ public class FXUIAudio {
 		if(volume <= 0){
 			success = true;
 			mute = true;
-			FXUIAudio.audioVolumePercent = 0.0d;
+			FXUIAudioAC.audioVolumePercent = 0.0d;
 		}
 		else if(volume > 1.0d){
 			success = false;
-			FXUIAudio.audioVolumePercent = 1.0d;
+			FXUIAudioAC.audioVolumePercent = 1.0d;
 		}
 		else{
 			success = true;
 			audioVolumePercent = volume;
 		}
-		for(Entry<String, MediaPlayer> audioFile : mediaPlaybackMap.entrySet()){
+		for(Entry<String, AudioClip> audioFile : mediaPlaybackMap.entrySet()){
 			if(mute){
-				audioFile.getValue().setMute(true);
+				audioFile.getValue().setVolume(0);
 			}
 			else{
 				audioFile.getValue().setVolume(volume);
-				audioFile.getValue().setMute(false);
 			}
 		}
 		return success;
@@ -572,9 +421,9 @@ public class FXUIAudio {
             final Button yeah = new Button("Apply Changes");
             final Button nah = new Button("Close Window");
 
-            final Slider audioVolSlider = new Slider(0.1f, 1.0f, FXUIAudio.audioVolumePercent);
+            final Slider audioVolSlider = new Slider(0.1f, 1.0f, FXUIAudioAC.audioVolumePercent);
             final CheckBox doPlayAudio = new CheckBox("Play audio?");
-            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudio.audioVolumePercent) + "%]");
+            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudioAC.audioVolumePercent) + "%]");
             
             audioVolSlider.setSnapToTicks(false);
             audioVolSlider.setShowTickMarks(true);
@@ -593,7 +442,7 @@ public class FXUIAudio {
                 }
             });
             
-            doPlayAudio.setSelected(FXUIAudio.playAudio);
+            doPlayAudio.setSelected(FXUIAudioAC.playAudio);
             doPlayAudio.setTooltip(new Tooltip("Enable (checked) or disable "
             		+ "(unchecked) playback of audio."));
             doPlayAudio.setTextFill(Color.ANTIQUEWHITE);
@@ -612,9 +461,9 @@ public class FXUIAudio {
                 public void handle(ActionEvent t) {
                 	yeah.setDisable(true);
                 	if (doPlayAudio.isSelected()) {
-                    	FXUIAudio.playAudio = true;
+                    	FXUIAudioAC.playAudio = true;
                     } else if (!doPlayAudio.isSelected()) {
-                        FXUIAudio.playAudio = false;
+                        FXUIAudioAC.playAudio = false;
                     }
                 	doPlayAudio.setDisable(true);
                 	audioVolSlider.setDisable(true);

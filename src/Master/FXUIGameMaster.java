@@ -26,6 +26,7 @@ import Util.About;
 import Util.Card;
 import Util.DiceRoller;
 import Util.FXUIAudio;
+import Util.FXUIAudioAC;
 import Util.FXUI_Crossbar;
 import Util.PlayerEliminatedException;
 import Util.RiskConstants;
@@ -144,7 +145,7 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.04, 20:20\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.06, 13:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -165,7 +166,7 @@ public class FXUIGameMaster extends Application {
 	protected static AtomicBoolean logDialogIsShowing = new AtomicBoolean(false);
     protected static boolean runBotsOnly = false;
     protected static FXUI_Crossbar crossbar = new FXUI_Crossbar();
-    protected static FXUIAudio audioManager = null;
+    protected static FXUIAudioAC audioManager = null;
     protected RiskMap map;
     protected Deque<Card> deck;
     protected static String desiredPlayersForGame = null;
@@ -224,6 +225,8 @@ public class FXUIGameMaster extends Application {
     private static Player currentPlayer = null;
     private static boolean skipExitConfirmation = false;
     private static Thread priGameLogicThread = null;
+    private static Thread clockedUIRefreshThreadA = null;
+    private static Thread clockedUIRefreshThreadB = null;
     private static Node gameRunningIndicator = null;
 	private static boolean indicatorAnimatedAlready;
     private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
@@ -1205,6 +1208,7 @@ public class FXUIGameMaster extends Application {
             }
         }
         if (initiationGood) {
+        	this.makeUIElementsRefreshThread();
             crossbar.resetEndGameSignal();
             //play round-robin until there is only one player left
             int turn = 0;
@@ -1216,7 +1220,7 @@ public class FXUIGameMaster extends Application {
                         return "Stalemate!";
                     }
                 }
-                FXUIAudio.playNextNote();
+                audioManager.playNextNote();
                 FXUIGameMaster.currentPlayer = this.playerNameToPlayerObjHMap.get(this.players.get(turn));
                 boolean canUpdateUIAndSave = FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
                 writeLogLn(true, FXUIGameMaster.currentPlayer.getName() + " is starting their turn.");
@@ -1262,7 +1266,7 @@ public class FXUIGameMaster extends Application {
             highlightCurrentPlayer(null);
             if (!FXUIGameMaster.fullAppExit && !FXUIGameMaster.endGame && this.players.size() > 0) {
                 refreshUIElements(true);
-                FXUIAudio.playEndJingle();
+                audioManager.playEndJingle();
                 writeStatsLn();
                 System.out.println(this.players.get(0) + " is the victor!");
                 writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -2422,6 +2426,9 @@ public class FXUIGameMaster extends Application {
      * altogether for the majority of the time.
      */
     public void refreshUIElements(boolean guaranteeRefresh) {
+    	return;
+    }
+    public void refreshUIElementsOld(boolean guaranteeRefresh) {
         if (this.players == null || this.players.size() == 0) {
             System.out.println(INFO + "FXUIGM - Player count mismatch; Delaying country refresh...");
             return;
@@ -2433,7 +2440,7 @@ public class FXUIGameMaster extends Application {
         final int timeToWaitBetweenElements = 14;
         final long blinkDelay = 100;
             
-    	Thread clockedUIRefreshThreadA = new Thread(null, new Runnable() {
+    	Thread clockedUIRefreshThreadHA = new Thread(null, new Runnable() {
             @Override
             public void run() {
             	while (FXUIGameMaster.countriesToUpdateCount.size() > 0 && !FXUIGameMaster.endGame){
@@ -2453,9 +2460,9 @@ public class FXUIGameMaster extends Application {
                     }
             	}
             }
-	    }, "refreshUIElements clockedRefreshA");
+	    }, "refreshUIElements clockedRefreshHA");
         
-    	Thread clockedUIRefreshThreadB = new Thread(null, new Runnable() {
+    	Thread clockedUIRefreshThreadHB = new Thread(null, new Runnable() {
             @Override
             public void run() {
             	while (FXUIGameMaster.countriesToUpdateOwner.size() > 0 && !FXUIGameMaster.endGame){
@@ -2475,11 +2482,11 @@ public class FXUIGameMaster extends Application {
                     }
                 }
             }
-	    }, "refreshUIElements clockedRefreshB");
-        clockedUIRefreshThreadB.setDaemon(true);
-        clockedUIRefreshThreadA.setDaemon(true);
-        clockedUIRefreshThreadA.start();
-        clockedUIRefreshThreadB.start();
+	    }, "refreshUIElements clockedRefreshHB");
+        clockedUIRefreshThreadHB.setDaemon(true);
+        clockedUIRefreshThreadHA.setDaemon(true);
+        clockedUIRefreshThreadHA.start();
+        clockedUIRefreshThreadHB.start();
     }
     
 
@@ -2489,22 +2496,23 @@ public class FXUIGameMaster extends Application {
      *
      * @param country the country whose data is to be refreshed on the main map.
      */
-    private void performStepOfRefreshProcess(Country country, boolean updateCount, long blinkDelay) {
+    private void performStepOfRefreshProcess(Country country, boolean doUpdateTheCount, long blinkDelay) {
     	if(country == null){
     		System.out.println("Country reported as NULL. Help?");
     		return;
     	}
+    	final Text textToUpdate = textNodeMap.get(country.getName());
     	//If update the count, update the text. And blink, where possible.
-    	if(updateCount){
+    	if(doUpdateTheCount){
     		Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                	textNodeMap.get(country.getName()).setText(country.getName());
+                	textToUpdate.setText(country.getName());
                 }});
     		RiskUtils.runLaterWithDelay(blinkDelay, new Runnable() {
                 @Override
                 public void run() {
-                	textNodeMap.get(country.getName()).setText(country.getName() + "\n" + map.getCountryArmies(country));
+                	textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
                 }
             });
     	}
@@ -2513,7 +2521,163 @@ public class FXUIGameMaster extends Application {
     		Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                	textNodeMap.get(country.getName()).setFill(playerColorMap.get(map.getCountryOwner(country)));
+                	textToUpdate.setFill(playerColorMap.get(map.getCountryOwner(country)));
+            }});
+    	}
+        
+    }
+    
+    /**
+     * Main entry method to prompt a refresh of the countries and their counts
+     * in the main FXUI window. Has no bearing on the secondary dialogs. If the
+     * game is being "exited", or the current player is not a "human" (and the 
+     * game is not bots only), the refresh is as instantaneous as possible. 
+     * Else, internal decision logic will request a slower refresh, to provide 
+     * for more easily detected changes.
+     */
+    public void makeUIElementsRefreshThread() {
+    	if(FXUIGameMaster.clockedUIRefreshThreadA != null && FXUIGameMaster.clockedUIRefreshThreadB != null){
+    		System.out.println("Already running refresh threads...");
+        	return;
+        }
+        else if((FXUIGameMaster.clockedUIRefreshThreadA != null &&FXUIGameMaster.clockedUIRefreshThreadA.isAlive())
+        		&& 
+        		(FXUIGameMaster.clockedUIRefreshThreadB != null && FXUIGameMaster.clockedUIRefreshThreadB.isAlive()))
+        {
+        	System.out.println("Already running refresh threads...");
+        	return;
+        }
+        final int timeToWaitBetweenElements = 5;
+        final long blinkDelay = 100;
+        final long threadSleepShort = 5;
+        final long threadSleepLong = 1000;
+        final AtomicBoolean stopRunning = new AtomicBoolean(false);
+    	FXUIGameMaster.mainStage.showingProperty().addListener(new ChangeListener<Boolean>(){
+			@Override
+			public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+				stopRunning.set(true);
+				
+			}	
+        });
+        
+    	if(FXUIGameMaster.clockedUIRefreshThreadA == null || !FXUIGameMaster.clockedUIRefreshThreadA.isAlive()){
+	    	FXUIGameMaster.clockedUIRefreshThreadA = new Thread(null, new Runnable() {
+	            @Override
+	            public void run() {
+	            	if (players == null || players.size() == 0) {
+	                    System.out.println(INFO + "FXUIGM - Player count mismatch; Delaying country refresh...");
+	                    RiskUtils.sleep(threadSleepLong);
+	                }
+	                else if (playerColorMap == null || playerColorMap.size() == 0) {
+	                    System.out.println(INFO + "FXUIGM - PlayerColorMap size mismatch; Delaying country refresh...");
+	                    RiskUtils.sleep(threadSleepLong);
+	                }
+	            	while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
+		            	while (FXUIGameMaster.countriesToUpdateCount.size() > 0 && !FXUIGameMaster.fullAppExit){
+		            		try{
+			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateCount.remove(0),true,blinkDelay);
+		            		}
+		            		catch(Exception nsee){
+		            			System.out.println(FXUIGameMaster.ERROR + "TA.NSEE.list size? : " + FXUIGameMaster.countriesToUpdateCount.size());
+		            			RiskUtils.sleep(threadSleepLong);
+		            			break;
+		            		}
+		            		//and the sleep to create the pause between updates...
+		                    if (timeToWaitBetweenElements > 0) {
+		                        RiskUtils.sleep(timeToWaitBetweenElements);
+		                    }
+		            	}
+		            	if (FXUIGameMaster.fullAppExit) {
+		            		FXUIGameMaster.clockedUIRefreshThreadA = null;
+		            		FXUIGameMaster.diagnosticPrintln("UI Refresh Thread A shut down.");
+		                    return;
+		                }
+		            	RiskUtils.sleep(threadSleepShort);
+	            	}
+	            	FXUIGameMaster.clockedUIRefreshThreadA = null;
+	            	System.out.println("UI Refresh Thread A shut down.");
+	            }
+		    }, "refreshUIElements clockedRefreshA");
+	    	FXUIGameMaster.clockedUIRefreshThreadA.setDaemon(true);
+	        FXUIGameMaster.clockedUIRefreshThreadA.start();
+    	}
+        
+    	if(FXUIGameMaster.clockedUIRefreshThreadB == null || !FXUIGameMaster.clockedUIRefreshThreadB.isAlive()){
+	    	FXUIGameMaster.clockedUIRefreshThreadB = new Thread(null, new Runnable() {
+	            @Override
+	            public void run() {
+	            	if (players == null || players.size() == 0) {
+	                    System.out.println(INFO + "FXUIGM - Player count mismatch; Delaying country refresh...");
+	                    RiskUtils.sleep(threadSleepLong);
+	                }
+	                else if (playerColorMap == null || playerColorMap.size() == 0) {
+	                    System.out.println(INFO + "FXUIGM - PlayerColorMap size mismatch; Delaying country refresh...");
+	                    RiskUtils.sleep(threadSleepLong);
+	                }
+	            	while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
+		            	while (FXUIGameMaster.countriesToUpdateOwner.size() > 0 && !FXUIGameMaster.fullAppExit){
+		            		try{
+			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateOwner.remove(0),false,blinkDelay);
+			            	}
+			        		catch(Exception nsee){
+			        			System.out.println(FXUIGameMaster.ERROR + "TB.NSEE.list size? : " + FXUIGameMaster.countriesToUpdateOwner.size());
+			        			RiskUtils.sleep(threadSleepLong);
+			        			break;
+			        		}
+		            		//and the sleep to create the pause between updates...
+		                    if (timeToWaitBetweenElements > 0) {
+		                        RiskUtils.sleep(timeToWaitBetweenElements);
+		                    }
+		                }
+		            	if (FXUIGameMaster.fullAppExit) {
+		            		FXUIGameMaster.clockedUIRefreshThreadB = null;
+		            		FXUIGameMaster.diagnosticPrintln("UI Refresh Thread B shut down.");
+		                    return;
+		                }
+		            	RiskUtils.sleep(threadSleepShort);
+	            	}
+	            	FXUIGameMaster.clockedUIRefreshThreadB = null;
+	            	System.out.println("UI Refresh Thread B shut down.");
+	            }
+		    }, "refreshUIElements clockedRefreshB");
+	        FXUIGameMaster.clockedUIRefreshThreadB.setDaemon(true);
+	        FXUIGameMaster.clockedUIRefreshThreadB.start();
+    	}
+    }
+    
+
+    /**
+     * As part of the clocked refresh cycle, updates the visual state of a
+     * singular country, passed in as a param.
+     *
+     * @param country the country whose data is to be refreshed on the main map.
+     */
+    private void performTStepOfRefreshProcess(Country country, boolean doUpdateTheCount, long blinkDelay) {
+    	if(country == null){
+    		System.out.println("Country reported as NULL. Help?");
+    		return;
+    	}
+    	final Text textToUpdate = textNodeMap.get(country.getName());
+    	//If update the count, update the text. And blink, where possible.
+    	if(doUpdateTheCount){
+    		Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                	textToUpdate.setText(country.getName());
+                }});
+    		RiskUtils.runLaterWithDelay(blinkDelay, new Runnable() {
+                @Override
+                public void run() {
+                	textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
+                }
+            });
+    	}
+    	//If update Owner, update Fill...No blink necessary.
+    	else{
+    		Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                	textToUpdate.setFill(playerColorMap.get(map.getCountryOwner(country)));
             }});
     	}
         
@@ -2526,7 +2690,13 @@ public class FXUIGameMaster extends Application {
      * @param playerName the String representation of the player in question.
      */
     private void flashPlayerCountries(String playerName) {
+    	if(playerName == null || playerName.length() < 1){
+    		return;
+    	}
         final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, playerName);
+        if(myCountries == null || myCountries.size() < 1){
+        	return;
+        }
         final int gameModeWhenStarted = FXUIGameMaster.workingMode;
         final long timeDeltaMS = 220;
         final int totalCycles = 2;
@@ -2677,39 +2847,40 @@ public class FXUIGameMaster extends Application {
         //Rectangle accentLine = new Rectangle(4,4,DEFAULT_CONTENT_WIDTH-8,DEFAULT_CONTENT_HEIGHT-8);
         musicPulseIndicator.setStrokeWidth(strokeThicknessOfLines);
         musicPulseIndicator.setStroke(colorOfLines);
-        musicPulseIndicator.setFill(Color.TRANSPARENT);
-        FXUIAudio.setVisualIndicator(musicPulseIndicator);
+        musicPulseIndicator.setFill(colorOfLines);
+        musicPulseIndicator.setEffect(new Glow(1.0d));
+        
         
         Line musicPulseIndicatorS = new Line(0,0,0,40);
         musicPulseIndicatorS.setStrokeWidth(strokeThicknessOfLines);
         musicPulseIndicatorS.setStroke(colorOfLines);
         musicPulseIndicatorS.setFill(colorOfLines);
-        musicPulseIndicator.opacityProperty().addListener(new ChangeListener<Number>(){
-			@Override
-			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
-				// TODO Auto-generated method stub
-				musicPulseIndicatorS.setOpacity(newValue.doubleValue());
-			}
-        });
-
+        musicPulseIndicatorS.setEffect(new Glow(1.0d));
+        /*
+         * Associate the two music pulse indicators, large and small, with the
+         * audio manager.
+         */
+        audioManager = new FXUIAudioAC();
+        audioManager.setVisualIndicators(musicPulseIndicator, new Node[]{musicPulseIndicatorS});
+        
+        
         
         Line activeGameIndic = new Line(0,4,DEFAULT_CONTENT_WIDTH,4);
         activeGameIndic.setStrokeWidth(strokeThicknessOfLines);
         activeGameIndic.setStroke(colorOfLines);
         activeGameIndic.setFill(colorOfLines);
-        this.setGameRunningIndicator(activeGameIndic);
+        activeGameIndic.setEffect(new Glow(1.0d));
         
         Line activeGameIndicS = new Line(0,0,0,40);
         activeGameIndicS.setStrokeWidth(strokeThicknessOfLines);
         activeGameIndicS.setStroke(colorOfLines);
         activeGameIndicS.setFill(colorOfLines);
-        activeGameIndic.opacityProperty().addListener(new ChangeListener<Number>(){
-			@Override
-			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
-				// TODO Auto-generated method stub
-				activeGameIndicS.setOpacity(newValue.doubleValue());
-			}
-        });
+        activeGameIndicS.setEffect(new Glow(1.0d));
+        /*
+         * Associate the two game activity indicators, large and small, so they
+         * may animate in unison.
+         */
+        this.setGameRunningIndicator(activeGameIndic, new Node[]{activeGameIndicS});
         
         /*
          * We set the image in the pane based on whether there was an error or not.
@@ -2729,7 +2900,6 @@ public class FXUIGameMaster extends Application {
             backgroundImg.setOpacity(0.7d);
             mainWindowPane.setPrefSize(imageOK.getWidth(), imageOK.getHeight());
             mainWindowPane.getChildren().add(backgroundImg);
-            //FXUIAudio.setVisualIndicator(backgroundImg);
         } 
         catch (Exception e) 
         {
@@ -2802,7 +2972,13 @@ public class FXUIGameMaster extends Application {
         audioOptions.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
-                audioManager.showAudioOptions(primaryStage.getScene().getWindow());
+            	if(FXUIGameMaster.audioManager != null){
+            		FXUIGameMaster.audioManager.showAudioOptions(primaryStage.getScene().getWindow());
+            	}
+            	else{
+            		FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+            				+ "\nAudio Manager not loaded.");
+            	}
             }
         });
 
@@ -2905,7 +3081,7 @@ public class FXUIGameMaster extends Application {
         exitApp.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
-                tryToExit(primaryStage);
+                FXUIGameMaster.tryToExit(primaryStage);
             }
         });
 
@@ -3034,14 +3210,14 @@ public class FXUIGameMaster extends Application {
         scene.getWindow().setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
             public void handle(WindowEvent t) {
-                tryToExit(primaryStage);
+                FXUIGameMaster.tryToExit(primaryStage);
             }
         });
         
         /*
          * Do other "welcome" things: About, audio chime.
          */
-        audioManager = new FXUIAudio();
+        
 		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
 
         /*
@@ -3055,23 +3231,37 @@ public class FXUIGameMaster extends Application {
      * Upon launch, show & animate a splash screen over the regular screen contents.
      */
     private void bootSplashScreen(){
-    	final Rectangle bkgnd = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
-    	bkgnd.setFill(Color.ALICEBLUE);
-    	final Text tName = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
-    	tName.setTextAlignment(TextAlignment.CENTER);
-        tName.setFont(Font.font("Arial", FontWeight.BOLD, 256));
-        tName.setFill(Color.BLACK);
-        tName.setStroke(Color.CORAL);
+    	final Rectangle backgroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	backgroundRect.setFill(Color.BLACK);
+    	final Text textHello = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "H E L L O");
+    	textHello.setTextAlignment(TextAlignment.CENTER);
+        textHello.setFont(Font.font("Arial", FontWeight.BOLD, 128));
+        textHello.setFill(Color.ALICEBLUE);
+        textHello.setStroke(Color.CORAL);
+    	final Rectangle foregroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	foregroundRect.setFill(Color.ALICEBLUE);
+    	final Text foregroundText = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
+    	foregroundText.setTextAlignment(TextAlignment.CENTER);
+        foregroundText.setFont(Font.font("Arial", FontWeight.BOLD, 256));
+        foregroundText.setFill(Color.BLACK);
+        foregroundText.setStroke(Color.CORAL);
         GaussianBlur gBlur = new GaussianBlur(4);
         Glow gGlow = new Glow(1.0d);
         gGlow.setInput(gBlur);
-    	tName.setEffect(gGlow);
-        mainWindowPane.getChildren().addAll(bkgnd,tName);
+    	foregroundText.setEffect(gGlow);
+        mainWindowPane.getChildren().addAll(backgroundRect, textHello, foregroundRect,foregroundText);
+        foregroundRect.disabledProperty().addListener(new ChangeListener<Boolean>(){
+			@Override
+			public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+				mainWindowPane.getChildren().removeAll(backgroundRect, textHello);
+				
+			}	
+        });
 
         Thread pulse = new Thread(null, new Runnable() {
             @Override
             public void run() {
-            	bootSplashHelper(tName, bkgnd);
+            	bootSplashHelper(foregroundText, foregroundRect);
             }
 	    }, "bootSplashScreen");
 	    pulse.setDaemon(true);
@@ -3080,10 +3270,11 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void bootSplashHelper(Text splashText, Rectangle splashBackground){
-		final int discreteSteps = 75;
+		final int overallAnimTime = 3000;
+		final int discreteSteps = 30;
 		final AtomicBoolean complete = new AtomicBoolean(false);
         RiskUtils.sleep(2400);
-		for (int i = discreteSteps; i > (int)(discreteSteps/2); i--){
+		for (int i = discreteSteps+1; i > 0/*(int)(discreteSteps/2)*/; i--){
 			complete.set(false);
 			final int input = i;
 			Platform.runLater(new Runnable() {
@@ -3095,12 +3286,13 @@ public class FXUIGameMaster extends Application {
                 }
             });
 			while(!complete.get() && !FXUIGameMaster.fullAppExit){
-				RiskUtils.sleep(5);
+				RiskUtils.sleep((int)(overallAnimTime/discreteSteps));
 			}
 		}
 		Platform.runLater(new Runnable() {
             @Override
             public void run() {
+            	splashBackground.setDisable(true);
             	mainWindowPane.getChildren().removeAll(splashText, splashBackground);
             }
         });
@@ -3111,7 +3303,7 @@ public class FXUIGameMaster extends Application {
     /**
      * Upon exit, fade into a splash screen over the regular screen contents.
      */
-    private void exitSplashScreen(){
+    private static void exitSplashScreen(){
     	final Rectangle backgroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
     	backgroundRectangle.setFill(Color.BLACK);
     	final Text textGoodbye = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "G O O D B Y E");
@@ -3120,7 +3312,7 @@ public class FXUIGameMaster extends Application {
         textGoodbye.setFill(Color.ALICEBLUE);
         textGoodbye.setStroke(Color.CORAL);
     	final Rectangle foregroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
-    	foregroundRectangle.setFill(Color.CHOCOLATE);
+    	foregroundRectangle.setFill(Color.BLUEVIOLET);
     	final Text textRisk = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
     	textRisk.setTextAlignment(TextAlignment.CENTER);
         textRisk.setFont(Font.font("Arial", FontWeight.BOLD, 256));
@@ -3146,9 +3338,10 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void exitSplashHelper(Text splashText, Rectangle splashBackground){
-		final int discreteSteps = 75;
+		final int overallAnimTime = 1000;
+		final int discreteSteps = 30;
 		final AtomicBoolean complete = new AtomicBoolean(false);
-		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
+		for (int i = 0/*(int)(discreteSteps/2)*/; i < discreteSteps+1 && FXUIGameMaster.mainStage.isShowing(); i++){
 			complete.set(false);
 			final int input = i;
 			Platform.runLater(new Runnable() {
@@ -3160,14 +3353,14 @@ public class FXUIGameMaster extends Application {
                 }
             });
 			while(!complete.get() && !FXUIGameMaster.fullAppExit){
-				RiskUtils.sleep(5);
+				RiskUtils.sleep((int)(overallAnimTime/discreteSteps));
 			}
 		}
 		
 	}
 	
 	/**
-     * Upon win, show a splash screen over the regular screen contents.
+     * Upon win, show a banner over the regular screen contents.
      */
     private void winnerScreen(String winnerName){
 		if(winnerName == null)
@@ -3239,34 +3432,65 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void winnerScreenHelper(Text splashText, Rectangle splashBackground){
+		final int animationTime = 3000;
 		final int discreteSteps = 75;
+		final int timeBetweenSteps = animationTime/discreteSteps;
 		final AtomicBoolean complete = new AtomicBoolean(false);
-		for (int i = (int)(discreteSteps/2); i < discreteSteps && FXUIGameMaster.mainStage.isShowing(); i++){
+		final AtomicInteger stepNo = new AtomicInteger(0);
+		for (stepNo.set((int)(discreteSteps/2)); stepNo.get() < discreteSteps && FXUIGameMaster.mainStage.isShowing(); stepNo.incrementAndGet()){
 			complete.set(false);
-			final int input = i;
 			Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                	splashText.setOpacity((double)input/discreteSteps);
-    	        	splashBackground.setOpacity((double)input/discreteSteps);
+                	splashText.setOpacity((double)stepNo.get()/discreteSteps);
+    	        	splashBackground.setOpacity((double)stepNo.get()/discreteSteps);
     	        	complete.set(true);
                 }
             });
 			while(!complete.get() && !FXUIGameMaster.fullAppExit){
-				RiskUtils.sleep(5);
+				RiskUtils.sleep(timeBetweenSteps);
 			}
 		}
 		
 	}
 	
 	
-	private void setGameRunningIndicator(Node visualIndicator){
-		if(visualIndicator == null){
-			return;
-		}
-		else{
-			visualIndicator.setOpacity(0.5d);
-			FXUIGameMaster.gameRunningIndicator = visualIndicator;
+	private void setGameRunningIndicator(Node ne, Node[] nds){
+		if(ne != null){
+			if(Platform.isFxApplicationThread()){
+				ne.setOpacity(0.5d);
+			}
+			FXUIGameMaster.gameRunningIndicator = ne;
+			if (nds != null){
+				final int otherIndicCount = nds.length;
+				if(otherIndicCount > 1){
+					ne.opacityProperty().addListener(new ChangeListener<Number>(){
+						@Override
+						public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
+							for (int i = 0; i < otherIndicCount; i++){
+								try{
+									nds[i].setOpacity(newValue.doubleValue());
+								}
+								catch(Exception e){
+								}
+							}
+						}
+			        });
+				}
+				else if(otherIndicCount == 1){
+					ne.opacityProperty().addListener(new ChangeListener<Number>(){
+						@Override
+						public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
+							try{
+								nds[0].setOpacity(newValue.doubleValue());
+							}
+							catch(Exception e){
+							}
+						}
+			        });
+				}
+			}
+
 		}
 	}
 	
@@ -3274,46 +3498,44 @@ public class FXUIGameMaster extends Application {
 		if(FXUIGameMaster.gameRunningIndicator == null || FXUIGameMaster.indicatorAnimatedAlready){
 			return;
 		}
-		
-		Thread pulse = new Thread(new Runnable() {
+		Thread pulse = new Thread(null, new Runnable() {
             @Override
             public void run() {
             	gameRunningVisualIndicatorHelper(FXUIGameMaster.gameRunningIndicator);
             	FXUIGameMaster.indicatorAnimatedAlready = false;
             }
-	    });
-		pulse.setName("animateGameRunningIndicator");
+	    }, "animateGameRunningIndicator");
 	    pulse.setDaemon(true);
 	    pulse.start();
 	}
 	
 	private static void gameRunningVisualIndicatorHelper(Node visualIndicator){
-		int discreteSteps = 40, startingStep = 1;
+		final int totalAnimationTime = 3000;
+		final int discreteSteps = 60, startingStep = 1;
 		final Date runToAnimate = FXUIGameMaster.gameStartTime;
-		final long sleepTime = 55;
+		final long sleepTime = totalAnimationTime/(2*discreteSteps);
 		final long timeBetweenPulses = 2000;
 		final AtomicBoolean returnSoon = new AtomicBoolean(false);
 		final AtomicBoolean proceed = new AtomicBoolean(true);
+		final AtomicInteger stepNo = new AtomicInteger(0);
 		while(FXUIGameMaster.priGameLogicThread != null 
 				&& !FXUIGameMaster.endGame 
 				&& !FXUIGameMaster.fullAppExit
 				&& runToAnimate == FXUIGameMaster.gameStartTime){
-			for (int i = startingStep; i < discreteSteps; i++){
+			for (stepNo.set(startingStep); stepNo.get() < discreteSteps; stepNo.incrementAndGet()){
 				do{
 					RiskUtils.sleep(sleepTime);
 				}
 				while(!proceed.get());
-				final int input = i;
 				if(FXUIGameMaster.fullAppExit){
 					return;
 				}
+				proceed.set(false);
 				Platform.runLater(new Runnable() {
 	                @Override
 	                public void run() {
 	                	try{
-	                		proceed.set(false);
-	        				visualIndicator.setOpacity((double)input/discreteSteps);
-	        				visualIndicator.setEffect(new Glow((double)input/discreteSteps));
+	        				visualIndicator.setOpacity((double)stepNo.get()/discreteSteps);
 	        				proceed.set(true);
 	        			}
 	        			catch(Exception e){
@@ -3325,22 +3547,20 @@ public class FXUIGameMaster extends Application {
 	            });
 				if(returnSoon.get()){ return; }
 			}
-			for (int i = (int)(discreteSteps*1.5); i > startingStep; i--){
+			for (stepNo.set(discreteSteps); stepNo.get() > startingStep; stepNo.decrementAndGet()){
 				do{
 					RiskUtils.sleep(sleepTime);
 				}
 				while(!proceed.get());
-				final int input = i;
 				if(FXUIGameMaster.fullAppExit){
 					return;
 				}
+				proceed.set(false);
 				Platform.runLater(new Runnable() {
 	                @Override
 	                public void run() {
 	                	try{
-	                		proceed.set(false);
-	        				visualIndicator.setOpacity((double)input/discreteSteps);
-	        				visualIndicator.setEffect(new Glow((double)input/discreteSteps));
+	        				visualIndicator.setOpacity((double)stepNo.get()/discreteSteps);
 	        				proceed.set(true);
 	        			}
 	        			catch(Exception e){
@@ -3390,19 +3610,19 @@ public class FXUIGameMaster extends Application {
      * windows and such to allow the game logic thread to end gracefully (i.e.,
      * not interrupt them).
      */
-    private void tryToExit(Stage primaryStage) {
+    private static void tryToExit(Stage primaryStage) {
         Thread ttExit = new Thread(new Runnable() {
             @Override
             public void run() {
-                    Platform.runLater(new Runnable() {
-                        @Override
-                        public void run() {
-                        	FXUIAudio.playEndJingle();
-                        	setSubStatus("xo");
-                        	mainStatusTextElement.setText("G O O D B Y E");
-                            exitSplashScreen();
-                        }
-                    });
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                    	audioManager.playEndJingle();
+                    	setSubStatus("xo");
+                    	mainStatusTextElement.setText("G O O D B Y E");
+                        exitSplashScreen();
+                    }
+                });
             	if(FXUIGameMaster.mainStage.isShowing()){
             		FXUIGameMaster.diagnosticPrintln("waiting for splash screen...");
             		RiskUtils.sleep(5000);
@@ -3412,17 +3632,17 @@ public class FXUIGameMaster extends Application {
             	}
                 Platform.runLater(new Runnable() {
                 @Override
-                public void run() {
-                    FXUIGameMaster.fullAppExit = true;
-                    FXUIGameMaster.mainWindowResizeHandler.setCallerInactive();
-                    crossbar.signalHumanEndingGame();
-                    crossbar.tryCloseCurrentPlayerDialog();
-                    FXUIGameMaster.endGame = true;
-                    RiskUtils.sleep(500); //Singular use on the FX thread.
-                    primaryStage.hide();
-                    doYouWantToMakeAnExit(true, 0);
-                    primaryStage.close();
-                }
+	                public void run() {
+	                    FXUIGameMaster.fullAppExit = true;
+	                    FXUIGameMaster.mainWindowResizeHandler.setCallerInactive();
+	                    crossbar.signalHumanEndingGame();
+	                    crossbar.tryCloseCurrentPlayerDialog();
+	                    FXUIGameMaster.endGame = true;
+	                    RiskUtils.sleep(500); //Singular use on the FX thread.
+	                    primaryStage.hide();
+	                    doYouWantToMakeAnExit(true, 0);
+	                    primaryStage.close();
+	                }
                 }
                 );
             }
@@ -3430,7 +3650,6 @@ public class FXUIGameMaster extends Application {
         ttExit.setName("tryToExit");
 	    ttExit.setDaemon(true);
 	    ttExit.start();
-        
     }
     
     /**
