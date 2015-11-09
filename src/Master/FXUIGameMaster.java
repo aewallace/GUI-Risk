@@ -52,6 +52,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -75,6 +76,8 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -145,7 +148,9 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x16h\nStamp 2015.11.06, 13:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    // TODO make it so that loading old saves will not "hide" (fail to display)
+    //eliminated players
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x18h\nStamp 2015.11.08, 18:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -175,7 +180,7 @@ public class FXUIGameMaster extends Application {
     protected Map<String, Collection<Card>> playerToCardDeckHMap;
     protected Map<String, Node[]> playerToIndicatorHMap;
     private static final int DEFAULT_PLAYER_NAME_FONT_SIZE = 22;
-    protected static final long DEFAULT_DELAY_BETWEEN_MOVES = 750;
+    protected static final long DEFAULT_DELAY_BETWEEN_MOVES = 1000;
     protected static long delayTimeBetweenBots = DEFAULT_DELAY_BETWEEN_MOVES;
 
     protected static RiskMap starterMap = null;
@@ -210,7 +215,7 @@ public class FXUIGameMaster extends Application {
     //to handle recovering a prior session or help with launching a new game session
     private static SavePoint activeSaveData = new SavePoint();
     private static SavePoint loadedSaveData = null;
-    private static String loadFailureReason = "";
+    private static String loadSuccessStatus = "";
     private HashMap<String, Country> stringCountryRepresentation = new HashMap<String, Country>();
     private static ArrayList<Node> buttonCache = null;
 
@@ -282,6 +287,7 @@ public class FXUIGameMaster extends Application {
         } else {
             return currentAttempts - 1;
         }
+        
     }
 
     private static void exitDialogHelper(final boolean shutAppDownOnAccept, final boolean fxThread, AtomicBoolean allowAppToExit, AtomicBoolean dialogIsShowing) {
@@ -545,14 +551,14 @@ public class FXUIGameMaster extends Application {
                     } else {
                         loadGameText.setText("load failed.");
                         ldToolTip.setText(
-                                (FXUIGameMaster.loadFailureReason.contains("FileNotFound")
+                                (FXUIGameMaster.loadSuccessStatus.contains("FileNotFound")
                                         ? //If true, set text to...
                                         "Can't load: "
                                         + "OS dependent path error;\nplace the file in the same dir as the app,"
                                         + "\nrename as " + DEFAULT_CHKPNT_FILE_NAME + "& relaunch app"
                                         : //Or if false, set text to...
                                         "Can't load save file!\nReason:")
-                                + loadFailureReason
+                                + loadSuccessStatus
                                 + "\n\nCLICK to load alt save file"
                         );
                     }
@@ -636,9 +642,9 @@ public class FXUIGameMaster extends Application {
             		+ "Make a new game?\n"
             		+ "Find an old save file?\n");
             ldToolTip.setText("Tried to load default save file...\n"
-                    + (FXUIGameMaster.loadFailureReason.contains("FileNotFound")
+                    + (FXUIGameMaster.loadSuccessStatus.contains("FileNotFound")
                             ? "No checkpoint/save file found!\n" : "Couldn't load it!\nReason:")
-                    + loadFailureReason
+                    + loadSuccessStatus
                     + "\n\nCLICK to load alt save file");
             loadGameText.setText("load alternate save file");
             loadGameBtn.setText("FIND previous save file...");
@@ -833,7 +839,8 @@ public class FXUIGameMaster extends Application {
      * after initial player allocation. Write to secondary storage is triggered
      * either automatically at each new round, or manually with the "Save"
      * button (with no discernible difference between the two).
-     *
+     * @param customSave whether you want to show a dialog to select the save
+     * location (true) or use the current save file name (false)
      * @return returns true on successful save, or false when a show-stopping
      * exception was thrown.
      */
@@ -872,6 +879,7 @@ public class FXUIGameMaster extends Application {
      */
     private boolean loadFromSave(boolean testing, String potentialLocation) {
         boolean loadSucceeded = true;
+        loadSuccessStatus = "";
         try {
             InputStream file = new FileInputStream(testing ? potentialLocation : FXUIGameMaster.loadfrom_filename);
             InputStream buffer = new BufferedInputStream(file);
@@ -880,23 +888,23 @@ public class FXUIGameMaster extends Application {
             loadedSaveData = loadedSave;
             if (!testing) {
                 if (!loadPlayersFromSave(loadedSave)) {
-                    loadFailureReason.concat("\n!LF::: "
-                            + "Couldn't load prior player information from the given save file!");
+                    loadSuccessStatus += "\n!LF::: "
+                            + "Player already won OR Couldn't load prior player information from the given save file!";
                     loadSucceeded = false;
                 } else {
                     loadSucceeded &= true;
                 }
                 if (!restoreCountryInfo(loadedSave)) {
-                    loadFailureReason.concat("\n!LF::: "
-                            + "Couldn't reset status information for all Countries.");
+                    loadSuccessStatus += "\n!LF::: "
+                            + "Couldn't reset status information for all Countries.";
                     loadSucceeded = false;
                 } else {
                     loadSucceeded &= true;
                 }
 
                 if (!restorePreviousLogInfo(loadedSave)) {
-                    loadFailureReason.concat("\n!LF::: "
-                            + "Couldn't restore the log for the prior game session!");
+                    loadSuccessStatus += "\n!LF::: "
+                            + "Couldn't restore the log for the prior game session!";
                     loadSucceeded = false;
                 } else {
                     loadSucceeded &= true;
@@ -907,13 +915,13 @@ public class FXUIGameMaster extends Application {
             input.close();
             buffer.close();
             file.close();
-            loadFailureReason = "";
+            loadSuccessStatus += "\nsave date: " + loadedSaveData.getLatestSaveDate().toString();
         } catch (Exception e) {
             if (!testing) {
                 System.out.println(ERROR + "Load failed. ::: " + e);
                 e.printStackTrace();
             }
-            loadFailureReason = "\n!LF::: "
+            loadSuccessStatus += "\n!LF::: "
                     + "exception occurred: " + e;
             loadSucceeded = false;
         }
@@ -1192,6 +1200,7 @@ public class FXUIGameMaster extends Application {
                 System.out.println(ERROR + "Invalid number of players. 2-6 Players allowed.");
                 setPlayStatus("creation of new game failed; 2-6 Players allowed");
             } else {
+            	displayExtendedMessage("new game started.");
                 representPlayersOnUI();
                 allocateMap();
                 initiationGood = initializeForces() && initiationGood;
@@ -1205,6 +1214,10 @@ public class FXUIGameMaster extends Application {
             initiationGood = loadFromSave(false, null);
             if (!initiationGood) {
                 setPlayStatus("load failed!!");
+                displayExtendedMessage(loadSuccessStatus);
+            }
+            else{
+            	displayExtendedMessage("old game loaded.\n" + loadSuccessStatus);
             }
         }
         if (initiationGood) {
@@ -1229,10 +1242,7 @@ public class FXUIGameMaster extends Application {
                 try {
                 	highlightCurrentPlayer(FXUIGameMaster.currentPlayer);
                     for (int gameStep = 4; gameStep > -1 && !(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame); gameStep--) {
-                        refreshUIElements(canUpdateUIAndSave || FXUIGameMaster.runBotsOnly);
-                        if(FXUIGameMaster.runBotsOnly || !canUpdateUIAndSave){
-                        	RiskUtils.sleep(FXUIGameMaster.delayTimeBetweenBots);
-                        }
+                        RiskUtils.sleep(FXUIGameMaster.delayTimeBetweenBots);
                         switch (gameStep) {
                             case 4:
                                 reinforce(FXUIGameMaster.currentPlayer, true);
@@ -1262,6 +1272,7 @@ public class FXUIGameMaster extends Application {
                     turn %= this.players.size();
                 }
             }
+            
             FXUIGameMaster.currentPlayer = null;
             highlightCurrentPlayer(null);
             if (!FXUIGameMaster.fullAppExit && !FXUIGameMaster.endGame && this.players.size() > 0) {
@@ -1272,8 +1283,6 @@ public class FXUIGameMaster extends Application {
                 writeLogLn(true, this.players.get(0) + " is the victor!");
                 displayExtendedMessage(this.players.get(0) + " is the victor!");
 				winnerScreen(this.players.get(0));
-                FXUIGameMaster.workingMode = IDLE_MODE;
-                //flashPlayerCountries(this.players.get(0));
             } else if (!FXUIGameMaster.fullAppExit) {
                 displayExtendedMessage("Thanks for playing!");
                 System.out.println(WARN + "Early game end by UI player "
@@ -1282,7 +1291,15 @@ public class FXUIGameMaster extends Application {
                 System.out.println(WARN + "Game forced to exit by UI player; sorry 'bout it!");
             }
         }
-
+        else{
+        	System.out.println("Game is over a bit prematurely. If loading"
+        			+ " an old save file, it is likely from when a player"
+        			+ " has already won. If making a new game, somehow there"
+        			+ " may just be too few players (somehow)");
+        	if(this.players != null && this.players.size() == 1){
+        		System.out.println("Maybe " + this.players.get(0) + " is the victor?");
+        	}
+        }
         try {
             if (this.log != null && this.stats != null) {
                 log.close();
@@ -1488,7 +1505,9 @@ public class FXUIGameMaster extends Application {
                         resetTurn = true;
                     }
                     if (!resetTurn) {
-                        carryOutAttack(atkRsp, dfdRsp);
+                    	FXUIGameMaster.displayExtendedMessage("Attacker: " + currentPlayer.getName()
+                    		+ " / Defender: " + defender.getName() + "\n" + 
+                    	carryOutAttack(atkRsp, dfdRsp));
                         hasGottenCard = checkForTakeover(currentPlayer, atkRsp, hasGottenCard) || hasGottenCard;
                     }
                 }
@@ -1517,11 +1536,13 @@ public class FXUIGameMaster extends Application {
         return rsp;
     }
 
-    protected void carryOutAttack(AttackResponse atk, DefendResponse dfd) {
+    protected String carryOutAttack(AttackResponse atk, DefendResponse dfd) {
         RollOutcome result = DiceRoller.roll(atk.getNumDice(), dfd.getNumDice());
         this.mapAddToCountryArmyCount(atk.getAtkCountry(), -1 * result.getAtkLosses());
         this.mapAddToCountryArmyCount(atk.getDfdCountry(), -1 * result.getDfdLosses());
-        writeLogLn(true, "\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses());
+        String messageOut = "\tAttacker lost: " + result.getAtkLosses() + "; Defender lost: " + result.getDfdLosses();
+        writeLogLn(true, messageOut);
+        return messageOut;
     }
 
     protected boolean checkForTakeover(Player attacker, AttackResponse atkRsp, boolean hasGottenCard) throws PlayerEliminatedException {
@@ -1834,7 +1855,15 @@ public class FXUIGameMaster extends Application {
             cardList.set(j, temp);
         }
     }
-
+    
+    /**
+     * Set up the requisite players in a new game.
+     * Makes one list of all players (won't be modified during a game)
+     * as well as a second list of all active {@link Player}s (which, as the game 
+     * goes on, will shrink due to player eliminations).
+     * @param players
+     * @return
+     */
     protected boolean loadPlayers(String players) {
         if (workingMode == LOADED_GAME_MODE) {
             return false;
@@ -2062,14 +2091,23 @@ public class FXUIGameMaster extends Application {
 
             if (this.playerNameToPlayerObjHMap == null || this.playerNameToPlayerObjHMap.size() == 0) {
                 System.out.println(ERROR + "Player map not populated; please fix logic!");
+                //even loaded games should have at least one active player.
             }
-            for (String playerName : this.playerNameToPlayerObjHMap.keySet()) {
+            for (String playerName : this.allPlayers) {
+            	i++;
+            	Color colorToUse;
+            	if(this.playerNameToPlayerObjHMap.containsKey(playerName)){
+            		colorToUse = colors.get(i % colors.size());
+            	}
+            	else{
+            		colorToUse = Color.DIMGRAY;
+            	}
             	VBox playerBox = new VBox();
             	playerBox.setAlignment(Pos.CENTER);
-                this.playerColorMap.put(playerName, colors.get(++i % colors.size()));
+                this.playerColorMap.put(playerName, colorToUse);
                 Text txt = new Text("#" + playerName.toLowerCase());
                 txt.setFont(Font.font("Verdana", FontWeight.THIN, FXUIGameMaster.DEFAULT_PLAYER_NAME_FONT_SIZE));
-                txt.setFill(colors.get((i) % colors.size()));
+                txt.setFill(colorToUse);
                 txt.setOnMouseClicked(new EventHandler<MouseEvent>() {
                     @Override
                     public void handle(MouseEvent t) {
@@ -2096,15 +2134,14 @@ public class FXUIGameMaster extends Application {
                 gGlow.setInput(gBlur);
             	arcIndicator.setEffect(gGlow);
                 
-                
                 playerBox.getChildren().addAll(txt, arcIndicator);
                 namesOfPlayers.getChildren().add(playerBox);
                 this.playerToIndicatorHMap.put(playerName, new Node[] {arcIndicator, txt});
             }
             FXUIGameMaster.mainWindowPane.getChildren().add(namesOfPlayers);
             this.playerDisplay = namesOfPlayers;
-        } catch (RuntimeException e) {
-        	System.out.println(e.toString() + " _RPSub_ " + e.getMessage());
+        } catch (Exception e) {
+        	System.out.println("begin error// " + e.toString() + " _RPSub_ " + e.getMessage() + "//end error");
         	e.printStackTrace();
         }
     }
@@ -2282,7 +2319,8 @@ public class FXUIGameMaster extends Application {
             }
             if (!FXUIGameMaster.fullAppExit) {
                 for (Map.Entry<String, Integer> entry : winLog.entrySet()) {
-                    System.out.println(entry.getKey() + " had a win percentage of " + 100.0 * entry.getValue() / numGames + "%");
+                    System.out.println(entry.getKey() + " had a win percentage "
+                    		+ "of " + 100.0 * entry.getValue() / numGames + "%");
                 }
             }
         } catch (RuntimeException e) {
@@ -2536,20 +2574,17 @@ public class FXUIGameMaster extends Application {
      * for more easily detected changes.
      */
     public void makeUIElementsRefreshThread() {
-    	if(FXUIGameMaster.clockedUIRefreshThreadA != null && FXUIGameMaster.clockedUIRefreshThreadB != null){
-    		System.out.println("Already running refresh threads...");
-        	return;
-        }
-        else if((FXUIGameMaster.clockedUIRefreshThreadA != null &&FXUIGameMaster.clockedUIRefreshThreadA.isAlive())
+    	if((FXUIGameMaster.clockedUIRefreshThreadA != null &&FXUIGameMaster.clockedUIRefreshThreadA.isAlive())
         		&& 
         		(FXUIGameMaster.clockedUIRefreshThreadB != null && FXUIGameMaster.clockedUIRefreshThreadB.isAlive()))
         {
-        	System.out.println("Already running refresh threads...");
+        	System.out.println("Already running refresh threads; attempting to wake...");
+        	FXUIGameMaster.clockedUIRefreshThreadB.interrupt();
+	        FXUIGameMaster.clockedUIRefreshThreadA.interrupt();
         	return;
         }
         final int timeToWaitBetweenElements = 5;
-        final long blinkDelay = 100;
-        final long threadSleepShort = 5;
+        final AtomicLong blinkDelay = new AtomicLong(100<delayTimeBetweenBots ? 100 : delayTimeBetweenBots);
         final long threadSleepLong = 1000;
         final AtomicBoolean stopRunning = new AtomicBoolean(false);
     	FXUIGameMaster.mainStage.showingProperty().addListener(new ChangeListener<Boolean>(){
@@ -2560,6 +2595,7 @@ public class FXUIGameMaster extends Application {
 			}	
         });
         
+    	//updating counts
     	if(FXUIGameMaster.clockedUIRefreshThreadA == null || !FXUIGameMaster.clockedUIRefreshThreadA.isAlive()){
 	    	FXUIGameMaster.clockedUIRefreshThreadA = new Thread(null, new Runnable() {
 	            @Override
@@ -2575,7 +2611,7 @@ public class FXUIGameMaster extends Application {
 	            	while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
 		            	while (FXUIGameMaster.countriesToUpdateCount.size() > 0 && !FXUIGameMaster.fullAppExit){
 		            		try{
-			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateCount.remove(0),true,blinkDelay);
+			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateCount.remove(0),true,blinkDelay.get());
 		            		}
 		            		catch(Exception nsee){
 		            			System.out.println(FXUIGameMaster.ERROR + "TA.NSEE.list size? : " + FXUIGameMaster.countriesToUpdateCount.size());
@@ -2587,12 +2623,18 @@ public class FXUIGameMaster extends Application {
 		                        RiskUtils.sleep(timeToWaitBetweenElements);
 		                    }
 		            	}
+		            	if(FXUIGameMaster.workingMode == IDLE_MODE){
+	                    	RiskUtils.sleep(3*threadSleepLong+delayTimeBetweenBots);
+	                    }
+		            	if(Thread.interrupted()){
+		            		blinkDelay.set(100<delayTimeBetweenBots ? 100 : delayTimeBetweenBots);
+		            	}
 		            	if (FXUIGameMaster.fullAppExit) {
 		            		FXUIGameMaster.clockedUIRefreshThreadA = null;
 		            		FXUIGameMaster.diagnosticPrintln("UI Refresh Thread A shut down.");
 		                    return;
 		                }
-		            	RiskUtils.sleep(threadSleepShort);
+		            	RiskUtils.sleep(delayTimeBetweenBots);
 	            	}
 	            	FXUIGameMaster.clockedUIRefreshThreadA = null;
 	            	System.out.println("UI Refresh Thread A shut down.");
@@ -2602,6 +2644,7 @@ public class FXUIGameMaster extends Application {
 	        FXUIGameMaster.clockedUIRefreshThreadA.start();
     	}
         
+    	//updating colors
     	if(FXUIGameMaster.clockedUIRefreshThreadB == null || !FXUIGameMaster.clockedUIRefreshThreadB.isAlive()){
 	    	FXUIGameMaster.clockedUIRefreshThreadB = new Thread(null, new Runnable() {
 	            @Override
@@ -2617,7 +2660,7 @@ public class FXUIGameMaster extends Application {
 	            	while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
 		            	while (FXUIGameMaster.countriesToUpdateOwner.size() > 0 && !FXUIGameMaster.fullAppExit){
 		            		try{
-			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateOwner.remove(0),false,blinkDelay);
+			            		performTStepOfRefreshProcess(FXUIGameMaster.countriesToUpdateOwner.remove(0),false,0);
 			            	}
 			        		catch(Exception nsee){
 			        			System.out.println(FXUIGameMaster.ERROR + "TB.NSEE.list size? : " + FXUIGameMaster.countriesToUpdateOwner.size());
@@ -2628,13 +2671,17 @@ public class FXUIGameMaster extends Application {
 		                    if (timeToWaitBetweenElements > 0) {
 		                        RiskUtils.sleep(timeToWaitBetweenElements);
 		                    }
+		                    
 		                }
+		            	if(FXUIGameMaster.workingMode == IDLE_MODE){
+	                    	RiskUtils.sleep(3*threadSleepLong+delayTimeBetweenBots);
+	                    }
 		            	if (FXUIGameMaster.fullAppExit) {
 		            		FXUIGameMaster.clockedUIRefreshThreadB = null;
 		            		FXUIGameMaster.diagnosticPrintln("UI Refresh Thread B shut down.");
 		                    return;
 		                }
-		            	RiskUtils.sleep(threadSleepShort);
+		            	RiskUtils.sleep(delayTimeBetweenBots);
 	            	}
 	            	FXUIGameMaster.clockedUIRefreshThreadB = null;
 	            	System.out.println("UI Refresh Thread B shut down.");
@@ -2660,17 +2707,27 @@ public class FXUIGameMaster extends Application {
     	final Text textToUpdate = textNodeMap.get(country.getName());
     	//If update the count, update the text. And blink, where possible.
     	if(doUpdateTheCount){
-    		Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                	textToUpdate.setText(country.getName());
-                }});
-    		RiskUtils.runLaterWithDelay(blinkDelay, new Runnable() {
-                @Override
-                public void run() {
-                	textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
-                }
-            });
+    		if(blinkDelay > 20){
+	    		Platform.runLater(new Runnable() {
+	                @Override
+	                public void run() {
+	                	textToUpdate.setText(country.getName());
+	                }});
+	    		RiskUtils.runLaterWithDelay(blinkDelay, new Runnable() {
+	                @Override
+	                public void run() {
+	                	textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
+	                }
+	            });
+    		}
+    		else{
+    			Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                    	textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
+                    }
+                });
+    		}
     	}
     	//If update Owner, update Fill...No blink necessary.
     	else{
@@ -2834,6 +2891,25 @@ public class FXUIGameMaster extends Application {
     @Override
     public void start(final Stage primaryStage) throws Exception {
         System.out.println("Preparing window...");
+        //System.err.println("This goes to the console");
+		//PrintStream console = System.err;
+
+		File file = new File("err.txt");
+		FileOutputStream fos = new FileOutputStream(file);
+		PrintStream ps = new PrintStream(fos);
+		System.setErr(ps);
+
+		System.err.println("This goes to err.txt");
+		/*
+		try {
+			throw new Exception("Exception goes to err.txt too");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}*/
+
+		//System.setErr(console);
+		//System.err.println("This also goes to the console");
+		
         final About nAbout = new About();
         mainWindowPane = new Pane();
         mainWindowPane.setPrefSize(FXUIGameMaster.DEFAULT_CONTENT_WIDTH, FXUIGameMaster.DEFAULT_CONTENT_HEIGHT);
@@ -3014,6 +3090,8 @@ public class FXUIGameMaster extends Application {
         startButtonPanel.getChildren().addAll(musicPulseIndicatorS,startBtn,activeGameIndicS);
 
         //Mirrors the functionality of the start button.
+        //TODO maybe add this back when we get around to proper keyboard accessibility
+        /*
         mainWindowPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent t) {
@@ -3022,6 +3100,7 @@ public class FXUIGameMaster extends Application {
                 }
             }
         });
+        */
 
         //your standard About buttons...
         Button tellMe = new Button("About (Basic Info)");
@@ -3242,7 +3321,7 @@ public class FXUIGameMaster extends Application {
     	foregroundRect.setFill(Color.ALICEBLUE);
     	final Text foregroundText = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
     	foregroundText.setTextAlignment(TextAlignment.CENTER);
-        foregroundText.setFont(Font.font("Arial", FontWeight.BOLD, 256));
+        foregroundText.setFont(Font.font("System", FontWeight.BOLD, 256));
         foregroundText.setFill(Color.BLACK);
         foregroundText.setStroke(Color.CORAL);
         GaussianBlur gBlur = new GaussianBlur(4);
@@ -3315,7 +3394,7 @@ public class FXUIGameMaster extends Application {
     	foregroundRectangle.setFill(Color.BLUEVIOLET);
     	final Text textRisk = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
     	textRisk.setTextAlignment(TextAlignment.CENTER);
-        textRisk.setFont(Font.font("Arial", FontWeight.BOLD, 256));
+        textRisk.setFont(Font.font("System", FontWeight.BOLD, 256));
         textRisk.setFill(Color.ALICEBLUE);
         textRisk.setStroke(Color.CORAL);
         GaussianBlur gBlur = new GaussianBlur(5);
@@ -3375,12 +3454,12 @@ public class FXUIGameMaster extends Application {
         textGoodbye.setFont(Font.font("Arial", FontWeight.BOLD, 128));
         textGoodbye.setFill(Color.ALICEBLUE);
         textGoodbye.setStroke(Color.CORAL);
-		final Text textInstructions= new Text(DEFAULT_CONTENT_WIDTH/4, DEFAULT_CONTENT_HEIGHT/1.9, "[click to close]");
+		final Text textInstructions= new Text(DEFAULT_CONTENT_WIDTH/4, DEFAULT_CONTENT_HEIGHT/1.7, "[click to close]");
     	textInstructions.setTextAlignment(TextAlignment.CENTER);
         textInstructions.setFont(Font.font("Arial", FontWeight.BOLD, 32));
         textInstructions.setFill(Color.BLACK);
         textInstructions.setStroke(Color.ALICEBLUE);
-		textInstructions.setEffect(new GaussianBlur(5));
+		textInstructions.setEffect(new GaussianBlur(2));
     	final Rectangle foregroundRectangle = new Rectangle(0,DEFAULT_CONTENT_HEIGHT/4,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT/2.6);
 		try{
 			foregroundRectangle.setFill(playerColorMap.get(winnerName));
@@ -3660,16 +3739,18 @@ public class FXUIGameMaster extends Application {
     */
     private static void displayExtendedMessage(String message){
     	int strLenToDisplay = 100;
+    	boolean performConcat = true;
     	if (message == null){
     		return;
     	}
     	else if (message.length() < 1){
     		return;
     	}
-    	else if (message.length() < strLenToDisplay){
+    	else if (message.length() <= strLenToDisplay){
     		strLenToDisplay = message.length();
+    		performConcat = false;
     	}
-    	final String lineToShow = message.substring(0, strLenToDisplay);
+    	final String lineToShow = message.substring(0, strLenToDisplay) + (performConcat ? ". . . . .[click for more.]" : "");
     	Platform.runLater(new Runnable() {
             @Override
             public void run() {

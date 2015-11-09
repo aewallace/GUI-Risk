@@ -80,7 +80,7 @@ public class FXUIAudio {
 	/**
 	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
 	 */
-	protected static double audioVolumePercent = 0.3d;
+	protected static double audioVolumePercent = 0.5d;
 	private static MediaPlayer bootAudioMP = null;
 	protected static int maxConcurrentClipCount = 1;
 	private static LinkedList<MediaPlayer> playList = new LinkedList<MediaPlayer>();
@@ -572,9 +572,9 @@ public class FXUIAudio {
             final Button yeah = new Button("Apply Changes");
             final Button nah = new Button("Close Window");
 
-            final Slider audioVolSlider = new Slider(0.1f, 1.0f, FXUIAudio.audioVolumePercent);
+            final Slider audioVolSlider = new Slider(0.0f, 1.0f, FXUIAudio.audioVolumePercent);
             final CheckBox doPlayAudio = new CheckBox("Play audio?");
-            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudio.audioVolumePercent) + "%]");
+            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudio.audioVolumePercent*100) + "%]");
             
             audioVolSlider.setSnapToTicks(false);
             audioVolSlider.setShowTickMarks(true);
@@ -589,7 +589,7 @@ public class FXUIAudio {
                         Number old_val, Number new_val) 
                 {
                 	yeah.setDisable(false);
-					audioSliderLabel.setText("Audio Volume [" + String.format("%.2f", new_val.doubleValue()) + "%]");
+					audioSliderLabel.setText("Audio Volume [" + String.format("%.2f", new_val.doubleValue()*100) + "%]");
                 }
             });
             

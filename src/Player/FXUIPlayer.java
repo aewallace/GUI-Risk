@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,7 +67,7 @@ import Util.RiskUtils;
 *
 */
 public class FXUIPlayer implements Player {
-	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x02h\nStamp 2015.11.04, 19:30\nStability: Alpha(01)";
+	public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x10h\nStamp 2015.11.08, 18:41\nStability: Alpha(01)";
 
 	private static boolean instanceAlreadyCreated = false;
 	private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
@@ -103,8 +104,7 @@ public class FXUIPlayer implements Player {
 	private String attackTarget = blankText, attackSource = blankText;
 	private boolean keepRunning = false;
 	private final ExitStateSubHelper exitDecider = new ExitStateSubHelper();
-	private final int maxTimes = 5;
-	private int timesLeft = maxTimes;
+	
 	private boolean lastCoordIsKnown = false;
 	
 
@@ -222,7 +222,7 @@ public class FXUIPlayer implements Player {
 	 * @return "true" if acceptable, "false" otherwise
 	 */
 	private boolean validateName(String potentialName, Collection<String> unavailableNames){
-		System.out.println("("+potentialName+")");
+		FXUIGameMaster.diagnosticPrintln("("+potentialName+")");
 		potentialName = potentialName.trim();
 		if(potentialName == null || potentialName.length() < 1){
 			return false;
@@ -254,19 +254,19 @@ public class FXUIPlayer implements Player {
 	 * @return
 	 */
 	private String askForDesiredName(Collection<String> unavailableNames) {
-		//else...make the window and keep displaying until the user has confirmed selection
+		final int maxTimes = 5;
+		final AtomicInteger timesLeft = new AtomicInteger(maxTimes);
 		System.out.println("Getting name of human...");
-		this.keepRunning = false;
-		TextField potentialName = new TextField();
 		
+		TextField potentialName = new TextField();
+		//Make the window and keep displaying until the user has confirmed selection
 		do{
+			this.keepRunning = false;
 			final VBox layout = new VBox(10);
 			final Text guideText = new Text(); //generic prompt info
 			final Text guideText2 = new Text(); //in-deoth prompt info
 			final Text statusText = new Text(); //status: acceptable or unacceptable
-			timesLeft = maxTimes;
-			
-			
+			timesLeft.set(maxTimes);
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					
@@ -307,8 +307,10 @@ public class FXUIPlayer implements Player {
 						@Override public void handle(KeyEvent t){
 							//if(validateName(t.getCharacter())){
 								//put stuff here if you want to ignore any invalid input off-the-bat
+								//e.g., if they enter a single invalid character, 
+								//we can catch it when they enter it
 							//}
-							timesLeft = maxTimes;
+							timesLeft.set(maxTimes);
 							if(validateName(potentialName.getText()+t.getCharacter(), unavailableNames))
 							{
 								statusText.setText("name OK!!");
@@ -360,10 +362,10 @@ public class FXUIPlayer implements Player {
 								dialog.close();
 							}
 							else{
-								timesLeft--;
+								timesLeft.decrementAndGet();
 								statusText.setText("press " + timesLeft + "x to auto-set");
 								statusText.setFill(Color.BLACK);
-								if(timesLeft == 0){
+								if(timesLeft.get() == 0){
 									potentialName.setText(null);
 									exitDecider.setAsNonSystemClose();
 									saveLastKnownWindowLocation(dialog);
@@ -407,10 +409,9 @@ public class FXUIPlayer implements Player {
 		}
 
 		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
 		final ReinforcementResponse rsp = new ReinforcementResponse();
-		
 		do{
+			this.keepRunning = false;
 			
 			final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 			final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
@@ -419,11 +420,8 @@ public class FXUIPlayer implements Player {
 			final VBox layout = new VBox(10);
 			final Text guideText = new Text(); //generic instructions for initial allocation
 			final Text statusText = new Text(); //status: total reinforcements available, reinf used, reinf available.
-			
-			
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
-					
 					/***********
 					* Begin mandatory processing on FX thread. (Required for Stage objects.)
 					*/
@@ -445,7 +443,7 @@ public class FXUIPlayer implements Player {
 					guideText.setTextAlignment(TextAlignment.CENTER);
 					layout.getChildren().add(guideText);
 					
-					statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
+					statusText.setText("Total: " + reinforcements + "\nUsed: " + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 					
 					
 					/*
@@ -553,11 +551,11 @@ public class FXUIPlayer implements Player {
 		}
 		
 		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
-		this.passTurn = true;
 		final CardTurnInResponse rsp = new CardTurnInResponse();
 		final HashMap<Integer, Card> cardsToTurnIn = new HashMap<>();
 		do{
+			this.passTurn = true;
+			this.keepRunning = false;
 			final HashMap<Integer, Text> cardStatusMapping = new HashMap<>();
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
@@ -565,7 +563,6 @@ public class FXUIPlayer implements Player {
 					/***********
 					* Begin mandatory processing on FX thread. (Required for Stage objects.)
 					*/
-					
 					final Stage dialog = new Stage();
 					final String selected = "*SELECTED*";
 					final String deselected = "not selected";
@@ -722,21 +719,19 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
-		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
-		final ReinforcementResponse rsp = new ReinforcementResponse();
 		
+		//else...make the window and keep displaying until the user has confirmed selection
+		final ReinforcementResponse rsp = new ReinforcementResponse();
 		do{
+			this.keepRunning = false;
 			final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
 			final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
 			final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
-					
 					/***********
 					* Begin mandatory processing on FX thread. (Required for Stage objects.)
 					*/
-					
 					final Stage dialog = new Stage();
 					final VBox layout = new VBox(10);
 					ScrollPane spane = new ScrollPane();
@@ -753,15 +748,13 @@ public class FXUIPlayer implements Player {
 					layout.setAlignment(Pos.CENTER);
 					layout.setStyle("-fx-padding: 20;");
 					
-					
 					//Generic instructions for reinforcement
 					guideText.setText("Please place extra reinforcements\nin the countries you own.");
 					guideText.setTextAlignment(TextAlignment.CENTER);
 					layout.getChildren().add(guideText);
 					
 					//status text: total reinforcements available, reinf used, reinf available.
-					statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
-					
+					statusText.setText("Total: " + reinforcements + "\nUsed: " + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 					
 					//Meat and potatoes of the dialog, generates the display for each of the countries (along with their current count),
 					//  as well as creates the buttons to increment/decrement the troop count for each associated country.
@@ -862,7 +855,7 @@ public class FXUIPlayer implements Player {
 	* @param reinforcements the total number of reinforcements available to the user during this turn/during this singular call to "Reinforce"
 	*/
 	private void refreshReinforcementDisplay(boolean isError, HashMap<String, Text> textElements, HashMap<String, Integer> dataSource, Text statusText, int reinforcements) {
-		statusText.setText("Total: " + reinforcements + "\nUsed:" + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
+		statusText.setText("Total: " + reinforcements + "\nUsed: " + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
 		for(String countryToUpdate : textElements.keySet()){
 			textElements.get(countryToUpdate).setText(countryToUpdate + " ::: " + dataSource.get(countryToUpdate));
 			if (isError){
@@ -890,11 +883,11 @@ public class FXUIPlayer implements Player {
 		if(crossbar.isHumanEndingGame()){
 			return null;
 		}
-		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
 		
+		//else...make the window and keep displaying until the user has confirmed selection
 		final AttackResponse rsp = new AttackResponse();
 		do{
+			this.keepRunning = false;
 			Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
 			
 			Platform.runLater(new Runnable(){
@@ -930,7 +923,6 @@ public class FXUIPlayer implements Player {
 					Text buttonDivider = new Text("***********");
 					
 					//now that things have been placed in memory, let's set it all up...
-					
 					dialog.setTitle("Attack? [optional]");
 					if(FXUIPlayer.owner != null){
 						dialog.initOwner(FXUIPlayer.owner);
@@ -1042,7 +1034,6 @@ public class FXUIPlayer implements Player {
 								statusText.setText("Not a valid response; \nmake sure you select a target and source!!");
 								statusText.setFill(Color.RED);
 							}
-							
 						}
 					});
 					
@@ -1155,13 +1146,10 @@ public class FXUIPlayer implements Player {
 		}
 		
 		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
 		final AdvanceResponse rsp = new AdvanceResponse(minAdv);
-		
 		do{
+			this.keepRunning = false;
 			final int sourceArmies = map.getCountryArmies(fromCountry);
-			
-			
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					
@@ -1313,10 +1301,11 @@ public class FXUIPlayer implements Player {
 			return null;
 		}
 		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
+		
 		final FortifyResponse rsp = new FortifyResponse();
 		
 		do{
+			this.keepRunning = false;
 			Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.name));
 			Collection<Set<Country>> allConnectedSets = RiskUtils.getAllConnectedCountrySets(map, this.name);
 			Map<Country, Set<Country>> destMap = new HashMap<Country, Set<Country>>();
@@ -1329,6 +1318,7 @@ public class FXUIPlayer implements Player {
 						for (Country country : connectedSet) {
 							if (source == country) {
 								destMap.put(source, connectedSet);
+								//destMap.get(source).remove(source);
 								found = true;
 								break;
 							}
@@ -1376,13 +1366,23 @@ public class FXUIPlayer implements Player {
 					
 					final VBox sourceCountriesVBox = new VBox(10);
 					final VBox targetCountriesVBox = new VBox(10);
-					sourceCountriesVBox.setAlignment(Pos.CENTER_LEFT);
-					targetCountriesVBox.setAlignment(Pos.CENTER_LEFT);
+					sourceCountriesVBox.setAlignment(Pos.CENTER);
+					targetCountriesVBox.setAlignment(Pos.CENTER);
+					sourceCountriesVBox.setFillWidth(true);
+					targetCountriesVBox.setFillWidth(true);
 					sourceCountriesVBox.getChildren().add(new Text("Source:"));
 					
 					for (Country source : sources) {
 						final Button ctSrcBtn = new Button(source.getName());
-						
+						//disable the buttons if there's no adjacent countries
+						ctSrcBtn.setDisable(true);
+						for (Country dest : destMap.get(source)) {
+							if (dest != source) {
+								ctSrcBtn.setDisable(false);
+							}
+						}
+						//what to do when the buttons are pressed:
+						//show the country/countries that can receive troops
 						ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
 							@Override
 							public void handle(ActionEvent event) {
@@ -1420,9 +1420,15 @@ public class FXUIPlayer implements Player {
 					ScrollPane spaneRight = new ScrollPane();
 					spaneRight.setPrefHeight(400);
 					spaneRight.setPrefWidth(200);
+					spaneLeft.setFitToHeight(true);
+					spaneLeft.setFitToWidth(true);
+					spaneRight.setFitToHeight(true);
+					spaneRight.setFitToWidth(true);
 					
 					spaneLeft.setContent(sourceCountriesVBox);
 					spaneRight.setContent(targetCountriesVBox);
+					
+					
 					
 					//finally add both lists to the layout.
 					final HBox bothCountryGroups = new HBox(10);
@@ -1552,7 +1558,7 @@ public class FXUIPlayer implements Player {
 		
 		DefendResponse rsp = new DefendResponse();
 		//else...make the window and keep displaying until the user has confirmed selection
-		this.keepRunning = false;
+		
 		
 		int numDice = map.getCountryArmies(dfdCountry);
 		if (numDice > RiskConstants.MAX_DFD_DICE) {
@@ -1562,6 +1568,7 @@ public class FXUIPlayer implements Player {
 		rsp.setNumDice(maxDfdDiceAvailable);
 		
 		do{
+			this.keepRunning = false;
 			Platform.runLater(new Runnable(){
 				@Override public void run(){
 					
@@ -1603,7 +1610,8 @@ public class FXUIPlayer implements Player {
 							+ "\nAn anemo--err, an enemy--"
 							+ "\nhas chosen to attack you at"
 							+ "\n" + dfdCountry.getName() + "!"
-							+ "\nThe attacker is attacking from " + atkCountry.getName() + "."
+							+ "\nThe attacker is attacking from\n" 
+							+ atkCountry.getName() + "."
 							+ "\nYou must decide how to defend yourself!"
 							+ "\n\nYou roll dice to defend. Roll the die"
 							+ "\n(or two dice, if you own enough countries)"
@@ -1682,12 +1690,6 @@ public class FXUIPlayer implements Player {
 			FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
 		}
 		while(this.keepRunning);
-		if(passTurn){
-			passTurn = false;
-			return null;
-		}
-		
-		
 		return rsp;
 	}
 	

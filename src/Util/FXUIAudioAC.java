@@ -313,7 +313,7 @@ public class FXUIAudioAC extends FXUIAudio {
 	}
 	
 	/**
-	 * Sets the volume of the various audio MediaPlayback objects. Sets values
+	 * Sets the volume of the various audio objects. Sets values
 	 * for all in {@link #mediaPlaybackMap} Map, not just currently playing.
 	 * @param volume
 	 * @param mute
@@ -421,15 +421,14 @@ public class FXUIAudioAC extends FXUIAudio {
             final Button yeah = new Button("Apply Changes");
             final Button nah = new Button("Close Window");
 
-            final Slider audioVolSlider = new Slider(0.1f, 1.0f, FXUIAudioAC.audioVolumePercent);
+            final Slider audioVolSlider = new Slider(0.0f, 1.0f, FXUIAudioAC.audioVolumePercent);
             final CheckBox doPlayAudio = new CheckBox("Play audio?");
-            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudioAC.audioVolumePercent) + "%]");
+            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudioAC.audioVolumePercent*100) + "%]");
             
             audioVolSlider.setSnapToTicks(false);
             audioVolSlider.setShowTickMarks(true);
             audioVolSlider.setMajorTickUnit(0.25f);
             audioVolSlider.setMinorTickCount(0);
-            //audioVolSlider.set
             audioVolSlider.setTooltip(new Tooltip("Audio volume, in percentage"
             		+ ": 0% to 100%.\n0% will mute audio."));
             audioVolSlider.valueProperty().addListener(new ChangeListener<Number>() {
@@ -438,7 +437,7 @@ public class FXUIAudioAC extends FXUIAudio {
                         Number old_val, Number new_val) 
                 {
                 	yeah.setDisable(false);
-					audioSliderLabel.setText("Audio Volume [" + String.format("%.2f", new_val.doubleValue()) + "%]");
+					audioSliderLabel.setText("Audio Volume [" + String.format("%.2f", new_val.doubleValue()*100) + "%]");
                 }
             });
             
