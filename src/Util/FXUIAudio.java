@@ -52,10 +52,12 @@ import javafx.util.Duration;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio MP/AC 0.1.8.1300\n06 Nov 2015";
+	public static final String shortVersion = "FXUIAudio MP/AC 0.1.9.1747\n10 Nov 2015";
 	protected static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
+        protected static final String jarResourceFolderLocation = "/resources/Audio/";
+        protected static final String jarRootLocation ="/";
 	protected static List<String> audioFileNames = Arrays.asList(
 			"Piano.mf.D2.m4a", "Piano.mf.Db2.m4a", "Piano.mf.D3.m4a", "Piano.mf.Db3.m4a", 
 			"Piano.mf.D4.m4a", "Piano.mf.Db4.m4a", "Piano.mf.D5.m4a", "Piano.mf.Db5.m4a",
