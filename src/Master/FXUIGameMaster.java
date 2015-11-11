@@ -1860,6 +1860,7 @@ public class FXUIGameMaster extends Application {
             this.players.remove(loser.getName());
             this.playerNameToPlayerObjHMap.remove(loser.getName());
             allocateUnownedCountries();
+            representPlayersOnUI();
             throw new PlayerEliminatedException(loser.getName() + " Eliminated! " + reason);
         } else {
             System.out.println(WARN + "eliminate() :: this.playerMap does not contain so-called 'loser'");
@@ -2332,7 +2333,7 @@ public class FXUIGameMaster extends Application {
         	return;
         }
         final int timeToWaitBetweenElements = 5;
-        final AtomicLong blinkDelay = new AtomicLong(100<delayTimeBetweenBots ? 100 : delayTimeBetweenBots);
+        final AtomicLong blinkDelay = new AtomicLong(10<delayTimeBetweenBots ? 10 : delayTimeBetweenBots);
         final long threadSleepLong = 1000;
         final AtomicBoolean stopRunning = new AtomicBoolean(false);
     	FXUIGameMaster.mainStage.showingProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
@@ -2351,9 +2352,20 @@ public class FXUIGameMaster extends Application {
                         RiskUtils.sleep(threadSleepLong);
                     }
                     while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
-                        while (FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size() > 0 && !FXUIGameMaster.fullAppExit){
+                        //first, set the first country up...
+                        if(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size() > 0){
+                            performC1AStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.get(0));
+                        }
+                        if (blinkDelay.get() > 0) {
+                                RiskUtils.sleep(blinkDelay.get());
+                            }
+                        //then enter the loop to get the rest of the countries rolling...
+                        //sets one country up for the first part of the animation,
+                        //while finishing the animation for a second country.
+                        while (FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size() > 1 && !FXUIGameMaster.fullAppExit){
                             try{
-                                performTStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.remove(0),true,blinkDelay.get());
+                                //call dual element method on first and second elements
+                                performC2StepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.remove(0),FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.get(0));
                             }
                             catch(Exception nsee){
                                 System.out.println(FXUIGameMaster.ERROR + "TA.NSEE.list size? : " + FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size());
@@ -2361,9 +2373,13 @@ public class FXUIGameMaster extends Application {
                                 break;
                             }
                             //and the sleep to create the pause between updates...
-                            if (timeToWaitBetweenElements > 0) {
-                                RiskUtils.sleep(timeToWaitBetweenElements);
+                            if (blinkDelay.get() > 0) {
+                                RiskUtils.sleep(blinkDelay.get());
                             }
+                        }
+                        //then do the last part of the animation for the last country.
+                        if(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size() > 0){
+                            performC1BStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.remove(0));
                         }
                         if(FXUIGameMaster.workingMode == IDLE_MODE){
                             RiskUtils.sleep(3*threadSleepLong+delayTimeBetweenBots);
@@ -2399,7 +2415,7 @@ public class FXUIGameMaster extends Application {
                     while(!FXUIGameMaster.fullAppExit && !stopRunning.get()){
                         while (FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.size() > 0 && !FXUIGameMaster.fullAppExit){
                             try{
-                                performTStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.remove(0),false,0);
+                                performTStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.remove(0));
                             }
                             catch(Exception nsee){
                                 System.out.println(FXUIGameMaster.ERROR + "TB.NSEE.list size? : " + FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.size());
@@ -2430,42 +2446,90 @@ public class FXUIGameMaster extends Application {
     	}
     }
     
-
+    
     /**
      * As part of the clocked refresh cycle, updates the visual state of a
-     * singular country, passed in as a param.
+     * two countries, pertaining to the armies in a country.
+     * "Country" gets updated as the tock in a tick-tock cycle
+     * (in an animation, sets the display to its final state),
+     * while "Country2" gets updated as the tick in a tick-tock cycle
+     * (in an animation, sets the display to its initial state).
+     * Used to help coalesce calls to runLater().
+     *
+     * @param country the country whose view is to be set to the "tock" state
+     * (with the name and the army count of the country)
+     * @param country2 the country whose view is to be set to the "tick" state
+     * (with only the name of the country)
+     */
+    private void performC2StepOfRefreshProcess(Country country, Country country2) {
+    	if(country == null || country2 == null){
+    		System.out.println("Country reported as NULL. Help?");
+    		return;
+    	}
+    	final Text textToUpdate = textNodeMap.get(country.getName());
+        final Text textToUpdate2 = textNodeMap.get(country2.getName());
+    	//If update the count, update the text. And blink, where possible.
+        Platform.runLater(() -> {
+            textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
+            textToUpdate2.setText(country2.getName());
+            });   
+    }
+    
+    /**
+     * As part of the clocked refresh cycle, updates the visual state of a
+     * singular country, pertaining to the armies in a country.
+     * Used as the tick in a tick-tock cycle 
+     * (in an animation, sets the display to its initial state)
      *
      * @param country the country whose data is to be refreshed on the main map.
      */
-    private void performTStepOfRefreshProcess(Country country, boolean doUpdateTheCount, long blinkDelay) {
+    private void performC1AStepOfRefreshProcess(Country country) {
+    	if(country == null){
+    		System.out.println("Country reported as NULL. Help?");
+    		return;
+    	}
+        final Text textToUpdate2 = textNodeMap.get(country.getName());
+    	//If update the count, update the text. And blink, where possible.
+        Platform.runLater(() -> {
+            textToUpdate2.setText(country.getName());
+            });   
+    }
+    
+    /**
+     * As part of the clocked refresh cycle, updates the visual state of a
+     * singular country, pertaining to the armies in a country.
+     * Used as the tock in a tick-tock cycle 
+     * (in an animation, sets the display to its final state)
+     *
+     * @param country the country whose data is to be refreshed on the main map.
+     */
+    private void performC1BStepOfRefreshProcess(Country country) {
     	if(country == null){
     		System.out.println("Country reported as NULL. Help?");
     		return;
     	}
     	final Text textToUpdate = textNodeMap.get(country.getName());
     	//If update the count, update the text. And blink, where possible.
-    	if(doUpdateTheCount){
-    		if(blinkDelay > 20){
-	    		Platform.runLater(() -> {
-                            textToUpdate.setText(country.getName());
-                            });
-	    		RiskUtils.runLaterWithDelay(blinkDelay, () -> {
-                            textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
-                            });
-    		}
-    		else{
-    			Platform.runLater(() -> {
-                            textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
-                            });
-    		}
+        Platform.runLater(() -> {
+            textToUpdate.setText(country.getName() + "\n" + map.getCountryArmies(country));
+            });   
+    }
+
+
+    /**
+     * As part of the clocked refresh cycle, updates the visual state of a
+     * singular country, pertaining to the color (owner) of the country.
+     *
+     * @param country the country whose data is to be refreshed on the main map.
+     */
+    private void performTStepOfRefreshProcess(Country country) {
+    	if(country == null){
+    		System.out.println("Country reported as NULL. Help?");
+    		return;
     	}
-    	//If update Owner, update Fill...No blink necessary.
-    	else{
-    		Platform.runLater(() -> {
-                    textToUpdate.setFill(playerColorMap.get(map.getCountryOwner(country)));
-                    });
-    	}
-        
+        Platform.runLater(() -> {
+            textNodeMap.get(country.getName()).setFill(playerColorMap.get(map.getCountryOwner(country)));
+            });
     }
     
     /**
