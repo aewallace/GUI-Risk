@@ -34,7 +34,6 @@ import Util.RollOutcome;
 import Util.SavePoint;
 import Util.TextNodes;
 import Util.WindowResizeHandler;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -63,10 +62,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -125,7 +122,9 @@ public class FXUIGameMaster extends Application {
      * associated {@link #diagnosticPrintln(string)} method. True: print
      * diagnostic info. False: suppress display of diagnostic info.
      * (Every call to diagnosticPrintln checks this, currently.) */
-    public static final boolean DIAGNOSTIC_MODE = true;
+    public static final boolean DIAGNOSTIC_MODE = false;
+    //private static final FXUIPlayer DUMMY_FXUIPLAYER_TESTER = new FXUIPlayer("DUMMY_FXUI");
+    private static final FXUIPlayer DUMMY_FXUIPLAYER_TESTER = null;
     
     /*
      *Continue on with remaining variables and constants as normal... 
@@ -150,13 +149,13 @@ public class FXUIGameMaster extends Application {
     protected static final boolean LOGGING_OFF = false, LOGGING_ON = true;
     protected static boolean forceEnableLogging = false, forceLoggingIsIndeterminate = true;
     protected static boolean loggingEnabled = true; //this is the one that has the final say as to whether the log file is created
-	protected static AtomicBoolean logDialogIsShowing = new AtomicBoolean(false);
+    protected static AtomicBoolean logDialogIsShowing = new AtomicBoolean(false);
     protected static boolean runBotsOnly = false;
     protected static FXUI_Crossbar crossbar = new FXUI_Crossbar();
     protected static FXUIAudioAC audioManager = null;
     protected RiskMap map;
     protected Deque<Card> deck;
-    protected static String desiredPlayersForGame = null;
+    protected static String desiredPlayersForGame = RiskConstants.DEFAULT_PLAYERS;
     protected List<String> players;
     protected Map<String, Player> playerNameToPlayerObjHMap;
     protected Map<String, Collection<Card>> playerToCardDeckHMap;
@@ -189,6 +188,7 @@ public class FXUIGameMaster extends Application {
     private static final List<Country> COUNTRIES_WITH_UPDATED_OWNERS = Collections.synchronizedList(new LinkedList<Country>());
     private static final List<Country> COUNTRIES_WITH_UPDATED_TROOP_COUNTS = Collections.synchronizedList(new LinkedList<Country>());
     private static Date gameStartTime = new Date();
+    
 
     private static WindowResizeHandler mainWindowResizeHandler = null;
     
@@ -406,11 +406,11 @@ public class FXUIGameMaster extends Application {
 
         final Pane miniPane = new Pane();
 
-        final VBox layout = new VBox(10);
+        final VBox layout = new VBox(5);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-background-color: coral;");
         
-        final String infoStripCSSFormatting = "-fx-background-color: darkred; -fx-padding: 5";
+        final String infoStripCSSFormatting = "-fx-background-color: darkred; -fx-padding: 25;";
         final VBox topInfoStrip = new VBox(10);
         topInfoStrip.setAlignment(Pos.CENTER);
         topInfoStrip.setStyle(infoStripCSSFormatting);
@@ -470,6 +470,13 @@ public class FXUIGameMaster extends Application {
         loadGameSubText.setTextAlignment(TextAlignment.CENTER);
         loadGameSubText.setOpacity(0.5d);
         loadGameBtn.setTooltip(ldToolTip);
+        
+        final HashMap<Integer, String> typesUsed = new HashMap<>();
+        final VBox typesOfPlayers = new VBox(10);
+        final VBox selectedPlayerTypes = new VBox(10);
+        final Text selectPlayersText = new Text("select players\n2p to 6p\n");
+        selectPlayersText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 13));
+        selectPlayersText.setTextAlignment(TextAlignment.CENTER);
         
         final String delaySliderTextDefault = "Bot delay (none to 1.75 sec)";
         final Text delaySliderText = new Text(delaySliderTextDefault);
@@ -554,6 +561,10 @@ public class FXUIGameMaster extends Application {
                 //tell it to forcefully disable logging
                 FXUIGameMaster.runBotsOnly = false;
             }
+            if(!applyPlayerTypesToGame(typesUsed)){
+                newGameBtn.setText("Please select players");
+                return;
+            }
             /*
             * Set us up to be in the new game mode, then close the dialog.
             */
@@ -606,11 +617,34 @@ public class FXUIGameMaster extends Application {
          */
         topInfoStrip.getChildren().setAll(querySymbol, queryText);
         bottomInfoStrip.getChildren().setAll(cnclBtn);
+        
+        //more re: the layout for selecting the player types
+        displayPlayerTypes(typesUsed, typesOfPlayers, selectedPlayerTypes);
+        String playerBoxBackground = "-fx-background-color: darksalmon;";
+        final HBox selectPTypes = new HBox(3);
+        selectPTypes.setFillHeight(true);
+        selectPTypes.setAlignment(Pos.TOP_CENTER);
+        selectPTypes.setStyle(playerBoxBackground);
+        //configure the styling of the internal boxes before adding them
+        //to the player selection scroll pane.
+        typesOfPlayers.setAlignment(Pos.TOP_LEFT);
+        selectedPlayerTypes.setAlignment(Pos.TOP_RIGHT);
+        typesOfPlayers.setStyle(playerBoxBackground);
+        selectedPlayerTypes.setStyle(playerBoxBackground);
+        selectPTypes.getChildren().addAll(typesOfPlayers, selectedPlayerTypes);
+        ScrollPane selectPTypesSPane = new ScrollPane(selectPTypes);
+        selectPTypesSPane.setPannable(true);
+        selectPTypesSPane.setStyle(playerBoxBackground);
+        selectPTypesSPane.setFitToWidth(true);
+        selectPTypesSPane.setFitToHeight(true);
+        
 
+        //setting the final window layout
         layout.getChildren().setAll(
                 topInfoStrip, 
-                bufferLineOne, newGameText, newGameBtn, botsOnly, 
                 bufferLineTwo, loadGameText, loadGameBtn, loadGameSubText, 
+                bufferLineOne, newGameText, newGameBtn, /*botsOnly,*/ 
+                selectPlayersText, selectPTypesSPane, 
                 bufferLineThree, delaySliderText, botDelay, 
                 bufferLineFour, bottomInfoStrip
         );
@@ -638,6 +672,49 @@ public class FXUIGameMaster extends Application {
          * when the window is closed!
          * (In other words, .setCurrentPlayerDialog(NULL))
          */
+    }
+    
+    private static boolean applyPlayerTypesToGame(HashMap<Integer, String> typesUsed){
+        if(typesUsed.size() < 2){
+            return false;
+        }
+        else{
+            FXUIGameMaster.desiredPlayersForGame = "";
+            for(String type : typesUsed.values()){
+                FXUIGameMaster.desiredPlayersForGame += type + ",";
+            }
+        }
+        return true;
+    }
+    
+    private static void displayPlayerTypes(HashMap<Integer, String> typesUsed,
+        VBox typesOfPlayers,
+        VBox selectedPlayerTypes)
+    {
+        final LinkedList<Integer> availableNo = new LinkedList<>(Arrays.asList(0,1,2,3,4,5));
+        String[] typeNames = {"Easy", "(BOT)Easy", "Normal" , "(BOT)Normal", 
+            "Hard", "(BOT)Hard", "Seth", "(BOT)Seth", "FXUIAsk", "(YOU)Human"};
+        for (int i = 0; i < typeNames.length; i+=2){
+            final int input = i;
+            final Button pType = new Button(typeNames[i+1]);
+            pType.setOnAction((ActionEvent t) -> {
+                if(availableNo.size() < 1){
+                    return;
+                }
+                Text tName = new Text(typeNames[input+1] + " [remove]");
+                tName.setFill(Color.BROWN);
+                final int secondaryIdx = availableNo.remove(0);
+                typesUsed.put(secondaryIdx, typeNames[input]);
+                EventHandler<MouseEvent> clickToHide = (MouseEvent mev) -> {
+                    typesUsed.remove(secondaryIdx);
+                    availableNo.add(secondaryIdx);
+                    selectedPlayerTypes.getChildren().remove(tName);
+                };
+                tName.setOnMouseClicked(clickToHide);
+                selectedPlayerTypes.getChildren().add(tName);
+            });
+            typesOfPlayers.getChildren().add(pType);
+        }
     }
 
     /**
@@ -1503,7 +1580,7 @@ public class FXUIGameMaster extends Application {
                 eliminate(getPlayerObject(loserName), attacker, "You were eliminated by " + attacker.getName() + " at " + takenCountry.getName() + ".");
             }
         } catch (PlayerEliminatedException defenderException) {
-			//this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call or the game ended.
+            //this ensures that attacker will not be allowed to reinforce if (s)he was auto-eliminated during the advanceArmies() call or the game ended.
             //also, player can only reinforce after eliminating another player if (s)he is forced to turn in cards
             if (allowReinforce && this.playerToCardDeckHMap.get(attacker.getName()).size() >= RiskConstants.FORCE_TURN_IN && this.players.size() > 1) {
                 reinforce(attacker, false);//note that if the current player fails to reinforce, the player can be eliminated here and an exception thrown back up to begin()
@@ -1602,9 +1679,23 @@ public class FXUIGameMaster extends Application {
         }
     }
 
+    /**
+     * If a player conquers a territory, the player must advance armies into
+     * the newly conquered territory.
+     * @param player
+     * @param cardSet
+     * @param oppCards
+     * @param atkRsp
+     * @return 
+     */
     protected AdvanceResponse tryAdvance(Player player, Collection<Card> cardSet, Map<String, Integer> oppCards, AttackResponse atkRsp) {
         try {
-            AdvanceResponse rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+            AdvanceResponse rsp;
+            if(DUMMY_FXUIPLAYER_TESTER==null){
+            rsp = player.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+            } else {
+            rsp = DUMMY_FXUIPLAYER_TESTER.advance(this.map.getReadOnlyCopy(), createCardSetCopy(player.getName()), oppCards, atkRsp.getAtkCountry(), atkRsp.getDfdCountry(), atkRsp.getNumDice());
+            }
             validatePlayerName(player);
             return rsp;
         } catch (RuntimeException | PlayerEliminatedException e) {
@@ -2169,12 +2260,8 @@ public class FXUIGameMaster extends Application {
                  * If there is ever a future version where this is untrue,
                  * then this method of setting up players will be invalid!
                  */
-                if(FXUIGameMaster.runBotsOnly){
-                	initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + RiskConstants.DEFAULT_PLAYERS , doWeLog);
-                }
-                else{
-                	initializeFXGMClass("Countries.txt", RiskConstants.DEFAULT_PLAYERS + "," + PlayerFactory.FXUIAsk, doWeLog);
-                }
+                
+                initializeFXGMClass("Countries.txt", FXUIGameMaster.desiredPlayersForGame, doWeLog);
 
                 System.out.print((i + 1) + " - ");
                 
@@ -2676,23 +2763,25 @@ public class FXUIGameMaster extends Application {
     public void start(final Stage primaryStage) throws Exception {
         System.out.println("Preparing window...");
         //System.err.println("This goes to the console");
-		//PrintStream console = System.err;
+        //PrintStream console = System.err;
+        /*
+        File file = new File("err.txt");
+        FileOutputStream fos = new FileOutputStream(file);
+        PrintStream ps = new PrintStream(fos);
+        System.setErr(ps);
 
-		File file = new File("err.txt");
-		FileOutputStream fos = new FileOutputStream(file);
-		PrintStream ps = new PrintStream(fos);
-		System.setErr(ps);
+        System.err.println("This goes to err.txt");
+        */
 
-		System.err.println("This goes to err.txt");
-		/*
-		try {
-			throw new Exception("Exception goes to err.txt too");
-		} catch (Exception e) {
-			e.printStackTrace();
-		}*/
+        /*
+        try {
+                throw new Exception("Exception goes to err.txt too");
+        } catch (Exception e) {
+                e.printStackTrace();
+        }*/
 
-		//System.setErr(console);
-		//System.err.println("This also goes to the console");
+        //System.setErr(console);
+        //System.err.println("This also goes to the console");
 		
         final About nAbout = new About();
         mainWindowPane = new Pane();
@@ -2962,6 +3051,21 @@ public class FXUIGameMaster extends Application {
             showOptionsAndAbout(primaryStage.getScene().getWindow(),
                     new Button[]{tellMe, tellMe2, windowOptions, audioOptions});
         });
+        
+        //Toggle fullscreen.
+        Button fullScrnBtn = new Button("Toggle Fullscreen.\n(toggle...fullscreen?)");
+        fullScrnBtn.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent t) {
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        primaryStage.setFullScreen(!primaryStage.isFullScreen());
+                    }
+                });
+            }
+        });
+
 
         /*
          * Add buttons to panel. Tweak these additions depending on whether there was an error
@@ -2971,7 +3075,7 @@ public class FXUIGameMaster extends Application {
         if (!fullAppExit) { //if we had no error
             primaryStatusButtonPanel.getChildren().addAll(subStatusTextElement,
             	mainStatusTextElement, startButtonPanel, stopGameBtn, exitApp,
-            	showAboutBtn, showLogBtn, saveMe, doLogging, logPlayback,
+            	showAboutBtn, showLogBtn, saveMe, doLogging, logPlayback, fullScrnBtn,
             	FXUIGameMaster.extendedMessageDisplay);
             mainWindowPane.getChildren().addAll(activeGameIndic, musicPulseIndicator, 
             		flashCurrCountries, primaryStatusButtonPanel);
@@ -3285,7 +3389,7 @@ public class FXUIGameMaster extends Application {
 	
 	private static void gameRunningVisualIndicatorHelper(Node visualIndicator){
 		final int totalAnimationTime = 3000;
-		final int discreteSteps = 60, startingStep = 1;
+		final int discreteSteps = 30, startingStep = 1;
 		final Date runToAnimate = FXUIGameMaster.gameStartTime;
 		final long sleepTime = totalAnimationTime/(2*discreteSteps);
 		final long timeBetweenPulses = 2000;
