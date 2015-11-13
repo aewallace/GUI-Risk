@@ -238,8 +238,11 @@ public class FXUIPlayer implements Player {
      */
     private boolean validateName(String potentialName, Collection<String> unavailableNames) {
         FXUIGameMaster.diagnosticPrintln("(" + potentialName + ")");
+        if (potentialName == null){
+            return false;
+        }
         potentialName = potentialName.trim();
-        if (potentialName == null || potentialName.length() < 1) {
+        if(potentialName.length() < 1) {
             return false;
         }
         if (unavailableNames != null && unavailableNames.contains(potentialName)) {
@@ -324,7 +327,7 @@ public class FXUIPlayer implements Player {
                     Button acceptIt = new Button("accept/ok");
                     fireButtonAfter3SHover(acceptIt);
                     Button autoSet = new Button("skip(auto-set)");
-                    fireButtonOnHover(autoSet);
+                    repeatFireOnPressAndHover(autoSet);
 
                     potentialName.setOnKeyTyped(new EventHandler<KeyEvent>() {
                         @Override
@@ -485,7 +488,7 @@ public class FXUIPlayer implements Player {
 
                         //button to increment reinforcement count for selected country
                         Button plus = new Button("+");
-                        fireButtonOnHover(plus);
+                        repeatFireOnPressAndHover(plus);
                         plus.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent event) {
@@ -499,7 +502,7 @@ public class FXUIPlayer implements Player {
                         });
                         //button to decrement reinforcement count for selected country
                         Button minus = new Button("-");
-                        fireButtonOnHover(minus);
+                        repeatFireOnPressAndHover(minus);
                         minus.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent t) {
@@ -800,8 +803,8 @@ public class FXUIPlayer implements Player {
                         final HBox singleCountryDisp = new HBox(4);
                         Button plus = new Button("+");
                         Button minus = new Button("-");
-                        fireButtonOnHover(plus);
-                        fireButtonOnHover(minus);
+                        repeatFireOnPressAndHover(plus);
+                        repeatFireOnPressAndHover(minus);
                         singleCountryDisp.setAlignment(Pos.CENTER);
                         map.getCountryArmies(ctIn);
                         countryUsedReinforcementCount.put(ctIn.getName(), 0);
@@ -951,9 +954,9 @@ public class FXUIPlayer implements Player {
 
                     Text diceCountStatus = new Text("Dice Count:\n- - -");
                     final Button diceCountDec = new Button("Dice--");
-                    fireButtonOnHover(diceCountDec);
+                    repeatFireOnPressAndHover(diceCountDec);
                     final Button diceCountInc = new Button("Dice++");
-                    fireButtonOnHover(diceCountInc);
+                    repeatFireOnPressAndHover(diceCountInc);
                     final HBox diceDisplay = new HBox(10);
 
                     ScrollPane spaneLeft = new ScrollPane();
@@ -1024,7 +1027,7 @@ public class FXUIPlayer implements Player {
 					* */
                     for (Country source : sources) {
                         final Button ctSrcBtn = new Button(source.getName());
-                        fireButtonOnHover(ctSrcBtn);
+                        repeatFireOnPressAndHover(ctSrcBtn);
                         ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent t) {
@@ -1041,7 +1044,7 @@ public class FXUIPlayer implements Player {
                                 for (Country target : source.getNeighbors()) {
                                     if (!map.getCountryOwner(target).equals(getName())) {
                                         final Button ctTgtBtn = new Button(target.getName());
-                                        fireButtonOnHover(ctTgtBtn);
+                                        repeatFireOnPressAndHover(ctTgtBtn);
                                         ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
                                             @Override
                                             public void handle(ActionEvent t) {
@@ -1216,9 +1219,9 @@ public class FXUIPlayer implements Player {
                     final HBox countryCounts = new HBox(24);
 
                     final Button plusle = new Button("Add/+");
-                    fireButtonOnHover(plusle);
+                    repeatFireOnPressAndHover(plusle);
                     final Button minun = new Button("Recall/-");
-                    fireButtonOnHover(minun);
+                    repeatFireOnPressAndHover(minun);
                     final HBox allocationButtons = new HBox(4);
 
                     final Button acceptance = new Button("Submit/OK");
@@ -1451,7 +1454,7 @@ public class FXUIPlayer implements Player {
 
                     for (Country source : sources) {
                         final Button ctSrcBtn = new Button(source.getName());
-                        fireButtonOnHover(ctSrcBtn);
+                        repeatFireOnPressAndHover(ctSrcBtn);
                         //disable the buttons if there's no adjacent countries
                         ctSrcBtn.setDisable(true);
                         for (Country dest : destMap.get(source)) {
@@ -1474,7 +1477,7 @@ public class FXUIPlayer implements Player {
                                 for (Country dest : destMap.get(source)) {
                                     if (dest != source) {
                                         final Button ctTgtBtn = new Button(dest.getName());
-                                        fireButtonOnHover(ctTgtBtn);
+                                        repeatFireOnPressAndHover(ctTgtBtn);
                                         ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
                                             @Override
                                             public void handle(ActionEvent t) {
@@ -1513,7 +1516,7 @@ public class FXUIPlayer implements Player {
                     bothCountryGroups.setAlignment(Pos.CENTER);
 
                     final Button plusle = new Button("Troops++");
-                    fireButtonOnHover(plusle);
+                    repeatFireOnPressAndHover(plusle);
                     //plusle.setDefaultButton(true);
                     plusle.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
@@ -1528,7 +1531,7 @@ public class FXUIPlayer implements Player {
                     });
 
                     final Button minun = new Button("Troops--");
-                    fireButtonOnHover(minun);
+                    repeatFireOnPressAndHover(minun);
                     //minun.setDefaultButton(true);
                     minun.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
@@ -1659,9 +1662,9 @@ public class FXUIPlayer implements Player {
 
                     Text diceCountStatus = new Text("Dice Count: " + rsp.getNumDice() + "\n(" + maxDfdDiceAvailable + " allowed)");
                     final Button diceCountDec = new Button("Dice--");
-                    fireButtonOnHover(diceCountDec);
+                    repeatFireOnPressAndHover(diceCountDec);
                     final Button diceCountInc = new Button("Dice++");
-                    fireButtonOnHover(diceCountInc);
+                    repeatFireOnPressAndHover(diceCountInc);
                     final HBox diceDisplay = new HBox(10);
 
                     Button acceptIt = new Button("Accept/OK");
@@ -1770,6 +1773,55 @@ public class FXUIPlayer implements Player {
     
     /**
      * Takes a button that's been set up with a "setOnAction" command
+     * and makes it so that button will fire multiple times on long press.
+     * @param btn 
+     */
+    private static void repeatFireOnPressAndHover(Button btn){
+        if(btn == null){
+            return;
+        }
+        EventHandler<MouseEvent> mEvent = (new EventHandler<MouseEvent>(){
+            @Override
+            public void handle(MouseEvent event) {
+                //btn.fire();
+                try{
+                    Thread ctdRun = new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            final long fireDelta = 650;
+                            RiskUtils.sleep(fireDelta);
+                            while(btn.isPressed() || btn.isHover()){
+                                try{
+                                    Platform.runLater(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            btn.fire();
+                                        }
+                                    });
+                                    RiskUtils.sleep(fireDelta);
+                                }
+                                catch (Exception e){
+                                        e.printStackTrace();
+                                }
+                            }
+                        }
+                    });
+                    ctdRun.setDaemon(true);
+                    ctdRun.start();
+                }
+                catch (Exception e){
+                        e.printStackTrace();
+                        return;
+                }
+            }
+
+        });
+        btn.setOnMousePressed(mEvent);
+        //btn.setOnMouseClicked(mEvent);
+        //btn.setOnMouseEntered(mEvent);
+    }
+    /**
+     * Takes a button that's been set up with a "setOnAction" command
      * and makes it so that button will fire on hover.
      * Also makes it so that the button will continue to fire with extended hovering.
      * @param btn 
@@ -1787,7 +1839,8 @@ public class FXUIPlayer implements Player {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            RiskUtils.sleep(975);
+                            final long refreshDelta = 975;
+                            RiskUtils.sleep(refreshDelta);
                             while(btn.isHover()){
                                 try{
                                     Platform.runLater(new Runnable() {
@@ -1796,7 +1849,7 @@ public class FXUIPlayer implements Player {
                                             btn.fire();
                                         }
                                     });
-                                    RiskUtils.sleep(975);
+                                    RiskUtils.sleep(refreshDelta);
                                 }
                                 catch (Exception e){
                                         e.printStackTrace();
