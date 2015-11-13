@@ -131,7 +131,7 @@ public class FXUIGameMaster extends Application {
      */
     // TODO make it so that loading old saves will not "hide" (fail to display)
     //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Dh\nStamp 2015.11.12, 18:00\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Dh\nStamp 2015.11.12, 18:18\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -402,7 +402,7 @@ public class FXUIGameMaster extends Application {
         dialog.setTitle("new? restore?");
         dialog.initOwner(owner);
         dialog.setX(owner.getX());
-        dialog.setY(owner.getY() + 300);
+        dialog.setY(owner.getY() + 100);
 
         final Pane miniPane = new Pane();
 
