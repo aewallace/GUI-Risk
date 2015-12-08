@@ -36,7 +36,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x15h\nStamp 2015.10.30, 22:00\nStability:Beta(02)";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x15h\nStamp 2015.12.07, 17:33\nStability:Beta(02)";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
@@ -476,6 +476,7 @@ public class WindowResizeHandler {
         	.setAll(new Scale(scalePercentageWidth, scalePercentageHeight));
         activeScene.getRoot().setLayoutX(xTranslate);
         activeScene.getRoot().setLayoutY(yTranslate);
+        activeStage.toBack(); //make sure no dialogs get covered up
         FXUIGameMaster.diagnosticPrintln("xTranslate and yTranslate? " + xTranslate + " ::: " +
         		yTranslate);
         FXUIGameMaster.diagnosticPrintln("Scaling should be complete."

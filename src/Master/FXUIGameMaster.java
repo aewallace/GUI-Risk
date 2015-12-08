@@ -131,7 +131,7 @@ public class FXUIGameMaster extends Application {
      */
     // TODO make it so that loading old saves will not "hide" (fail to display)
     //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Dh\nStamp 2015.11.12, 18:18\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Dh\nStamp 2015.12.07, 17:33\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -747,7 +747,12 @@ public class FXUIGameMaster extends Application {
                         RiskUtils.sleep(2*AUTO_CLOSE_TIMEOUT);
                     }
                     if (dialogIsShowing.get()) {
-                        Platform.runLater(dialog::close);
+                    	Platform.runLater(() -> {
+                            dialog.close();
+                            if(mainStage.isShowing() && !mainStage.isFocused()){
+                            	mainStage.toBack();
+                            }
+                        });
                     }
                 });
                 acDialog.setDaemon(true);
@@ -772,7 +777,12 @@ public class FXUIGameMaster extends Application {
                         RiskUtils.sleep(2*AUTO_CLOSE_TIMEOUT);
                     }
                     if (dialog.isShowing()) {
-                        Platform.runLater(dialog::close);
+                    	Platform.runLater(() -> {
+                            dialog.close();
+                            if(mainStage.isShowing() && !mainStage.isFocused()){
+                            	mainStage.toBack();
+                            }
+                        });
                     }
                 });
                 aCloser.setName("autoCloseDialog long");
@@ -3053,7 +3063,7 @@ public class FXUIGameMaster extends Application {
         });
         
         //Toggle fullscreen.
-        Button fullScrnBtn = new Button("Toggle Fullscreen.\n(toggle...fullscreen?)");
+        Button fullScrnBtn = new Button("Toggle Fullscreen.");
         fullScrnBtn.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
