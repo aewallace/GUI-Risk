@@ -36,7 +36,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x15h\nStamp 2015.12.07, 17:33\nStability:Beta(02)";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x17h\nStamp 2015.12.29, 17:33\nStability:Beta(02)";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
@@ -939,6 +939,85 @@ public class WindowResizeHandler {
             	
             });
             
+            
+            /**
+             * Set up control of yellow eyestrain filter, AutoBrite function,
+             * and manual brightness control.
+             */
+            CheckBox applyFilter = new CheckBox("Enable Yellow Filter[for eyestrain]");
+            applyFilter.setTooltip(new Tooltip("Enable or Disable yellow filter "
+            		+ "for nighttime gameplay, or play in dark environments"
+            		+ " [more effective when game is dimmed, or allowed to auto-dim due to time of day]"));
+            applyFilter.setTextFill(Color.ANTIQUEWHITE);
+            applyFilter.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+            applyFilter.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent t) {
+                    if (applyFilter.isSelected()) {
+                    	FXUIGameMaster.applyGoldenBackgroundHue();
+                    } else if (!applyFilter.isSelected()) {
+                        FXUIGameMaster.returnToBlackBackgroundHue();
+                    } else {
+                        //do nothing
+                    }
+                }
+            });
+            applyFilter.setSelected(FXUIGameMaster.goldenHueApplied());
+            
+            CheckBox autoDim = new CheckBox("Enable Time-based Auto Dimming");
+            autoDim.setTooltip(new Tooltip("Automatically dim window based on time of day. "
+            		+ "Noon = brighter. Midnight = darker. If yellow filter applied, "
+            		+ "Noon = less effective, Midnight = more effective."));
+            autoDim.setTextFill(Color.ANTIQUEWHITE);
+            autoDim.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+            autoDim.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent t) {
+                    if (autoDim.isSelected()) {
+                    	FXUIGameMaster.enableAutoAdjustBrightness();
+                    } else if (!autoDim.isSelected()) {
+                        FXUIGameMaster.disableAutoBrightness();
+                    } else {
+                        //do nothing
+                    }
+                }
+            });
+            autoDim.setSelected(FXUIGameMaster.isAutoBrightnessActive());
+            
+            Text britenessSliderLabel = new Text("Brightness(Manually Set) [%]");
+            britenessSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
+            britenessSliderLabel.setFill(Color.WHITE);
+
+            Slider britenessSlider = new Slider(0.5f, 1.0f, 1.0f);
+            britenessSlider.setSnapToTicks(false);
+            britenessSlider.setShowTickMarks(true);
+            britenessSlider.setMajorTickUnit(0.25f);
+            britenessSlider.setMinorTickCount(0);
+            britenessSlider.setTooltip(new Tooltip("Window Brightness (percentage)"));
+            britenessSlider.valueProperty().addListener(new ChangeListener<Number>() {
+                @Override
+                public void changed(ObservableValue<? extends Number> ov,
+                        Number old_val, Number new_val) {
+                    if (!britenessSlider.isDisabled()) {
+                        FXUIGameMaster.requestBrightness(new_val.doubleValue());
+                    }
+                }
+            });
+            
+            //Disable and enable manual dimming based on AutoBrite status.
+            autoDim.selectedProperty().addListener(new ChangeListener<Boolean>(){
+				@Override
+				public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+					if(newValue.booleanValue() == true){
+						britenessSlider.setDisable(true);
+					}
+					else{
+						britenessSlider.setDisable(false);
+					}
+					
+				}
+            });
+            
             double widthOfLines = 180d;
             double strokeThicknessOfLines = 3.0d;
             Color colorOfLines = Color.CHOCOLATE;
@@ -958,7 +1037,8 @@ public class WindowResizeHandler {
             layout.getChildren().setAll(
                     querySymbol, queryText, bufferLineOne, doFullScreen,
                     bufferLineTwo, windowSizeSliderLabel, windowSizeSlider,
-                    bufferLineThree, /*nah,*/ yeah, spaceBuffer
+                    bufferLineThree, autoDim, applyFilter, britenessSliderLabel, britenessSlider,
+                    bufferLineFour, /*nah,*/ yeah, spaceBuffer
             );
 
             dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {

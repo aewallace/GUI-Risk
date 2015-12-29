@@ -47,6 +47,7 @@ import java.io.ObjectInputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -83,10 +84,13 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.Paint;
 import javafx.scene.shape.Arc;
 import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Line;
@@ -131,7 +135,7 @@ public class FXUIGameMaster extends Application {
      */
     // TODO make it so that loading old saves will not "hide" (fail to display)
     //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Dh\nStamp 2015.12.07, 17:33\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Egh\nStamp 2015.12.29, 17:33\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -173,7 +177,7 @@ public class FXUIGameMaster extends Application {
     protected List<String> allPlayers;
     protected int round, turnCount;
 
-    private Scene scene;
+    private static Scene scene;
     private static Stage mainStage;
     private static Pane mainWindowPane;
     private static Text subStatusTextElement;
@@ -191,6 +195,7 @@ public class FXUIGameMaster extends Application {
     
 
     private static WindowResizeHandler mainWindowResizeHandler = null;
+    private static Thread aaBright = null;
     
     
 
@@ -216,6 +221,8 @@ public class FXUIGameMaster extends Application {
     private static Thread clockedUIRefreshThreadB = null;
     private static Node gameRunningIndicator = null;
 	private static boolean indicatorAnimatedAlready;
+	private static boolean colorAdjusted;
+	private static boolean runAutoBrightness;
     private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
 
     
@@ -2772,31 +2779,12 @@ public class FXUIGameMaster extends Application {
     @Override
     public void start(final Stage primaryStage) throws Exception {
         System.out.println("Preparing window...");
-        //System.err.println("This goes to the console");
-        //PrintStream console = System.err;
-        /*
-        File file = new File("err.txt");
-        FileOutputStream fos = new FileOutputStream(file);
-        PrintStream ps = new PrintStream(fos);
-        System.setErr(ps);
-
-        System.err.println("This goes to err.txt");
-        */
-
-        /*
-        try {
-                throw new Exception("Exception goes to err.txt too");
-        } catch (Exception e) {
-                e.printStackTrace();
-        }*/
-
-        //System.setErr(console);
-        //System.err.println("This also goes to the console");
 		
         final About nAbout = new About();
         mainWindowPane = new Pane();
         mainWindowPane.setPrefSize(FXUIGameMaster.DEFAULT_CONTENT_WIDTH, FXUIGameMaster.DEFAULT_CONTENT_HEIGHT);
-        mainWindowPane.setStyle("-fx-background-color: black");
+        //mainWindowPane.setStyle("-fx-background-color: darkgoldenrod");
+        mainWindowPane.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
         /*
          * The pulse line for the bottom of the screen.
          */
@@ -3101,7 +3089,10 @@ public class FXUIGameMaster extends Application {
 		 * Add the layout (and, by extension, its contents) to the Scene.
 		 * We'll add the Scene to the Stage (the main window) later.
 		 */
-        scene = new Scene(mainWindowPane, Color.BLACK);
+        
+        Color colorToSet = Color.BLACK;
+        mainWindowPane.setBackground(new Background(new BackgroundFill(colorToSet, null, null)));
+        scene = new Scene(mainWindowPane, colorToSet);
 
 		//Add buttons to an array, to allow easy enable/disable depending on state.
         //Use the ENUM table "ButtonIndex" to access elements in the array -- and set the targeted capacity.***
@@ -3143,16 +3134,157 @@ public class FXUIGameMaster extends Application {
         });
         
         /*
-         * Do other "welcome" things: About, audio chime.
+         * Do other "welcome" things: About, auto brightness.
          */
-        
 		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
+		enableAutoAdjustBrightness();
+		applyGoldenBackgroundHue();
 
         /*
          * Print to output that we're ready. This is the end of the process.
          * The buttons shown on the UI take over from this point.
          */
         System.out.println("RISK is ready.\n" + FXUIGameMaster.VERSION_INFO);
+        
+    }
+    
+    /**
+     * Enable automatic brightness (AutoBrite) adjustment using variables specific to this
+     * class, without forcing other classes to access the necessary Pane object.
+     * ...Thus allowing calls from other classes.
+     */
+    public static void enableAutoAdjustBrightness(){
+    	autoAdjustBrightness(mainWindowPane);
+    }
+    
+    /**
+     * Look at the time of day and adjust brightness of window contents.
+     * (Runs a continuous AutoBrite thread in the background).
+     * @param targetWindowPane the Pane object representing the window contents.
+     */
+    private static void autoAdjustBrightness(Pane targetWindowPane){
+    	if(aaBright != null && aaBright.isAlive() == true){
+    		return;
+    	}
+    	long dimTaskTime = 250l;
+    	int dimSteps = 25;
+    	aaBright = new Thread(() -> {
+    		FXUIGameMaster.runAutoBrightness = true;
+    		double startingOpacity = targetWindowPane.getOpacity();
+    		targetWindowPane.getScene().getWindow();
+    		try{
+	            while(FXUIGameMaster.mainStage.isShowing() && runAutoBrightness){
+	                Platform.runLater(() -> {
+	                	targetWindowPane.setOpacity(determineBrightnessForTimeOfDay());
+	                    System.out.println("Dimmed to " + targetWindowPane.getOpacity() 
+	                    	+ ". AutoBrite? = " + runAutoBrightness);
+	                });
+	                
+	                Thread.sleep(5*60*1000); //wait 5 minutes before doing loop
+	            }
+    		}
+    		catch(InterruptedException e){
+	            	targetWindowPane.setOpacity(1.0d);
+	            	System.out.println("AutoBrite disabled.");
+    		}
+            aaBright = null;
+        });
+        aaBright.setName("autoAdjustBrightnessDaemon");
+	    aaBright.setDaemon(true);
+	    aaBright.start();
+    }
+    
+    /**
+     * Disable auto brightness feature (AutoBrite).
+     */
+    public static void disableAutoBrightness(){
+    	System.out.println("Setting AutoBrite to disabled...");
+    	runAutoBrightness = false;
+    	if(aaBright != null && aaBright.isAlive()){
+    		aaBright.interrupt();
+    	}
+    }
+    
+    public static boolean isAutoBrightnessActive(){
+    	return runAutoBrightness;
+    }
+    
+    /**
+     * Attempt to set the window to a certain brightness, if autobrite isn't active.
+     * Also guarantees a minimum visibility of at least 50%.
+     * @param brightnessVal
+     * @return
+     */
+    public static boolean requestBrightness(double brightnessVal){
+    	if(runAutoBrightness){
+    		return !runAutoBrightness;
+    	}
+    	else{
+    		if(brightnessVal > 0.5d){
+    			mainWindowPane.setOpacity(brightnessVal);
+    			return true;
+    		}
+    		else{
+    			mainWindowPane.setOpacity(0.5d);
+    			return false;
+    		}
+    	}
+    }
+    
+    /**
+     * With a base guaranteed opacity of 0.75 (75%), determines the brightness
+     * (opacity) value to use for a not-supplied Node object. Looks only at the
+     * hours of the day; brightest point will be at noon, with dimmest being at 
+     * midnight.
+     * @return double value representing the suggested opacity.
+     */
+    private static double determineBrightnessForTimeOfDay(){
+    	Date date = new Date();
+    	Calendar cale = Calendar.getInstance();
+    	
+    	int hourOfDate = cale.get(Calendar.HOUR_OF_DAY);
+    	int hour = cale.get(Calendar.HOUR);
+    	if(hourOfDate < 12){
+    		return 0.75d + (double)hour/48d;
+    	}
+    	else{
+    		return 0.75d + (double)(12-(hour))/48d;
+    	}
+    }
+    
+    /**
+     * Used to reduce the harshness of some screens to ease playback in dark 
+     * areas, especially as nighttime approaches.
+     * @return
+     */
+    public static boolean applyGoldenBackgroundHue(){
+    	Color colorToSet = Color.DARKGOLDENROD;
+        Color adjustedColor = colorToSet.deriveColor(0d, 1d, 0.1d, 1d);
+        mainWindowPane.setBackground(new Background(new BackgroundFill(adjustedColor, null, null)));
+        FXUIGameMaster.colorAdjusted = true;
+        scene.setFill(adjustedColor);
+        return colorAdjusted;
+    }
+    
+    /**
+     * Used to return to a neutral "black" background, in the event the user
+     * elects to avoid automatic color shifting.
+     * @return
+     */
+    public static boolean returnToBlackBackgroundHue(){
+    	Color newColor = Color.BLACK;
+        mainWindowPane.setBackground(new Background(new BackgroundFill(newColor, null, null)));
+        scene.setFill(newColor);
+        colorAdjusted = false;
+        return colorAdjusted;
+    }
+    
+    /**
+     * Query the state of the golden hue background.
+     * @return "true" if applied/active, "false" if not active.
+     */
+    public static boolean goldenHueApplied(){
+    	return colorAdjusted;
     }
     
     /**
@@ -3227,11 +3359,11 @@ public class FXUIGameMaster extends Application {
         textGoodbye.setFill(Color.ALICEBLUE);
         textGoodbye.setStroke(Color.CORAL);
     	final Rectangle foregroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
-    	foregroundRectangle.setFill(Color.BLUEVIOLET);
+    	foregroundRectangle.setFill(Color.DARKRED);
     	final Text textRisk = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
     	textRisk.setTextAlignment(TextAlignment.CENTER);
         textRisk.setFont(Font.font("System", FontWeight.BOLD, 256));
-        textRisk.setFill(Color.ALICEBLUE);
+        textRisk.setFill(Color.BLACK);
         textRisk.setStroke(Color.CORAL);
         GaussianBlur gBlur = new GaussianBlur(5);
         Glow gGlow = new Glow(1.0d);
