@@ -1,5 +1,5 @@
 //FXUI GameMaster-Player Crossbar Link
-//Albert Wallace, 2015. (Version 00x05h, Stamp 2015.04.09.1230, Type Modifiable/MNT(00).
+//Albert Wallace, 2015. (Version 0006, Stamp 2016.01.09, 14:13, Type Alpha(01).
 //for Seth Denney's RISK, JavaFX UI-capable version
 
 package Util;
@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import Player.FXUIPlayer;
 import Player.Player;
 import javafx.application.Platform;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
 
@@ -28,6 +29,8 @@ public class FXUI_Crossbar {
 	private static boolean fxPlayerQuit = false;
 	private static String lastHPlayerName = "";
 	private static ArrayList<String> allHPlayerNames = new ArrayList<String>();
+	private static double britenessOpacity = 1.0d;
+	private static Color strainReliefColor = Color.BLACK;
 
 	public FXUI_Crossbar() {
 		// TODO Auto-generated constructor stub
@@ -116,5 +119,42 @@ public class FXUI_Crossbar {
 	public static ArrayList<String> getAllHPlayerNames() {
 		return allHPlayerNames;
 	}
+
+	/**
+	 * @return the britenessOpacity to use when setting up windows in FXUIPlayer.
+	 */
+	public static double getBritenessOpacity() {
+		return britenessOpacity;
+	}
+
+	/**
+	 * @param britenessOpacity the brightness to store. (with a black background, 0
+	 * is darkest, and 1 is brightest. With strain relief background, depends
+	 * on the color used; a dark yellow--default--works the same as black. This 
+	 * method is passive, however, and will not validate your choices.) Used
+	 * by FXUIPlayer.
+	 */
+	public static void storeBritenessOpacity(double britenessOpacity) {
+		FXUI_Crossbar.britenessOpacity = britenessOpacity;
+	}
+
+	/**
+	 * @return the strainReliefColor to use when settings up windows in FXUIPlayer.
+	 */
+	public static Color getStrainReliefColor() {
+		return strainReliefColor;
+	}
+
+	/**
+	 * @param strainReliefColor the strainReliefColor to set. (a black background
+	 * is default, and for strain relief, a dark yellow background is default and
+	 * is the official recommendation to be passed in. This method is passive,
+	 * however, and will not validate your choices.) Used by FXUIPlayer.
+	 */
+	public static void storeStrainReliefColor(Color strainReliefColor) {
+		FXUI_Crossbar.strainReliefColor = strainReliefColor;
+	}
+	
+	
 
 }

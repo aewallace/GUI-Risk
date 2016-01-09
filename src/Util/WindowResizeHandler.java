@@ -15,6 +15,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
@@ -36,7 +39,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 00x17h\nStamp 2015.12.29, 17:33\nStability:Beta(02)";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 0018\nStamp 2015.12.29, 17:34\nStability:Beta(02)";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
@@ -999,7 +1002,7 @@ public class WindowResizeHandler {
                 public void changed(ObservableValue<? extends Number> ov,
                         Number old_val, Number new_val) {
                     if (!britenessSlider.isDisabled()) {
-                        FXUIGameMaster.requestBrightness(new_val.doubleValue());
+                        FXUIGameMaster.requestToSetBrightness(new_val.doubleValue());
                     }
                 }
             });
@@ -1047,8 +1050,9 @@ public class WindowResizeHandler {
                     dialogIsShowing.set(false);
                 }
             });
-
-            dialog.setScene(new Scene(layout));
+            Pane finalPane = new Pane(layout);
+            finalPane.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
+            dialog.setScene(new Scene(finalPane));
             dialog.show();
         } catch (Exception e) {
             System.out.println("ERROR: resize dialog display failed:: " + e);

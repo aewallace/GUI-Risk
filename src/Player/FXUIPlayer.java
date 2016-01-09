@@ -12,7 +12,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -30,6 +32,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -70,7 +73,7 @@ import javafx.scene.input.MouseEvent;
  */
 public class FXUIPlayer implements Player {
 
-    public static final String versionInfo = "FXUI-RISK-Player\nVersion 01x11h\nStamp 2015.11.12, 08:00\nStability: Alpha(01)";
+    public static final String versionInfo = "FXUI-RISK-Player\nVersion 0111\nStamp 2016.01.09, 14:11\nStability: Alpha(01)";
 
     private static boolean instanceAlreadyCreated = false;
     private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
@@ -112,6 +115,8 @@ public class FXUIPlayer implements Player {
     private static Stage persistentDialog = null;
 
     private boolean lastCoordIsKnown = false;
+    private static HashMap<Stage, Node> nodesForBriteMap = new HashMap<>();
+    private static HashMap<Stage, Scene> scenesForStrainReliefMap = new HashMap<>();
 
     /**
      * Note: there is an artificial limitation (imposed by this class) where
@@ -204,12 +209,16 @@ public class FXUIPlayer implements Player {
      * dialog, will stall indefinitely until the correct, associated dialog is
      * closed. Will be interrupted (and return) if an attempt to end the game is
      * registered by the local Crossbar.
+     * Also prompts class to clear old references to past dialogs (Stages) which
+     * had been registered for brightness & eye-strain management.
      */
     private void waitForDialogToClose(FXUI_Crossbar xbar) {
         RiskUtils.sleep(1000);
         do {
             RiskUtils.sleep(100);
         } while (xbar.getCurrentPlayerDialog() != null && xbar.getCurrentPlayerDialog().isShowing() && !xbar.isHumanEndingGame());
+        deregisterInactivesFromBrightnessControl();
+        deregisterInactivesFromEyeStrainControl();
     }
 
     /**
@@ -227,6 +236,81 @@ public class FXUIPlayer implements Player {
             //ask if the user actually wants the game to end
             this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false, 0) <= 0;
         }
+    }
+    
+    /**
+     * Register a given Node for automatic or manual changing of the window's brightness
+     * (opacity), in an attempt to prevent blinding light during nighttime, based on
+     * the setting done by FXUIGameMaster & stored in the FXUI_Crossbar.
+     * @param stageIn the Stage which houses the Node used as the primary layout controller.
+     * @param nodeIn the primary layout controller & root of the Scene for the supplied Stage.
+     */
+    private void registerNodeForBrightnessControl(Stage stageIn, Node nodeIn){
+    	nodesForBriteMap.put(stageIn,  nodeIn);
+    	applyBrightnessControlToKnownNodes(FXUI_Crossbar.getBritenessOpacity());
+    }
+    
+    /**
+     * Checks for any inactive Stages and, for those found, deregisters their
+     * associated layout Node from eye strain control. (Prevents the software 
+     * from trying to change the brightness of a Node which is no longer active).
+     */
+    private void deregisterInactivesFromBrightnessControl(){
+    	for(Entry<Stage, Node> entrySN : nodesForBriteMap.entrySet()){
+    		if(!entrySN.getKey().isShowing()){
+    			nodesForBriteMap.remove(entrySN.getKey());
+    		}
+    	}
+    	
+    }
+    
+    /**
+     * Register a given Scene for automatic or manual changing of the background
+     * color, in an attempt to reduce eye strain, based on the setting done by 
+     * FXUIGameMaster & stored in the FXUI_Crossbar.
+     * @param stageIn
+     * @param sceneIn
+     */
+    private void registerSceneForEyeStrainControl(Stage stageIn, Scene sceneIn){
+    	scenesForStrainReliefMap.put(stageIn, sceneIn);
+    	applyEyeStrainControlToKnownScenes(FXUI_Crossbar.getStrainReliefColor());
+    }
+    
+    /**
+     * Checks for any inactive Stages and, for those found, deregisters their
+     * associated Scene from eye strain control. (Prevents the software from
+     * trying to change the color of a Scene which is no longer active).
+     */
+    private void deregisterInactivesFromEyeStrainControl(){
+    	for(Entry<Stage, Scene> entrySS : scenesForStrainReliefMap.entrySet()){
+    		if(!entrySS.getKey().isShowing()){
+    			scenesForStrainReliefMap.remove(entrySS.getKey());
+    		}
+    	}
+    	
+    }
+    
+    /**
+     * Apply a given color to all known Scene objects 
+     * (FXUIPlayer-related Scene objects only) in an attempt to reduce eye strain.
+     * @param colorToApply
+     */
+    public static void applyEyeStrainControlToKnownScenes(Color colorToApply){
+    	for(Entry<Stage, Scene> sceneApp : scenesForStrainReliefMap.entrySet()){
+    		sceneApp.getValue().setFill(colorToApply);
+    	}
+    }
+    
+    /**
+     * Apply a given brightness to all known Node objects (FXUIPlayer-related 
+     * Node objects only, such as a primary Pane, ScrollPane, or VBox/HBox), 
+     * based on the prior setting controlled by the FXUIGameMaster class.
+     * @param opacity
+     */
+    public static void applyBrightnessControlToKnownNodes(double opacity){
+    	for(Entry<Stage, Node> nodeApp : nodesForBriteMap.entrySet()){
+    		nodeApp.getValue().setOpacity(opacity);
+    	}
     }
 
     /**
@@ -402,6 +486,8 @@ public class FXUIPlayer implements Player {
                     layout.getChildren().addAll(guideText, guideText2, statusText, potentialName, checkName, acceptIt, autoSet);
                     //formally add linear layout to scene, and display the dialog
                     dialog.setScene(new Scene(layout));
+                    registerNodeForBrightnessControl(dialog, layout);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -541,10 +627,15 @@ public class FXUIPlayer implements Player {
 
                     layout.getChildren().addAll(statusText, acceptIt);
                     ScrollPane superSPane = new ScrollPane(layout);
+                    
                     //formally add linear layout to scene, and display the dialog
                     dialog.setScene(new Scene(superSPane));
+                    
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+                    
+                    registerNodeForBrightnessControl(dialog, superSPane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -717,8 +808,11 @@ public class FXUIPlayer implements Player {
 
                     //formally add linear layout to scene, and display the dialog
                     dialog.setScene(new Scene(layout));
+                    
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+                    registerNodeForBrightnessControl(dialog, layout);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -866,6 +960,9 @@ public class FXUIPlayer implements Player {
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+                    
+                    registerNodeForBrightnessControl(dialog, spane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -1124,6 +1221,9 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
+                    
+                    registerNodeForBrightnessControl(dialog, spane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -1350,6 +1450,9 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(layout));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
+                    
+                    registerNodeForBrightnessControl(dialog, layout);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -1596,6 +1699,9 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+                    
+                    registerNodeForBrightnessControl(dialog, spane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });
@@ -1754,6 +1860,9 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
+                    
+                    registerNodeForBrightnessControl(dialog, spane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
                 }
             });

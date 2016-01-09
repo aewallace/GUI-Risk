@@ -135,7 +135,7 @@ public class FXUIGameMaster extends Application {
      */
     // TODO make it so that loading old saves will not "hide" (fail to display)
     //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 01x1Egh\nStamp 2015.12.29, 17:33\nStability:Beta(02)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 0120\nStamp 2016.01.09, 14:11\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -2783,8 +2783,7 @@ public class FXUIGameMaster extends Application {
         final About nAbout = new About();
         mainWindowPane = new Pane();
         mainWindowPane.setPrefSize(FXUIGameMaster.DEFAULT_CONTENT_WIDTH, FXUIGameMaster.DEFAULT_CONTENT_HEIGHT);
-        //mainWindowPane.setStyle("-fx-background-color: darkgoldenrod");
-        mainWindowPane.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
+        //mainWindowPane.setStyle("-fx-background-color: darkgoldenrod"); //this is now set later
         /*
          * The pulse line for the bottom of the screen.
          */
@@ -3090,9 +3089,12 @@ public class FXUIGameMaster extends Application {
 		 * We'll add the Scene to the Stage (the main window) later.
 		 */
         
-        Color colorToSet = Color.BLACK;
-        mainWindowPane.setBackground(new Background(new BackgroundFill(colorToSet, null, null)));
-        scene = new Scene(mainWindowPane, colorToSet);
+        Color colorToSet = Color.GREEN;
+        //mainWindowPane.setBackground(new Background(new BackgroundFill(colorToSet, null, null)));
+        Color altColor = Color.BLACK;
+        scene = new Scene(mainWindowPane, altColor);
+        //scene = new Scene(mainWindowPane);
+        mainWindowPane.setBackground(null);
 
 		//Add buttons to an array, to allow easy enable/disable depending on state.
         //Use the ENUM table "ButtonIndex" to access elements in the array -- and set the targeted capacity.***
@@ -3175,9 +3177,10 @@ public class FXUIGameMaster extends Application {
     		try{
 	            while(FXUIGameMaster.mainStage.isShowing() && runAutoBrightness){
 	                Platform.runLater(() -> {
-	                	targetWindowPane.setOpacity(determineBrightnessForTimeOfDay());
-	                    System.out.println("Dimmed to " + targetWindowPane.getOpacity() 
-	                    	+ ". AutoBrite? = " + runAutoBrightness);
+	                	requestToSetBrightness(determineBrightnessForTimeOfDay());
+	                    System.out.println("Brightness set to " 
+	                    		+ String.format("%.2f", targetWindowPane.getOpacity() * 100)  
+	                    	+ "%. AutoBrite? = " + runAutoBrightness);
 	                });
 	                
 	                Thread.sleep(5*60*1000); //wait 5 minutes before doing loop
@@ -3215,17 +3218,21 @@ public class FXUIGameMaster extends Application {
      * @param brightnessVal
      * @return
      */
-    public static boolean requestBrightness(double brightnessVal){
+    public static boolean requestToSetBrightness(double brightnessVal){
     	if(runAutoBrightness){
     		return !runAutoBrightness;
     	}
     	else{
     		if(brightnessVal > 0.5d){
     			mainWindowPane.setOpacity(brightnessVal);
+    			crossbar.storeBritenessOpacity(brightnessVal);
+    			FXUIPlayer.applyBrightnessControlToKnownNodes(brightnessVal);
     			return true;
     		}
     		else{
     			mainWindowPane.setOpacity(0.5d);
+    			crossbar.storeBritenessOpacity(0.5d);
+    			FXUIPlayer.applyBrightnessControlToKnownNodes(0.5d);
     			return false;
     		}
     	}
@@ -3260,9 +3267,11 @@ public class FXUIGameMaster extends Application {
     public static boolean applyGoldenBackgroundHue(){
     	Color colorToSet = Color.DARKGOLDENROD;
         Color adjustedColor = colorToSet.deriveColor(0d, 1d, 0.1d, 1d);
-        mainWindowPane.setBackground(new Background(new BackgroundFill(adjustedColor, null, null)));
+        //mainWindowPane.setBackground(new Background(new BackgroundFill(adjustedColor, null, null)));
         FXUIGameMaster.colorAdjusted = true;
         scene.setFill(adjustedColor);
+        crossbar.storeStrainReliefColor(adjustedColor);
+        FXUIPlayer.applyEyeStrainControlToKnownScenes(adjustedColor);
         return colorAdjusted;
     }
     
@@ -3273,9 +3282,11 @@ public class FXUIGameMaster extends Application {
      */
     public static boolean returnToBlackBackgroundHue(){
     	Color newColor = Color.BLACK;
-        mainWindowPane.setBackground(new Background(new BackgroundFill(newColor, null, null)));
+        //mainWindowPane.setBackground(new Background(new BackgroundFill(newColor, null, null)));
         scene.setFill(newColor);
+        crossbar.storeStrainReliefColor(newColor);
         colorAdjusted = false;
+        FXUIPlayer.applyEyeStrainControlToKnownScenes(newColor);
         return colorAdjusted;
     }
     
