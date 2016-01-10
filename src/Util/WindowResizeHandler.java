@@ -1,10 +1,13 @@
 package Util;
 
 import Master.FXUIGameMaster;
+import Player.FXUIPlayer;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -13,6 +16,8 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Background;
@@ -39,7 +44,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 0018\nStamp 2015.12.29, 17:34\nStability:Beta(02)";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 0018\nStamp 2016.01.10, 17:34\nStability:Alpha(01)";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
@@ -881,10 +886,11 @@ public class WindowResizeHandler {
             });
 
             Text windowSizeSliderLabel = new Text("Window size [%]");
-            windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 16));
+            windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
             windowSizeSliderLabel.setFill(Color.WHITE);
 
             Slider windowSizeSlider = new Slider(0.1f, 1.5f, 0.75f);
+            windowSizeSlider.setScaleX(0.75);
             windowSizeSlider.setSnapToTicks(false);
             windowSizeSlider.setShowTickMarks(true);
             windowSizeSlider.setMajorTickUnit(0.25f);
@@ -904,7 +910,7 @@ public class WindowResizeHandler {
             CheckBox doFullScreen = new CheckBox("Display in fullscreen?");
             doFullScreen.setTooltip(new Tooltip("Enable or Disable fullscreen mode (enabled ignores screen sizing requests)"));
             doFullScreen.setTextFill(Color.ANTIQUEWHITE);
-            doFullScreen.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
+            doFullScreen.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
             doFullScreen.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent t) {
@@ -947,17 +953,19 @@ public class WindowResizeHandler {
              * Set up control of yellow eyestrain filter, AutoBrite function,
              * and manual brightness control.
              */
-            CheckBox applyFilter = new CheckBox("Enable Yellow Filter[for eyestrain]");
+            /*
+            CheckBox applyFilter = new CheckBox("eyeLief(eyestrain reduction)");
             applyFilter.setTooltip(new Tooltip("Enable or Disable yellow filter "
             		+ "for nighttime gameplay, or play in dark environments"
-            		+ " [more effective when game is dimmed, or allowed to auto-dim due to time of day]"));
+            		+ " [more effective when game is dimmed, less effective when"
+            		+ " game brightness is maximized]"));
             applyFilter.setTextFill(Color.ANTIQUEWHITE);
             applyFilter.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
             applyFilter.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent t) {
                     if (applyFilter.isSelected()) {
-                    	FXUIGameMaster.applyGoldenBackgroundHue();
+                    	FXUIGameMaster.applyGoldenBackgroundHue(false);
                     } else if (!applyFilter.isSelected()) {
                         FXUIGameMaster.returnToBlackBackgroundHue();
                     } else {
@@ -965,33 +973,55 @@ public class WindowResizeHandler {
                     }
                 }
             });
-            applyFilter.setSelected(FXUIGameMaster.goldenHueApplied());
+            applyFilter.setSelected(FXUIGameMaster.goldenHueApplied());*/
             
-            CheckBox autoDim = new CheckBox("Enable Time-based Auto Dimming");
+            ChoiceBox<Object> eyeReliefChoice = new ChoiceBox<Object>();
+            eyeReliefChoice.setItems(FXCollections.observableArrayList(
+                "eyeLief OFF", "eyeLief LOW", 
+                 "eyeLief HIGH")
+            );
+            eyeReliefChoice.setTooltip(new Tooltip("Enable or Disable yellow filter "
+            		+ "for nighttime gameplay, or play in dark environments"
+            		+ " [more effective when game is dimmed, less effective when"
+            		+ " game brightness is maximized]"));
+            eyeReliefChoice.getSelectionModel().selectedIndexProperty().addListener(
+            	new ChangeListener<Number>(){
+					@Override
+					public void changed(ObservableValue<? extends Number> observable, Number oldValue,
+							Number newValue) {
+						// TODO Auto-generated method stub
+						final int correctedVal = newValue.intValue();
+						System.out.println("eyeLief val: " + correctedVal);
+						if(correctedVal == FXUIGameMaster.EYELIEF_OFF
+								|| correctedVal == FXUIGameMaster.EYELIEF_LO 
+								|| correctedVal == FXUIGameMaster.EYELIEF_HI){
+							FXUIGameMaster.applyEyeLief(correctedVal);							
+						}
+						else{
+							System.out.println("Invalid eyeLief setting selected: " + correctedVal);
+						}
+					}
+            	}
+            );
+            eyeReliefChoice.getSelectionModel().select(FXUIGameMaster.getActiveEyeLiefStrength());
+            
+            CheckBox autoDim = new CheckBox("AutoBrite(auto dimming)");
             autoDim.setTooltip(new Tooltip("Automatically dim window based on time of day. "
             		+ "Noon = brighter. Midnight = darker. If yellow filter applied, "
             		+ "Noon = less effective, Midnight = more effective."));
             autoDim.setTextFill(Color.ANTIQUEWHITE);
-            autoDim.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
-            autoDim.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent t) {
-                    if (autoDim.isSelected()) {
-                    	FXUIGameMaster.enableAutoAdjustBrightness();
-                    } else if (!autoDim.isSelected()) {
-                        FXUIGameMaster.disableAutoBrightness();
-                    } else {
-                        //do nothing
-                    }
-                }
-            });
+            autoDim.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+            
             autoDim.setSelected(FXUIGameMaster.isAutoBrightnessActive());
             
-            Text britenessSliderLabel = new Text("Brightness(Manually Set) [%]");
-            britenessSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
+            String britenessSliderEnabled = "brightness(Manually Set) [%]";
+            String britenessSliderDisabled = "brightness(n/a--AutoBrite active)";
+            Text britenessSliderLabel = new Text(FXUIGameMaster.isAutoBrightnessActive() ? britenessSliderDisabled : britenessSliderEnabled);
+            britenessSliderLabel.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
             britenessSliderLabel.setFill(Color.WHITE);
 
-            Slider britenessSlider = new Slider(0.5f, 1.0f, 1.0f);
+            Slider britenessSlider = new Slider(0.5f, 1.0f, FXUIPlayer.getCrossbar().getBritenessOpacity());
+            britenessSlider.setScaleX(0.75);
             britenessSlider.setSnapToTicks(false);
             britenessSlider.setShowTickMarks(true);
             britenessSlider.setMajorTickUnit(0.25f);
@@ -1006,6 +1036,21 @@ public class WindowResizeHandler {
                     }
                 }
             });
+            britenessSlider.setDisable(FXUIGameMaster.isAutoBrightnessActive());
+            
+            autoDim.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent t) {
+                    if (autoDim.isSelected()) {
+                    	FXUIGameMaster.enableAutoAdjustBrightness();
+                    } else if (!autoDim.isSelected()) {
+                        FXUIGameMaster.disableAutoBrightness();
+                        FXUIGameMaster.requestToSetBrightness(britenessSlider.getValue());
+                    } else {
+                        //do nothing
+                    }
+                }
+            });
             
             //Disable and enable manual dimming based on AutoBrite status.
             autoDim.selectedProperty().addListener(new ChangeListener<Boolean>(){
@@ -1013,15 +1058,17 @@ public class WindowResizeHandler {
 				public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
 					if(newValue.booleanValue() == true){
 						britenessSlider.setDisable(true);
+						britenessSliderLabel.setText(britenessSliderDisabled);
 					}
 					else{
 						britenessSlider.setDisable(false);
+						britenessSliderLabel.setText(britenessSliderEnabled);
 					}
 					
 				}
             });
             
-            double widthOfLines = 180d;
+            double widthOfLines = 240d;
             double strokeThicknessOfLines = 3.0d;
             Color colorOfLines = Color.CHOCOLATE;
             Line bufferLineOne = new Line(0,0,widthOfLines,0);
@@ -1036,12 +1083,22 @@ public class WindowResizeHandler {
             bufferLineTwo.setStroke(colorOfLines);
             bufferLineThree.setStroke(colorOfLines);
             bufferLineFour.setStroke(colorOfLines);
-
+            Line bufferLineFive = new Line(0,0,widthOfLines,0);
+            bufferLineFive.setStrokeWidth(strokeThicknessOfLines);
+            bufferLineFive.setStroke(colorOfLines);
+            Text brightnessCategoryLabel = new Text("Brightness/AutoBrite");
+            Text eyeReliefCategoryLabel = new Text("eyeLief (eyestrain reduction)");
+            brightnessCategoryLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
+            brightnessCategoryLabel.setFill(Color.WHITE);
+            eyeReliefCategoryLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
+            eyeReliefCategoryLabel.setFill(Color.WHITE);
+            
             layout.getChildren().setAll(
                     querySymbol, queryText, bufferLineOne, doFullScreen,
                     bufferLineTwo, windowSizeSliderLabel, windowSizeSlider,
-                    bufferLineThree, autoDim, applyFilter, britenessSliderLabel, britenessSlider,
-                    bufferLineFour, /*nah,*/ yeah, spaceBuffer
+                    bufferLineThree, brightnessCategoryLabel, autoDim, britenessSliderLabel, britenessSlider,
+                    bufferLineFour, eyeReliefCategoryLabel, eyeReliefChoice,
+                    bufferLineFive, /*nah,*/ yeah, spaceBuffer
             );
 
             dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {

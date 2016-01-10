@@ -79,7 +79,7 @@ public class About {
         info1.setEffect(new Glow(0.7));
         final Text info2 = new Text();
         info2.setText("or\nconquest of\nthe modern Mercator"
-        		+ "\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n:D\n\n:::::::");
+        		+ "\n\nJava + JavaFX\n\nWallace, Denney\n\n2015, 2016\n\n:D\n\n:::::::");
         info2.setTextAlignment(TextAlignment.CENTER);
         info2.setFont(Font.font("Arial", FontWeight.THIN, 14));
         info2.setFill(About.globalTextColor);
@@ -88,7 +88,7 @@ public class About {
             dialog.setTitle("about(basic)");
             info1.setText("\\(^.^\")/\n\nRISK!\n");
             info2.setText("an open source way to\nSTEAL THE WORLD\nor something like that"
-            		+ "\n\nJava + JavaFX\n\nDenney, Wallace\n\n2015\n\n<3\n\n:::::::");
+            		+ "\n\nJava + JavaFX\n\nWallace, Denney\n\n2015, 2016\n\n<3\n\n:::::::");
         }
 
         final Hyperlink hlink = new Hyperlink(":::");

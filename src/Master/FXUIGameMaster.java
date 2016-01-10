@@ -34,6 +34,8 @@ import Util.RollOutcome;
 import Util.SavePoint;
 import Util.TextNodes;
 import Util.WindowResizeHandler;
+
+import java.awt.Desktop;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -45,6 +47,8 @@ import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.io.PrintStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -70,6 +74,7 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.CacheHint;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -77,6 +82,8 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
+import javafx.scene.effect.BlendMode;
+import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
@@ -135,7 +142,8 @@ public class FXUIGameMaster extends Application {
      */
     // TODO make it so that loading old saves will not "hide" (fail to display)
     //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 0120\nStamp 2016.01.09, 14:11\nStability:Alpha(01)"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 0121\nStamp 2016.01.10, 17:33\nStability:Alpha(01)";
+    private static final String X_ABOUT = "AudioAC  |  eyeLief  |  AutoBrite"; // TODO implement safeguards on all run-once methods
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -223,6 +231,8 @@ public class FXUIGameMaster extends Application {
 	private static boolean indicatorAnimatedAlready;
 	private static boolean colorAdjusted;
 	private static boolean runAutoBrightness;
+	private static int eyeLiefStrength;
+	public static final int EYELIEF_OFF = 0, EYELIEF_LO = 1, EYELIEF_HI = 2;
     private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
 
     
@@ -1394,7 +1404,9 @@ public class FXUIGameMaster extends Application {
     		System.out.println("Null country being added to list. What? mSCO");
     	}
     	this.map.setCountryOwner(country, owner);
-    	FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.add(country);
+    	if(!FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.contains(country)){
+    		FXUIGameMaster.COUNTRIES_WITH_UPDATED_OWNERS.add(country);
+    	}
     }
     
     /**
@@ -1410,7 +1422,9 @@ public class FXUIGameMaster extends Application {
     		System.out.println("Null country being added to list. What? mSCAC");
     	}
     	this.map.setCountryArmies(country, numArmies);
-    	FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.add(country);
+    	if(!FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.contains(country)){
+    		FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.add(country);
+    	}
     }
     
     /**
@@ -1426,7 +1440,9 @@ public class FXUIGameMaster extends Application {
     		System.out.println("Null country being added to list. What? mATCAC");
     	}
     	this.map.addCountryArmies(country, numArmies);
-    	FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.add(country);
+    	if(!FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.contains(country)){
+    		FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.add(country);
+    	}
     }
     
     protected void reinforce(Player currentPlayer, boolean withCountryBonus) throws PlayerEliminatedException {
@@ -2377,8 +2393,12 @@ public class FXUIGameMaster extends Application {
                             int nextY = reader.nextInt();
                             String nextCountry = reader.nextLine().trim();
                             Text txt = new Text(nextX, nextY, nextCountry + "\n0");
+                            txt.setCacheHint(CacheHint.SPEED);
+                            txt.setStroke(Color.BLACK);
                             txt.setFill(Color.BLUEVIOLET);
                             txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
+                            //txt.setTextAlignment(TextAlignment.CENTER);
+                            txt.setEffect(new Glow(1.0d));
                             this.textNodeMap.put(nextCountry, txt);
                             FXUIGameMaster.mainWindowPane.getChildren().add(txt);
                         }
@@ -2397,7 +2417,8 @@ public class FXUIGameMaster extends Application {
                             });
                             txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
                             txt.setStroke(Color.BLACK);
-                            txt.setFill(Color.ANTIQUEWHITE);
+                            txt.setFill(Color.GREY);
+                            //txt.setTextAlignment(TextAlignment.CENTER);
                             //txt.setStrokeType(StrokeType.OUTSIDE);
                             //txt.setStrokeLineCap(StrokeLineCap.SQUARE);
                             //txt.setSmooth(true);
@@ -2485,15 +2506,12 @@ public class FXUIGameMaster extends Application {
                         if(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.size() > 0){
                             performC1BStepOfRefreshProcess(FXUIGameMaster.COUNTRIES_WITH_UPDATED_TROOP_COUNTS.remove(0));
                         }
-                        if(FXUIGameMaster.workingMode == IDLE_MODE){
+                        if(FXUIGameMaster.workingMode == IDLE_MODE && !FXUIGameMaster.fullAppExit){
                             RiskUtils.sleep(3*threadSleepLong+delayTimeBetweenBots);
-                        }
-                        if(Thread.interrupted()){
-                            blinkDelay.set(100<delayTimeBetweenBots ? 100 : delayTimeBetweenBots);
                         }
                         if (FXUIGameMaster.fullAppExit) {
                             FXUIGameMaster.clockedUIRefreshThreadA = null;
-                            FXUIGameMaster.diagnosticPrintln("UI Refresh Thread A shut down.");
+                            FXUIGameMaster.diagnosticPrintln("UI Refresh Thread A accelerated shut down.");
                             return;
                         }
                         RiskUtils.sleep(delayTimeBetweenBots);
@@ -2532,12 +2550,12 @@ public class FXUIGameMaster extends Application {
                             }
                             
                         }
-                        if(FXUIGameMaster.workingMode == IDLE_MODE){
+                        if(FXUIGameMaster.workingMode == IDLE_MODE && !FXUIGameMaster.fullAppExit){
                             RiskUtils.sleep(3*threadSleepLong+delayTimeBetweenBots);
                         }
                         if (FXUIGameMaster.fullAppExit) {
                             FXUIGameMaster.clockedUIRefreshThreadB = null;
-                            FXUIGameMaster.diagnosticPrintln("UI Refresh Thread B shut down.");
+                            FXUIGameMaster.diagnosticPrintln("UI Refresh Thread B accelerated shut down.");
                             return;
                         }
                         RiskUtils.sleep(delayTimeBetweenBots);
@@ -2795,6 +2813,7 @@ public class FXUIGameMaster extends Application {
         musicPulseIndicator.setStroke(colorOfLines);
         musicPulseIndicator.setFill(colorOfLines);
         musicPulseIndicator.setEffect(new Glow(1.0d));
+        musicPulseIndicator.setCacheHint(CacheHint.SPEED);
         
         
         Line musicPulseIndicatorS = new Line(0,0,0,40);
@@ -2802,6 +2821,7 @@ public class FXUIGameMaster extends Application {
         musicPulseIndicatorS.setStroke(colorOfLines);
         musicPulseIndicatorS.setFill(colorOfLines);
         musicPulseIndicatorS.setEffect(new Glow(1.0d));
+        musicPulseIndicatorS.setCacheHint(CacheHint.SPEED);
         /*
          * Associate the two music pulse indicators, large and small, with the
          * audio manager.
@@ -2865,6 +2885,19 @@ public class FXUIGameMaster extends Application {
         	iconIn.setLayoutX(DEFAULT_CONTENT_WIDTH-100);
         	iconIn.setLayoutY(DEFAULT_CONTENT_HEIGHT-100);
         	iconIn.setOpacity(0.5d);
+        	iconIn.setOnMouseClicked(new EventHandler<MouseEvent>(){
+
+				@Override
+				public void handle(MouseEvent event) {
+					try {
+						Desktop.getDesktop().browse(new URI("http://github.com/aewallace"));
+					} catch(Exception e){
+						System.out.println("Failed to link to AEWallace's GitHub");
+					}
+				}
+        		
+        	});
+        	//iconIn.setOnContextMenuRequested(value);
         	mainWindowPane.getChildren().add(iconIn);
         }
         catch(Exception e){
@@ -3140,7 +3173,7 @@ public class FXUIGameMaster extends Application {
          */
 		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
 		enableAutoAdjustBrightness();
-		applyGoldenBackgroundHue();
+		applyEyeLief(EYELIEF_LO);
 
         /*
          * Print to output that we're ready. This is the end of the process.
@@ -3187,7 +3220,7 @@ public class FXUIGameMaster extends Application {
 	            }
     		}
     		catch(InterruptedException e){
-	            	targetWindowPane.setOpacity(1.0d);
+	            	//targetWindowPane.setOpacity(1.0d);
 	            	System.out.println("AutoBrite disabled.");
     		}
             aaBright = null;
@@ -3213,29 +3246,24 @@ public class FXUIGameMaster extends Application {
     }
     
     /**
-     * Attempt to set the window to a certain brightness, if autobrite isn't active.
-     * Also guarantees a minimum visibility of at least 50%.
+     * Attempt to set the window to a certain brightness.
+     * Guarantees a minimum visibility of at least 50%.
      * @param brightnessVal
-     * @return
+     * @return "true" if value was valid, "false" otherwise
      */
     public static boolean requestToSetBrightness(double brightnessVal){
-    	if(runAutoBrightness){
-    		return !runAutoBrightness;
-    	}
-    	else{
-    		if(brightnessVal > 0.5d){
-    			mainWindowPane.setOpacity(brightnessVal);
-    			crossbar.storeBritenessOpacity(brightnessVal);
-    			FXUIPlayer.applyBrightnessControlToKnownNodes(brightnessVal);
-    			return true;
-    		}
-    		else{
-    			mainWindowPane.setOpacity(0.5d);
-    			crossbar.storeBritenessOpacity(0.5d);
-    			FXUIPlayer.applyBrightnessControlToKnownNodes(0.5d);
-    			return false;
-    		}
-    	}
+		if(brightnessVal > 0.5d){
+			mainWindowPane.setOpacity(brightnessVal);
+			crossbar.storeBritenessOpacity(brightnessVal);
+			FXUIPlayer.applyBrightnessControlToKnownNodes(brightnessVal);
+			return true;
+		}
+		else{
+			mainWindowPane.setOpacity(0.5d);
+			crossbar.storeBritenessOpacity(0.5d);
+			FXUIPlayer.applyBrightnessControlToKnownNodes(0.5d);
+			return false;
+		}
     }
     
     /**
@@ -3264,14 +3292,22 @@ public class FXUIGameMaster extends Application {
      * areas, especially as nighttime approaches.
      * @return
      */
-    public static boolean applyGoldenBackgroundHue(){
+    public static boolean applyGoldenBackgroundHue(boolean strongFX){
     	Color colorToSet = Color.DARKGOLDENROD;
-        Color adjustedColor = colorToSet.deriveColor(0d, 1d, 0.1d, 1d);
-        //mainWindowPane.setBackground(new Background(new BackgroundFill(adjustedColor, null, null)));
+        Color adjustedColor;
+        if(!strongFX){ //weaker application
+        	adjustedColor = colorToSet.deriveColor(0d, 0.5d, 0.1d, 1d);
+        }
+        else{ //stronger application
+        	adjustedColor = colorToSet.deriveColor(0d, 1.0d, 0.2d, 1d);
+        }
+        mainWindowPane.setCacheHint(CacheHint.SPEED);
+        mainWindowPane.setBlendMode(BlendMode.ADD);
         FXUIGameMaster.colorAdjusted = true;
         scene.setFill(adjustedColor);
         crossbar.storeStrainReliefColor(adjustedColor);
         FXUIPlayer.applyEyeStrainControlToKnownScenes(adjustedColor);
+        System.out.println("eyeLief enabled");
         return colorAdjusted;
     }
     
@@ -3282,12 +3318,44 @@ public class FXUIGameMaster extends Application {
      */
     public static boolean returnToBlackBackgroundHue(){
     	Color newColor = Color.BLACK;
-        //mainWindowPane.setBackground(new Background(new BackgroundFill(newColor, null, null)));
+    	mainWindowPane.setBlendMode(null);
         scene.setFill(newColor);
         crossbar.storeStrainReliefColor(newColor);
         colorAdjusted = false;
         FXUIPlayer.applyEyeStrainControlToKnownScenes(newColor);
+        System.out.println("eyeLief disabled");
         return colorAdjusted;
+    }
+    
+    /**
+     * Apply eyeLief using three known settings: 0 for off, 1 for low, 2 for high.
+     * @param strength
+     * @return returns whether the background color has been changed from black 
+     * to a golden hue necessary for eyestrain relief (true)
+     * or if a failure has occurred/color has been changed back to black (false)
+     */
+    public static boolean applyEyeLief(int strength){
+    	if(strength == EYELIEF_OFF){
+    		FXUIGameMaster.eyeLiefStrength = EYELIEF_OFF;
+    		return returnToBlackBackgroundHue();
+    	}
+    	else if(strength == EYELIEF_LO || strength == EYELIEF_HI){
+    		FXUIGameMaster.eyeLiefStrength = strength;
+    		return applyGoldenBackgroundHue(strength == EYELIEF_HI);
+    	}
+    	else{
+    		FXUIGameMaster.eyeLiefStrength = EYELIEF_OFF;
+    		return returnToBlackBackgroundHue();
+    	}
+    }
+    
+    /**
+     * Read the current strength of the eyeLief setting.
+     * @return
+     */
+    public static int getActiveEyeLiefStrength(){
+    	final int returnNo = FXUIGameMaster.eyeLiefStrength;
+    	return returnNo;
     }
     
     /**
@@ -3311,29 +3379,40 @@ public class FXUIGameMaster extends Application {
         textHello.setStroke(Color.CORAL);
     	final Rectangle foregroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
     	foregroundRect.setFill(Color.ALICEBLUE);
-    	final Text foregroundText = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK");
+    	final Text foregroundText = new Text(/*DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, */"RISK");
     	foregroundText.setTextAlignment(TextAlignment.CENTER);
         foregroundText.setFont(Font.font("System", FontWeight.BOLD, 256));
         foregroundText.setFill(Color.BLACK);
         foregroundText.setStroke(Color.CORAL);
-        GaussianBlur gBlur = new GaussianBlur(4);
+        GaussianBlur gBlur = new GaussianBlur(2);
         Glow gGlow = new Glow(1.0d);
         gGlow.setInput(gBlur);
     	foregroundText.setEffect(gGlow);
-        mainWindowPane.getChildren().addAll(backgroundRect, textHello, foregroundRect,foregroundText);
+    	final Text foregroundTeXtra = new Text(/*DEFAULT_CONTENT_WIDTH/1.80, DEFAULT_CONTENT_HEIGHT/1.65, */X_ABOUT + "\n" + VERSION_INFO);
+    	foregroundTeXtra.setTextAlignment(TextAlignment.CENTER);
+        foregroundTeXtra.setFont(Font.font("System", FontWeight.BOLD, 24));
+        foregroundTeXtra.setFill(Color.GREY);
+        foregroundTeXtra.setStroke(Color.BLACK);
+        foregroundTeXtra.setEffect(gBlur);
+        final VBox foreTextBox = new VBox(5);
+        foreTextBox.getChildren().setAll(foregroundText, foregroundTeXtra);
+        foreTextBox.setLayoutX(DEFAULT_CONTENT_WIDTH/1.75);
+        foreTextBox.setLayoutY(DEFAULT_CONTENT_HEIGHT/3);
+        foreTextBox.setAlignment(Pos.CENTER);
+        mainWindowPane.getChildren().addAll(backgroundRect, textHello, foregroundRect,/*foregroundText, foregroundTeXtra, */ foreTextBox);
         foregroundRect.disabledProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
-            mainWindowPane.getChildren().removeAll(backgroundRect, textHello);
+            mainWindowPane.getChildren().removeAll(backgroundRect, textHello/*, foregroundTeXtra*/);
             });
 
         Thread pulse = new Thread(null, () -> {
-            bootSplashHelper(foregroundText, foregroundRect);
+            bootSplashHelper(foreTextBox, foregroundRect);
             }, "bootSplashScreen");
 	    pulse.setDaemon(true);
 	    pulse.start();
     }
     
 	
-	private static void bootSplashHelper(Text splashText, Rectangle splashBackground){
+	private static void bootSplashHelper(Node splashText, Rectangle splashBackground){
 		final int overallAnimTime = 3000;
 		final int discreteSteps = 30;
 		final AtomicBoolean complete = new AtomicBoolean(false);
