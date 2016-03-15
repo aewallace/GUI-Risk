@@ -233,6 +233,8 @@ public class RiskUtils {
 			didSucceed = true;
 		} catch (InterruptedException e) {
 			//We never care about what caused the interruption so long as we're using this method.
+			//Just make sure we pass the interrupted state along.
+			Thread.currentThread().interrupt();
 		}
 		catch (IllegalArgumentException e){
 			System.out.println("Input must be positive. Attempted value: " + millisecs);

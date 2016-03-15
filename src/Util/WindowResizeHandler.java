@@ -2,7 +2,6 @@ package Util;
 
 import Master.FXUIGameMaster;
 import Player.FXUIPlayer;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -17,7 +16,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Background;
@@ -484,7 +482,8 @@ public class WindowResizeHandler {
         	.setAll(new Scale(scalePercentageWidth, scalePercentageHeight));
         activeScene.getRoot().setLayoutX(xTranslate);
         activeScene.getRoot().setLayoutY(yTranslate);
-        activeStage.toBack(); //make sure no dialogs get covered up
+        //activeStage.toBack(); //attempt to make sure no dialogs get covered up // TODO: remove; replace with more effective solution which actually prevents
+        //other dialogs from being hidden
         FXUIGameMaster.diagnosticPrintln("xTranslate and yTranslate? " + xTranslate + " ::: " +
         		yTranslate);
         FXUIGameMaster.diagnosticPrintln("Scaling should be complete."
@@ -662,7 +661,7 @@ public class WindowResizeHandler {
             else{
             	RiskUtils.sleep(2 * waitTime);
             }
-            FXUIGameMaster.diagnosticPrintln("The is now set to fullscreen at the end of this "
+            FXUIGameMaster.diagnosticPrintln("The screen is now set to fullscreen at the end of this "
                     + "waiting process: " + activeStage.isFullScreen());
         } while (this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
         final boolean stageIsFullscreen = activeStage.isFullScreen();
@@ -805,7 +804,7 @@ public class WindowResizeHandler {
      * for the associated window (Stage) Tries to run the dialog's code on a
      * non-JFX thread as much as possible.
      */
-    public int showSizeOptions() {
+    public int showSizeOptions(Window owner) {
         //represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
         AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
 
@@ -814,12 +813,12 @@ public class WindowResizeHandler {
         }
 
         if (Platform.isFxApplicationThread()) { //if this is the FX thread, make it all happen, and use showAndWait
-            sizeOptionsHelper(dialogIsShowing);
+            sizeOptionsHelper(dialogIsShowing, owner);
         } else { //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                    sizeOptionsHelper(dialogIsShowing);
+                    sizeOptionsHelper(dialogIsShowing, owner);
                 }
             });
 
@@ -838,8 +837,11 @@ public class WindowResizeHandler {
      * @param dialogIsShowing used to control the flow of code; will be set to
      * "false" when dialog is closed.
      */
-    private void sizeOptionsHelper(AtomicBoolean dialogIsShowing) {
-        Window owner = this.activeStage.getScene().getWindow();
+    private void sizeOptionsHelper(AtomicBoolean dialogIsShowing, Window owner) {
+        if(owner==null)
+        {
+            owner = this.activeStage.getScene().getWindow();
+        }
         try {
             final Stage dialog = new Stage();
             dialog.setTitle("Window Options");
@@ -1113,6 +1115,7 @@ public class WindowResizeHandler {
             dialog.show();
         } catch (Exception e) {
             System.out.println("ERROR: resize dialog display failed:: " + e);
+            e.printStackTrace();
         }
         attachResizeSlider(null);
     }

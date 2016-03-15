@@ -139,7 +139,7 @@ public class About {
         dialog.show();
         About.firstLaunch = false;
         if (autoExit) {
-            FXUIGameMaster.autoCloseDialog(dialog, null, delayAutoClose);
+            FXUIGameMaster.autoCloseDialogs(dialog, null, delayAutoClose);
         }
     }
 

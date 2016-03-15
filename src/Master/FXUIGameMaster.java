@@ -1,8 +1,8 @@
 /*FXUI GameMaster Class
- *Albert Wallace, 2015. Version info now found in class definition.
- *for Seth Denney's RISK, JavaFX UI-capable version
+ *Albert Wallace, 2015 - 2016. Version info now found in class definition.
+ *for RISK, JavaFX UI-capable version
  *
- *Base build from original GameMaster class implementation, by Seth Denney, Feb 20 2015 
+ *Base build from original GameMaster class implementation by Seth Denney, Feb 20 2015 
  */
 package Master;
 
@@ -25,6 +25,7 @@ import Response.ReinforcementResponse;
 import Util.About;
 import Util.Card;
 import Util.DiceRoller;
+import Util.FXUIAudio;
 import Util.FXUIAudioAC;
 import Util.FXUI_Crossbar;
 import Util.PlayerEliminatedException;
@@ -34,21 +35,17 @@ import Util.RollOutcome;
 import Util.SavePoint;
 import Util.TextNodes;
 import Util.WindowResizeHandler;
-
 import java.awt.Desktop;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInput;
 import java.io.ObjectInputStream;
-import java.io.PrintStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -69,7 +66,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
@@ -79,11 +78,10 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
 import javafx.scene.effect.BlendMode;
-import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
@@ -91,13 +89,10 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.Background;
-import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
 import javafx.scene.shape.Arc;
 import javafx.scene.shape.ArcType;
 import javafx.scene.shape.Line;
@@ -108,6 +103,7 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
@@ -140,10 +136,8 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    // TODO make it so that loading old saves will not "hide" (fail to display)
-    //eliminated players
-    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 0121\nStamp 2016.01.10, 17:33\nStability:Alpha(01)";
-    private static final String X_ABOUT = "AudioAC  |  eyeLief  |  AutoBrite"; // TODO implement safeguards on all run-once methods
+    public static final String VERSION_INFO = "FXUI-RISK-Master\nVersion 0121\nStamp 2016.03.14, 18:53\nStability:Prototype(00)";
+    private static final String X_ABOUT = "AudioAC  |  eyeLief  |  AutoBrite";
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -154,6 +148,7 @@ public class FXUIGameMaster extends Application {
     public static final int DEFAULT_CONTENT_HEIGHT = 1062;
     public static final int DEFAULT_DIALOG_OFFSET = 300;
     private static final int IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
+    private static final boolean FLAT_UI = true;
     private static int workingMode = IDLE_MODE;
     protected static final String LOGFILE = "LOG.txt";
     protected static final String STATSFILE = "STATS.txt";
@@ -164,6 +159,7 @@ public class FXUIGameMaster extends Application {
     protected static AtomicBoolean logDialogIsShowing = new AtomicBoolean(false);
     protected static boolean runBotsOnly = false;
     protected static FXUI_Crossbar crossbar = new FXUI_Crossbar();
+    protected static About nAbout;
     protected static FXUIAudioAC audioManager = null;
     protected RiskMap map;
     protected Deque<Card> deck;
@@ -173,7 +169,7 @@ public class FXUIGameMaster extends Application {
     protected Map<String, Collection<Card>> playerToCardDeckHMap;
     protected Map<String, Node[]> playerToIndicatorHMap;
     private static final int DEFAULT_PLAYER_NAME_FONT_SIZE = 22;
-    protected static final long DEFAULT_DELAY_BETWEEN_MOVES = 1000;
+    public static final long DEFAULT_DELAY_BETWEEN_MOVES = 1000;
     protected static long delayTimeBetweenBots = DEFAULT_DELAY_BETWEEN_MOVES;
 
     protected static RiskMap starterMap = null;
@@ -192,7 +188,6 @@ public class FXUIGameMaster extends Application {
     private static Text mainStatusTextElement;
     private static Text extendedMessageDisplay;
     private static ArrayList<String> extendedMessageCache;
-    private static int extendedMessageCachePos;
     private HBox playerDisplay = null;
     private HashMap<String, Text> textNodeMap;
     private Map<String, Color> playerColorMap;
@@ -204,8 +199,6 @@ public class FXUIGameMaster extends Application {
 
     private static WindowResizeHandler mainWindowResizeHandler = null;
     private static Thread aaBright = null;
-    
-    
 
     //to handle recovering a prior session or help with launching a new game session
     private static SavePoint activeSaveData = new SavePoint();
@@ -232,6 +225,7 @@ public class FXUIGameMaster extends Application {
 	private static boolean colorAdjusted;
 	private static boolean runAutoBrightness;
 	private static int eyeLiefStrength;
+	
 	public static final int EYELIEF_OFF = 0, EYELIEF_LO = 1, EYELIEF_HI = 2;
     private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
 
@@ -279,9 +273,9 @@ public class FXUIGameMaster extends Application {
         }
         if (allowAppToExit.get() || FXUIGameMaster.skipExitConfirmation) {
             FXUIGameMaster.skipExitConfirmation = false;
-            return RiskConstants.MAX_ATTEMPTS;
+            return RiskConstants.MAX_ATTEMPTS; //fail fast. this means exit, end game, etc.
         } else {
-            return currentAttempts - 1;
+            return currentAttempts - 1; //don't fail; we want to keep the app open, the game running, etc. (if possible)
         }
         
     }
@@ -366,7 +360,7 @@ public class FXUIGameMaster extends Application {
                 spaceBuffer.setText("+\n+\n+");
                 nah.setVisible(false);
                 saveMe.setVisible(false);
-                autoCloseDialog(dialog, spaceBuffer, new AtomicBoolean(false));
+                autoCloseDialogs(dialog, spaceBuffer, new AtomicBoolean(false));
             }
 
             layout.getChildren().setAll(
@@ -412,6 +406,7 @@ public class FXUIGameMaster extends Application {
 
         return FXUIGameMaster.workingMode;
     }
+
 
     private void gameSelectorHelper(AtomicBoolean gameSelectorIsShowing) {
         Window owner = mainWindowPane.getScene().getWindow();
@@ -500,6 +495,45 @@ public class FXUIGameMaster extends Application {
         delaySliderText.setTextAlignment(TextAlignment.CENTER);
         delaySliderText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 12));
         
+        
+        ChoiceBox<Object> botDelayMultiplier = new ChoiceBox<Object>();
+            botDelayMultiplier.setItems(FXCollections.observableArrayList(
+                "No Delay (Fastest)", "Short Delay (Fast)", 
+                 "Medium Delay (Normal)", "Long Delay (Slow)")
+            );
+        botDelayMultiplier.setTooltip(new Tooltip("Select the delay between each"
+                + " move taken by the bots, if applicable."));
+        botDelayMultiplier.getSelectionModel().selectedIndexProperty().addListener(
+            new ChangeListener<Number>(){
+                @Override
+                public void changed(ObservableValue<? extends Number> observable, Number oldValue,
+                                Number newValue) {
+                    double multiplier = 0.0d;
+                    switch (newValue.intValue()){
+                        case 0:
+                            multiplier = 0.0d;
+                            break;
+                        case 1:
+                            multiplier = 0.25d;
+                            break;
+                        case 2:
+                            multiplier = 1.00d;
+                            break;
+                        case 3:
+                            multiplier = 2.75d;
+                            break;
+                        default:
+                            multiplier = 0.90d;
+                            break;
+                                
+                    }
+                    FXUIGameMaster.delayTimeBetweenBots = (long) (FXUIGameMaster.DEFAULT_DELAY_BETWEEN_MOVES * multiplier);
+                }
+            }
+        );
+        botDelayMultiplier.getSelectionModel().select(0);
+        
+        /*
         final Slider botDelay = new Slider(0.0f,1.75f,0.75f);
         botDelay.setSnapToTicks(false);
         botDelay.setShowTickMarks(true);
@@ -507,7 +541,7 @@ public class FXUIGameMaster extends Application {
         botDelay.setMinorTickCount(0);
         botDelay.setTooltip(new Tooltip("Insert a delay between turns taken by bots.\n"
         		+ "ranges from no delay (0x1sec) to max delay (1.75x1sec)"));
-        
+        */
 
         final Button cnclBtn = new Button("[cancel]");
         cnclBtn.setTooltip(new Tooltip("Return to the main menu screen without "
@@ -592,15 +626,19 @@ public class FXUIGameMaster extends Application {
 
         loadGameBtn.setOnAction(defaultLdBtnHandler);
         
+        /*
         botDelay.valueProperty().addListener((ObservableValue<? extends Number> ov, Number old_val, Number new_val) -> {
             FXUIGameMaster.delayTimeBetweenBots = (long) (FXUIGameMaster.DEFAULT_DELAY_BETWEEN_MOVES * new_val.doubleValue());
             delaySliderText.setText(delaySliderTextDefault + " (now: "
                     + String.format("%.2f", new_val.doubleValue()) + ")");
         });
-        delaySliderText.setText(delaySliderTextDefault + " (now: " 
-				+ String.format("%.2f", botDelay.getValue()) + ")");
+        */
+        delaySliderText.setText(delaySliderTextDefault/* + " (now: " 
+				+ String.format("%.2f", botDelay.getValue()) + ")"*/);
+        /*
         FXUIGameMaster.delayTimeBetweenBots = 
         		(long) (FXUIGameMaster.DEFAULT_DELAY_BETWEEN_MOVES * botDelay.getValue());
+        */ // TODO remove this when drop down box is verified to work.
 
         cnclBtn.setOnAction((ActionEvent t) -> {
             dialog.close();
@@ -622,7 +660,7 @@ public class FXUIGameMaster extends Application {
             loadGameText.setText("load alternate save file");
             loadGameBtn.setText("FIND previous save file...");
         } else {
-            loadGameText.setText("load game from save file!");
+            loadGameText.setText("load game from save file.");
             loadGameSubText.setText("(ALT/SHIFT switches loading types.)\n\n(hover over buttons to see more info.)");
             miniPane.setOnKeyPressed(altKeyEventHandler);
         }
@@ -636,7 +674,7 @@ public class FXUIGameMaster extends Application {
         bottomInfoStrip.getChildren().setAll(cnclBtn);
         
         //more re: the layout for selecting the player types
-        displayPlayerTypes(typesUsed, typesOfPlayers, selectedPlayerTypes);
+        displayPlayerTypes(typesUsed, typesOfPlayers, selectedPlayerTypes, 1d);
         String playerBoxBackground = "-fx-background-color: darksalmon;";
         final HBox selectPTypes = new HBox(3);
         selectPTypes.setFillHeight(true);
@@ -662,7 +700,7 @@ public class FXUIGameMaster extends Application {
                 bufferLineTwo, loadGameText, loadGameBtn, loadGameSubText, 
                 bufferLineOne, newGameText, newGameBtn, /*botsOnly,*/ 
                 selectPlayersText, selectPTypesSPane, 
-                bufferLineThree, delaySliderText, botDelay, 
+                bufferLineThree, delaySliderText, botDelayMultiplier, 
                 bufferLineFour, bottomInfoStrip
         );
         miniPane.getChildren().add(layout);
@@ -691,6 +729,372 @@ public class FXUIGameMaster extends Application {
          */
     }
     
+    
+    /**
+     * Allow the player to decide if they want to start a new game, or launch an
+     * old game. SHOULD NOT BE RUN ON JAVAFX THREAD. 
+     * Does not create a new window; instead, creates a flat dialog on top
+     * of main window contents.
+     * @return Will return -1 in two scenarios: if not on the JavaFX thread, or 
+     * if the game is not idle (if working mode doesn't equal idle). 
+     * Else, returns the working mode (whether new game or loaded game)
+     */
+    private int displayGameSelectorFlat() {
+        if (Platform.isFxApplicationThread() || FXUIGameMaster.workingMode != IDLE_MODE) {
+            return -1;
+        }
+        AtomicBoolean gameSelectorIsShowing = new AtomicBoolean(true);
+        Platform.runLater(() -> {
+            gameSelectorHelperFlat(gameSelectorIsShowing);
+        });
+
+        do {
+            RiskUtils.sleep(100);
+        } while (gameSelectorIsShowing.get() && FXUIGameMaster.mainStage.isShowing());
+
+        return FXUIGameMaster.workingMode;
+    }
+
+    private void gameSelectorHelperFlat(AtomicBoolean gameSelectorIsShowing) {
+        /*Window owner = mainWindowPane.getScene().getWindow();
+        /*final Stage dialog = new Stage();
+        dialog.setTitle("new? restore?");
+        dialog.initOwner(owner);
+        dialog.setX(owner.getX());
+        dialog.setY(owner.getY() + 100);
+        */
+
+        final Pane miniPane = new Pane();
+    	final double fontMultiplier = 1.5;
+
+        final VBox layout = new VBox(5*fontMultiplier);
+        //layout.setLayoutX(100);
+        //layout.setLayoutY(100);
+        layout.setMinWidth(DEFAULT_CONTENT_WIDTH);
+        layout.setMinHeight(DEFAULT_CONTENT_HEIGHT);
+        final HBox innerSelectionBox = new HBox(5*fontMultiplier);
+        final VBox loadGameSelectionBox = new VBox(5*fontMultiplier);
+        final VBox newGameSelectionBox = new VBox(5*fontMultiplier);
+        //final VBox miniPane = layout;
+        layout.setAlignment(Pos.CENTER);
+        
+        layout.setStyle("-fx-background-color: dimgrey;-fx-opacity: 0.95");
+        innerSelectionBox.setAlignment(Pos.CENTER);
+        loadGameSelectionBox.setAlignment(Pos.TOP_CENTER);
+        loadGameSelectionBox.setStyle("-fx-background-color: dimgrey;");
+        newGameSelectionBox.setAlignment(Pos.TOP_CENTER);
+        newGameSelectionBox.setStyle("-fx-background-color: dimgrey;");
+        
+        final String infoStripCSSFormatting = "-fx-background-color: black; -fx-padding: 25;-fx-opacity: 0.9";
+        final VBox topInfoStrip = new VBox(15*fontMultiplier);
+        topInfoStrip.setAlignment(Pos.CENTER);
+        topInfoStrip.setStyle(infoStripCSSFormatting);
+        final VBox bottomInfoStrip = new VBox(15*fontMultiplier);
+        bottomInfoStrip.setAlignment(Pos.CENTER_LEFT);
+        bottomInfoStrip.setStyle(infoStripCSSFormatting);
+
+        final Text queryText = new Text("     Greetings, Human!     \nWhat would you like to do?\n-\n");
+        queryText.setTextAlignment(TextAlignment.CENTER);
+        queryText.setFont(Font.font("Arial", FontWeight.BOLD, 20*fontMultiplier));
+        queryText.setFill(Color.WHEAT);
+
+        final Text querySymbol = new Text("\\(OxO ?)");
+        querySymbol.setTextAlignment(TextAlignment.CENTER);
+        querySymbol.setFont(Font.font("Arial", FontWeight.BOLD, 24*fontMultiplier));
+        querySymbol.setFill(Color.WHEAT);
+
+        final Button newGameBtn = new Button("Launch a NEW game.");
+        final Text newGameText = new Text("start a brand new game.");
+        newGameText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 12*fontMultiplier));
+        newGameText.setTextAlignment(TextAlignment.CENTER);
+        newGameBtn.setTooltip(new Tooltip("Launch a brand new game, with the "
+        		+ "potential to overwrite\nprevious game saves."));
+        
+        double widthOfLines = 450d;
+        double strokeThicknessOfLines = 5.0d;
+        Color colorOfLines = Color.DARKBLUE;
+        Line bufferLineOne = new Line(0,0,widthOfLines,0);
+        Line bufferLineTwo = new Line(0,0,widthOfLines,0);
+        Line bufferLineThree = new Line(0,0,2*widthOfLines,0);
+        Line bufferLineFour = new Line(0,0,2*widthOfLines,0);
+        bufferLineOne.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineTwo.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineThree.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineFour.setStrokeWidth(strokeThicknessOfLines);
+        bufferLineOne.setStroke(colorOfLines);
+        bufferLineTwo.setStroke(colorOfLines);
+        bufferLineThree.setStroke(colorOfLines);
+        bufferLineFour.setStroke(colorOfLines);
+
+        final Text loadGameText = new Text(); //text set conditionally before insertion into layout
+        final Button loadGameBtn = new Button("LOAD last save.");
+        final Text loadGameSubText = new Text("-");
+        loadGameSubText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 12*fontMultiplier));
+        final String startingTooltipContents = "Load from the default save file!"
+        		+ "\nCurrently set to load from " + loadfrom_filename;
+        final Tooltip ldToolTip = new Tooltip(startingTooltipContents);
+        loadGameText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 12*fontMultiplier));
+        loadGameText.setTextAlignment(TextAlignment.CENTER);
+        loadGameSubText.setTextAlignment(TextAlignment.CENTER);
+        loadGameSubText.setOpacity(0.5d);
+        loadGameBtn.setTooltip(ldToolTip);
+        final CheckBox alternateLoadTypeCBox = new CheckBox("let me select my save file.");
+        alternateLoadTypeCBox.setTooltip(new Tooltip("Selected: load from a save"
+                + " file located on your computer. Will show a new window for "
+                + "file selection. // Unselected: attempt to"
+                + " load from the last save file made, if possible."));
+        alternateLoadTypeCBox.setTextFill(Color.BLACK);
+        alternateLoadTypeCBox.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 10*fontMultiplier));
+        alternateLoadTypeCBox.setSelected(false);
+        
+        final HashMap<Integer, String> typesUsed = new HashMap<>();
+        final VBox availablePlayerVBox = new VBox(10);
+        final VBox playerRosterVBox = new VBox(10);
+        
+        final Text availableTypesHeader = new Text(" :: available player types :: \n");
+        availableTypesHeader.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+        availablePlayerVBox.getChildren().add(availableTypesHeader);
+        
+        final Text rosterHeader = new Text(" :: current roster :: \n");
+        rosterHeader.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+        playerRosterVBox.getChildren().add(rosterHeader);
+            
+        final Text selectPlayersText = new Text("select players\n2p to 6p\n:::");
+        selectPlayersText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 13*fontMultiplier));
+        selectPlayersText.setTextAlignment(TextAlignment.CENTER);
+        
+        final Text botDelayOptionText = new Text("Bot delay per action");
+        botDelayOptionText.setTextAlignment(TextAlignment.CENTER);
+        botDelayOptionText.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 9*fontMultiplier));
+        
+        ChoiceBox<Object> botDelayMultiplier = new ChoiceBox<Object>();
+            botDelayMultiplier.setItems(FXCollections.observableArrayList(
+                "No Delay (0s)", "Short Delay (0.25s)", 
+                 "Medium Delay (0.75s)", "Long Delay (1.75s)")
+            );
+        botDelayMultiplier.setTooltip(new Tooltip("Select the delay between each"
+                + " move taken by the bots. Note that there are multiple moves per turn."));
+        botDelayMultiplier.getSelectionModel().selectedIndexProperty().addListener(
+            new ChangeListener<Number>(){
+                @Override
+                public void changed(ObservableValue<? extends Number> observable, Number oldValue,
+                                Number newValue) {
+                    double multiplier = 0.0d;
+                    switch (newValue.intValue()){
+                        case 0:
+                            multiplier = 0.0d;
+                            break;
+                        case 1:
+                            multiplier = 0.25d;
+                            break;
+                        case 2:
+                            multiplier = 0.75d;
+                            break;
+                        case 3:
+                            multiplier = 1.75d;
+                            break;
+                        default:
+                            multiplier = 0.90d;
+                            break;
+                                
+                    }
+                    FXUIGameMaster.delayTimeBetweenBots = (long) (FXUIGameMaster.DEFAULT_DELAY_BETWEEN_MOVES * multiplier);
+                }
+            }
+        );
+        botDelayMultiplier.getSelectionModel().select(2); //default to normal delay
+        botDelayMultiplier.setStyle("-fx-font: "+ (9*fontMultiplier) +"px \"System\";");
+        
+
+        final Button cnclBtn = new Button("<< back");
+        cnclBtn.setTooltip(new Tooltip("Return to the main menu screen without "
+        		+ "launching a game of either type."));
+
+        /*
+         * Different event handlers, 
+         * to be used depending on states/keys&buttons to make available.
+         */
+        EventHandler<ActionEvent> defaultLdBtnHandler = (ActionEvent t) -> {
+            FXUIGameMaster.workingMode = LOADED_GAME_MODE;
+            mainWindowPane.getChildren().remove(miniPane);
+            gameSelectorIsShowing.set(false);
+            //dialog.close();
+        };
+
+        EventHandler<ActionEvent> loadAltFileHandler = (ActionEvent t) -> {
+            final FileChooser fileChooser = new FileChooser();
+            File file = fileChooser.showOpenDialog(new Stage());
+            if (file != null) {
+                //active_checkpoint_file_name = file.getPath();
+                if (loadFromSave(true, file.getAbsolutePath())) {
+                    loadfrom_filename = file.getAbsolutePath();
+                    FXUIGameMaster.workingMode = LOADED_GAME_MODE;
+                    mainWindowPane.getChildren().remove(miniPane);
+                    gameSelectorIsShowing.set(false);
+                    //dialog.close();
+                } else {
+                    loadGameText.setText("load failed.");
+                    ldToolTip.setText(
+                            (FXUIGameMaster.loadSuccessStatus.contains("FileNotFound")
+                                    ? //If true, set text to...
+                                    "Can't load: "
+                                            + "OS dependent path error;\nplace the file in the same dir as the app,"
+                                            + "\nrename as " + DEFAULT_CHKPNT_FILE_NAME + "& relaunch app"
+                                    : //Or if false, set text to...
+                                    "Can't load save file!\nReason:")
+                                    + loadSuccessStatus
+                                    + "\n\nCLICK to load alt save file"
+                    );
+                }
+            }
+        };
+
+        AtomicBoolean loadButtonState = new AtomicBoolean(false);
+        
+        
+        alternateLoadTypeCBox.selectedProperty().addListener(new ChangeListener<Boolean>(){
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue,
+                                Boolean newValue) {
+                    if(newValue == true){
+                        loadGameBtn.setOnAction(loadAltFileHandler);
+                        loadGameBtn.setText("SELECT OTHER save ...");
+                        ldToolTip.setText("Select a different checkpoint/save file!\n(Opens \"Locate File...\" dialog)");
+                    }
+                    else{
+                        loadGameBtn.setOnAction(defaultLdBtnHandler);
+                        loadGameBtn.setText("LOAD last save.");
+                        ldToolTip.setText(startingTooltipContents);
+                    }
+                }
+            }
+        );
+
+        newGameBtn.setOnAction((ActionEvent t) -> {
+            /*
+            Verify that we have enough players for a new game
+            */
+            if(!applyPlayerTypesToGame(typesUsed)){
+                newGameBtn.setText("Please select players");
+                return;
+            }
+            /*
+            * Check to see whether we are using bots or not...
+            * Check for a specific value in the string representing each
+            * type of player to be used. If "Human" or "FXUI", then not all bots.
+            */
+            FXUIGameMaster.runBotsOnly = true;
+            for(Entry<Integer, String> potentialPlayer : typesUsed.entrySet()){
+                if(potentialPlayer.getValue().contains("FXUI") || potentialPlayer.getValue().contains("Human")){
+                    FXUIGameMaster.runBotsOnly = false;
+                }
+            }
+            /*
+            * Set us up to be in the new game mode, then close the dialog.
+            */
+            FXUIGameMaster.workingMode = NEW_GAME_MODE;
+            mainWindowPane.getChildren().remove(miniPane);
+            gameSelectorIsShowing.set(false);
+        });
+        loadGameBtn.setOnAction(defaultLdBtnHandler);
+        loadGameBtn.setDefaultButton(true);
+        
+        
+        
+
+        cnclBtn.setOnAction((ActionEvent t) -> {
+        	mainWindowPane.getChildren().remove(miniPane);
+        	gameSelectorIsShowing.set(false);
+            //dialog.close();
+        });
+
+        if (!loadFromSave(true, DEFAULT_CHKPNT_FILE_NAME)) {
+            loadGameBtn.setOnAction(loadAltFileHandler);
+            loadGameBtn.setFocusTraversable(false);
+            queryText.setText("Would you like to...\n"
+            		+ "Make a new game?\n"
+            		+ "Find an old save file?\n");
+            ldToolTip.setText("Tried to open your last save...\n"
+                    + (FXUIGameMaster.loadSuccessStatus.contains("FileNotFound")
+                            ? "No checkpoint/save file found!\n" : "Couldn't load it!\nReason:")
+                    + loadSuccessStatus
+                    + "\n\nCLICK to load alt save file");
+            loadGameText.setText("load alternate save file");
+            loadGameBtn.setText("FIND previous save file...");
+            alternateLoadTypeCBox.setSelected(true);
+            alternateLoadTypeCBox.setDisable(true);
+        } else {
+            loadGameText.setText("load game from save file.");
+            loadGameSubText.setText("Welcome back!");
+            //miniPane.setOnMouseEntered(altKeyEventHandler);
+            alternateLoadTypeCBox.setSelected(false);
+        }
+        
+        /*
+         * Set up the layout...
+         * Insert select elements into top and bottom coloured strips, with 
+         * remaining elements to be inserted directly into the layout otherwise.
+         */
+        topInfoStrip.getChildren().setAll(querySymbol, queryText);
+        bottomInfoStrip.getChildren().setAll(cnclBtn);
+        
+        //more re: the layout for selecting the player types
+        displayPlayerTypesFlat(typesUsed, availablePlayerVBox, playerRosterVBox, fontMultiplier);
+        String playerBoxBackground = "-fx-background-color: dimgrey;";
+        final HBox selectPTypes = new HBox(3);
+        selectPTypes.setFillHeight(true);
+        selectPTypes.setAlignment(Pos.TOP_CENTER);
+        selectPTypes.setStyle(playerBoxBackground);
+        //configure the styling of the internal boxes before adding them
+        //to the player selection scroll pane.
+        availablePlayerVBox.setAlignment(Pos.TOP_LEFT);
+        playerRosterVBox.setAlignment(Pos.TOP_RIGHT);
+        availablePlayerVBox.setStyle(playerBoxBackground);
+        playerRosterVBox.setStyle(playerBoxBackground);
+        selectPTypes.getChildren().addAll(availablePlayerVBox, playerRosterVBox);
+        ScrollPane selectPTypesSPane = new ScrollPane(selectPTypes);
+        selectPTypesSPane.setPannable(true);
+        selectPTypesSPane.setStyle(playerBoxBackground);
+        selectPTypesSPane.setFitToWidth(true);
+        selectPTypesSPane.setFitToHeight(true);
+        
+        loadGameBtn.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 13*fontMultiplier));
+        newGameBtn.setFont(Font.font("System", FontWeight.EXTRA_BOLD, 13*fontMultiplier));
+        cnclBtn.setFont(Font.font("System", FontWeight.THIN, 10*fontMultiplier));
+        
+        //setting the final window layout
+        
+        loadGameSelectionBox.getChildren().addAll(bufferLineTwo, loadGameText, loadGameBtn, alternateLoadTypeCBox, loadGameSubText);
+        newGameSelectionBox.getChildren().addAll(bufferLineOne, newGameText, /*botsOnly,*/ 
+                selectPTypesSPane, selectPlayersText, newGameBtn);
+        innerSelectionBox.getChildren().addAll(newGameSelectionBox, 
+        		loadGameSelectionBox);
+        layout.getChildren().setAll(topInfoStrip, 
+                innerSelectionBox,
+                bufferLineThree, botDelayOptionText, botDelayMultiplier, 
+                bufferLineFour, bottomInfoStrip
+        );
+        miniPane.getChildren().add(layout);
+        //dialog.setScene(new Scene(miniPane));
+
+        /*Tell the crossbar what the current dialog is
+         * (we are treating it as a human player dialog, for the sake of consistency)
+         */
+        mainWindowPane.getChildren().add(miniPane);
+        /*Alter the boolean indicating whether the content is showing; 
+         * without this, the logic will not continue correctly.
+         */
+        gameSelectorIsShowing.set(true);
+    }
+    
+    
+    
+    /**
+     * Assists the game selector in parsing the Player types to be used for this game
+     * & stores them in a class variable to be used during game setup.
+     * @param typesUsed the types of players to be used for setup.
+     * @return "true" if at least two players were found, "false" otherwise.
+     */
     private static boolean applyPlayerTypesToGame(HashMap<Integer, String> typesUsed){
         if(typesUsed.size() < 2){
             return false;
@@ -704,22 +1108,36 @@ public class FXUIGameMaster extends Application {
         return true;
     }
     
+    /**
+     * Assists the game selector in showing the available Player types & allowing
+     * selection of the player types from a list on the UI.
+     * @param typesUsed the types of players already used, based around a hard-coded
+     * index necessary to access the list
+     * @param typesOfPlayers displayed on the UI. the available types of players
+     * which can be selected for addition to the game
+     * @param selectedPlayerTypes displayed on the UI. the progressively updated
+     * list of player types to be added to the game. Supports removal of added types.
+     * (So a user clicks the types to be added, and they are displayed here.)
+     */
     private static void displayPlayerTypes(HashMap<Integer, String> typesUsed,
         VBox typesOfPlayers,
-        VBox selectedPlayerTypes)
+        VBox selectedPlayerTypes,
+        double fontMultiplier)
     {
         final LinkedList<Integer> availableNo = new LinkedList<>(Arrays.asList(0,1,2,3,4,5));
-        String[] typeNames = {"Easy", "(BOT)Easy", "Normal" , "(BOT)Normal", 
-            "Hard", "(BOT)Hard", "Seth", "(BOT)Seth", "FXUIAsk", "(YOU)Human"};
+        String[] typeNames = {"Easy", "Easy Bot", "Normal" , "Normal Bot", 
+            "Hard", "Hard Bot", "Seth", "Seth Bot", "FXUIAsk", "Human Player"};
         for (int i = 0; i < typeNames.length; i+=2){
             final int input = i;
             final Button pType = new Button(typeNames[i+1]);
+            pType.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
             pType.setOnAction((ActionEvent t) -> {
                 if(availableNo.size() < 1){
                     return;
                 }
                 Text tName = new Text(typeNames[input+1] + " [remove]");
-                tName.setFill(Color.BROWN);
+                tName.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.REGULAR, 12*fontMultiplier));
+                tName.setFill(Color.BLACK);
                 final int secondaryIdx = availableNo.remove(0);
                 typesUsed.put(secondaryIdx, typeNames[input]);
                 EventHandler<MouseEvent> clickToHide = (MouseEvent mev) -> {
@@ -731,6 +1149,92 @@ public class FXUIGameMaster extends Application {
                 selectedPlayerTypes.getChildren().add(tName);
             });
             typesOfPlayers.getChildren().add(pType);
+        }
+    }
+    
+    private static void displayPlayerTypesFlat(HashMap<Integer, String> typesUsed,
+        VBox typesOfPlayers,
+        VBox selectedPlayerTypes,
+        double fontMultiplier)
+    {
+        final LinkedList<Integer> availableNo = new LinkedList<>(Arrays.asList(0,1,2,3,4,5));
+        final HashMap<String, Integer> typesCounted = new HashMap<String, Integer>();
+        final HashMap<Integer, Text> rosterCache = new HashMap<>();
+        
+        final String[] typeNames = {"Easy", "Easy CPU", "Normal" , "Normal CPU", 
+            "Hard", "Hard CPU", "Seth", "Seth CPU", "FXUIAsk", "Human Player"};
+        
+        final Text tallyText = new Text("total players: 0");
+        tallyText.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+        
+        for(int k = 1; k < 7; k++){
+            final Text placeHolderName = new Text("[player " + k + " empty]");
+            placeHolderName.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.REGULAR, 12*fontMultiplier));
+            placeHolderName.setFill(Color.DARKGREY);
+            rosterCache.put(k, placeHolderName);
+            selectedPlayerTypes.getChildren().add(placeHolderName);
+        }
+        selectedPlayerTypes.getChildren().add(tallyText);
+        
+        for (int i = 0; i < typeNames.length; i+=2){
+            final int input = i;
+            final LinkedList<EventHandler<ActionEvent>> removalEventsForType = new LinkedList<>();
+            typesCounted.put(typeNames[i], 0);
+            
+            final HBox singlePTypeDispBox = new HBox();
+            singlePTypeDispBox.setAlignment(Pos.CENTER_RIGHT);
+            
+            final Text singlePTypeText = new Text(typeNames[i+1] + ": 0 ::");
+            singlePTypeText.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+            
+            final Button pTypeInc = new Button("+");
+            final Button pTypeDec = new Button("-");
+            pTypeInc.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+            pTypeDec.setFont(Font.font("System", FontWeight.MEDIUM, FontPosture.ITALIC, 12*fontMultiplier));
+            
+            pTypeInc.setOnAction((ActionEvent t) -> {
+                if(availableNo.size() < 1){
+                    return;
+                }
+                typesCounted.put(typeNames[input], typesCounted.get(typeNames[input]) + 1);
+                singlePTypeText.setText(typeNames[input+1] + ": " + typesCounted.get(typeNames[input]) + " ::");
+                int secIdxTmp = 10;
+                for(int val : availableNo){
+                    if(val < secIdxTmp){
+                        secIdxTmp = val;
+                    }
+                }
+                if(!availableNo.removeFirstOccurrence(secIdxTmp)){
+                    secIdxTmp = availableNo.remove(0);
+                }
+                final int secondaryIdx = secIdxTmp;
+                
+                typesUsed.put(secondaryIdx, typeNames[input]);
+                rosterCache.get(secondaryIdx+1).setText(typeNames[input+1]);
+                rosterCache.get(secondaryIdx+1).setFill(Color.BLACK);
+                EventHandler<ActionEvent> removalEvent = (ActionEvent aev) -> {
+                    if(typesCounted.get(typeNames[input]) < 1){
+                        return;
+                    }
+                    typesCounted.put(typeNames[input], typesCounted.get(typeNames[input]) - 1);
+                    singlePTypeText.setText(typeNames[input+1] + ": " + typesCounted.get(typeNames[input]) + " ::");
+                    typesUsed.remove(secondaryIdx);
+                    availableNo.add(secondaryIdx);
+                    rosterCache.get(secondaryIdx+1).setText("[player " + (secondaryIdx+1) + " empty]");
+                    rosterCache.get(secondaryIdx+1).setFill(Color.DARKGREY);
+                    tallyText.setText("total players: " + (6-(availableNo.size())));
+                };
+                removalEventsForType.add(removalEvent);
+                tallyText.setText("total players: " + (6-(availableNo.size())));
+            });
+            pTypeDec.setOnAction((ActionEvent tEventDec) -> {
+                if(removalEventsForType.isEmpty()){
+                    return;
+                }
+                removalEventsForType.removeLast().handle(tEventDec);
+            });
+            singlePTypeDispBox.getChildren().addAll(singlePTypeText, pTypeInc, pTypeDec);
+            typesOfPlayers.getChildren().add(singlePTypeDispBox);
         }
     }
 
@@ -746,7 +1250,7 @@ public class FXUIGameMaster extends Application {
      * @param delayClose used to signal whether the window is still open
      * (is set to false once the method closes the dialog window)
      */
-    public static void autoCloseDialog(Stage dialog, Text animatedRegion, AtomicBoolean delayClose) {
+    public static void autoCloseDialogs(Stage dialog, Text animatedRegion, AtomicBoolean delayClose) {
         try {
             if (dialog == null) {
                 System.out.println(INFO + "autoCloseDialogM: \"dialog\" reported as null. window will not automatically close");
@@ -1128,7 +1632,7 @@ public class FXUIGameMaster extends Application {
 
     /**
      * Companion method to enable the save button; ensures actions happen on FX
-     * thread
+     * thread. Uses hard-coded indices to enable the correct button.
      */
     public static void enableSaveButton() {
         Platform.runLater(() -> {
@@ -1231,7 +1735,7 @@ public class FXUIGameMaster extends Application {
                         return "Stalemate!";
                     }
                 }
-                audioManager.playNextNote();
+                FXUIAudioAC.playNextNote();
                 FXUIGameMaster.currentPlayer = this.playerNameToPlayerObjHMap.get(this.players.get(turn));
                 boolean canUpdateUIAndSave = FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
                 writeLogLn(true, FXUIGameMaster.currentPlayer.getName() + " is starting their turn.");
@@ -1274,7 +1778,7 @@ public class FXUIGameMaster extends Application {
             FXUIGameMaster.currentPlayer = null;
             highlightCurrentPlayer(null);
             if (!FXUIGameMaster.fullAppExit && !FXUIGameMaster.endGame && this.players.size() > 0) {
-                audioManager.playEndJingle();
+                FXUIAudioAC.playEndJingle();
                 writeStatsLn();
                 System.out.println(this.players.get(0) + " is the victor!");
                 writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -1445,6 +1949,14 @@ public class FXUIGameMaster extends Application {
     	}
     }
     
+    /**
+     * Prompts a given player to perform a reinforcement move. Handles multiple 
+     * retries should the Player fail to request a valid reinforcement.
+     * (Removes player should attempts/retries exceed limit.)
+     * @param currentPlayer
+     * @param withCountryBonus
+     * @throws PlayerEliminatedException
+     */
     protected void reinforce(Player currentPlayer, boolean withCountryBonus) throws PlayerEliminatedException {
         int reinforcements = 0;
         int attempts = 0;
@@ -1481,11 +1993,20 @@ public class FXUIGameMaster extends Application {
         writeLogLn(true, EVENT_DELIM);
     }
 
+    /**
+     * Prompts a given player to perform an attack move. Handles any attempts to
+     * retry an attack should a given Player attempt an invalid attack.
+     * (Removes player should attempts/retries exceed limit.)
+     * @param currentPlayer
+     * @throws PlayerEliminatedException
+     */
     protected void attack(Player currentPlayer) throws PlayerEliminatedException {
         int attempts = 0;
         boolean resetTurn;
         boolean hasGottenCard = false;
-        while (attempts < RiskConstants.MAX_ATTEMPTS && !FXUIGameMaster.fullAppExit) {
+        while (attempts < RiskConstants.MAX_ATTEMPTS 
+                && !FXUIGameMaster.fullAppExit
+                && this.players.size() > 1) {
             attempts++;
             resetTurn = false;
             AttackResponse atkRsp = tryAttack(currentPlayer, createCardSetCopy(currentPlayer.getName()), getPlayerCardCounts());
@@ -1521,6 +2042,16 @@ public class FXUIGameMaster extends Application {
         }
     }
 
+    /**
+     * Prompts a given player, when under attack, to perform a defense move 
+     * (generally to select how many dice are going to be rolled). (Removes the
+     * Player should it/they fail to supply a valid defense response.)
+     * @param defender
+     * @param oppCards
+     * @param atkRsp
+     * @return
+     * @throws PlayerEliminatedException
+     */
     protected DefendResponse defend(Player defender, Map<String, Integer> oppCards, AttackResponse atkRsp) throws PlayerEliminatedException {
         int attempts = 0;
         boolean valid = false;
@@ -1538,6 +2069,14 @@ public class FXUIGameMaster extends Application {
         return rsp;
     }
 
+    /**
+     * Between an attack attempt and a defense attempt, determines (based on dice
+     * rolls) whether the attacker or defender was successful, and how many troops
+     * were lost by either/or during the attack.
+     * @param atk
+     * @param dfd
+     * @return
+     */
     protected String carryOutAttack(AttackResponse atk, DefendResponse dfd) {
         RollOutcome result = DiceRoller.roll(atk.getNumDice(), dfd.getNumDice());
         this.mapAddToCountryArmyCount(atk.getAtkCountry(), -1 * result.getAtkLosses());
@@ -1547,6 +2086,16 @@ public class FXUIGameMaster extends Application {
         return messageOut;
     }
 
+    /**
+     * Once an attack has been executed, checks the country to see if no troops
+     * remain and, if this is the case (if no troops remain from the prior occupant),
+     * prompts the attacker to move troops onto their new conquest.
+     * @param attacker
+     * @param atkRsp
+     * @param hasGottenCard
+     * @return
+     * @throws PlayerEliminatedException
+     */
     protected boolean checkForTakeover(Player attacker, AttackResponse atkRsp, boolean hasGottenCard) throws PlayerEliminatedException {
         if (this.map.getCountryArmies(atkRsp.getDfdCountry()) == 0) {
             String loserName = this.map.getCountryOwner(atkRsp.getDfdCountry());
@@ -1570,6 +2119,15 @@ public class FXUIGameMaster extends Application {
         }
     }
 
+    /**
+     * Once a player gets a new conquest, supports movement of new armies/troops
+     * onto the new land. Verified/validates that the player does not perform
+     * an invalid advancement, and if the player cannot/does not advance correctly,
+     * terminates player.
+     * @param attacker
+     * @param atkRsp
+     * @throws PlayerEliminatedException
+     */
     protected void advanceArmies(Player attacker, AttackResponse atkRsp) throws PlayerEliminatedException {
         int attempts = 0;
         boolean valid = false;
@@ -1589,6 +2147,11 @@ public class FXUIGameMaster extends Application {
         }
     }
 
+    /**
+     * Under select circumstances, a player is awarded a card to be used to gain
+     * troops, etc. This method pulls a card from the card deck for a given player.
+     * @param playerName
+     */
     protected void awardCard(String playerName) {
         writeLogLn(true, "Awarding " + playerName + " one card.");
         if (this.deck.size() > 0) {
@@ -2210,7 +2773,7 @@ public class FXUIGameMaster extends Application {
      */
     public static void main(String[] args) {
     	launch(FXUIGameMaster.class, args);
-        if (FXUIGameMaster.priGameLogicThread != null) {
+        if (FXUIGameMaster.priGameLogicThread != null && FXUIGameMaster.priGameLogicThread.isAlive()) {
             try {
                 System.out.println("Full exit?");
                 FXUIGameMaster.priGameLogicThread.join(5000);
@@ -2252,10 +2815,19 @@ public class FXUIGameMaster extends Application {
             */
             FXUIGameMaster.gameStartTime = new Date();
             
+            
+            
             /*
             * Allow the user to select game details...
             */
-            int stateOut = displayGameSelector();
+            int stateOut;
+            if(!FXUIGameMaster.FLAT_UI )
+            {
+            	stateOut = displayGameSelector();
+            }
+            else{
+            	stateOut = displayGameSelectorFlat();
+            }
             
             //Depending on what's been selected there, run or don't run.
             if (stateOut != IDLE_MODE) {
@@ -2798,7 +3370,7 @@ public class FXUIGameMaster extends Application {
     public void start(final Stage primaryStage) throws Exception {
         System.out.println("Preparing window...");
 		
-        final About nAbout = new About();
+        nAbout = new About();
         mainWindowPane = new Pane();
         mainWindowPane.setPrefSize(FXUIGameMaster.DEFAULT_CONTENT_WIDTH, FXUIGameMaster.DEFAULT_CONTENT_HEIGHT);
         //mainWindowPane.setStyle("-fx-background-color: darkgoldenrod"); //this is now set later
@@ -2827,7 +3399,7 @@ public class FXUIGameMaster extends Application {
          * audio manager.
          */
         audioManager = new FXUIAudioAC();
-        audioManager.setVisualIndicators(musicPulseIndicator, new Node[]{musicPulseIndicatorS});
+        FXUIAudio.setVisualIndicators(musicPulseIndicator, new Node[]{musicPulseIndicatorS});
         
         
         
@@ -2934,29 +3506,11 @@ public class FXUIGameMaster extends Application {
 
         //cache prior messages so we can display in a non-interactive dialog
         extendedMessageCache = new ArrayList<>();
-        extendedMessageCachePos = 0;
-
-
-        //Button to show the window size options
-        Button windowOptions = new Button("Window Options");
-        windowOptions.setOnAction((ActionEvent t) -> {
-            mainWindowResizeHandler.showSizeOptions();
-        });
         
-        //Button to show audio options (volume, etc)
-        Button audioOptions = new Button("Audio Options");
-        audioOptions.setOnAction((ActionEvent t) -> {
-            if(FXUIGameMaster.audioManager != null){
-                FXUIGameMaster.audioManager.showAudioOptions(primaryStage.getScene().getWindow());
-            }
-            else{
-                FXUIGameMaster.showPassiveDialog("FXUIAudio:"
-                        + "\nAudio Manager not loaded.");
-            }
-        });
 
         //End the current game, but don't close the program.
         Button stopGameBtn = new Button("Bow out.\n(End current game)");
+        stopGameBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
         stopGameBtn.setOnAction((ActionEvent t) -> {
             Platform.runLater(() -> {
                 //crossbar.signalHumanEndingGame();
@@ -2969,6 +3523,7 @@ public class FXUIGameMaster extends Application {
 
         //Button to actually start the game
         Button startBtn = new Button("Let's go!!\n(Start/Load game)");
+        startBtn.setFont(Font.font("Arial", FontWeight.BOLD, 12));
         startBtn.setOnAction((ActionEvent t) -> {
             if (workingMode == IDLE_MODE) {
                 createGameLogicThread();
@@ -2989,20 +3544,11 @@ public class FXUIGameMaster extends Application {
         });
         */
 
-        //your standard About buttons...
-        Button tellMe = new Button("About (Basic Info)");
-        tellMe.setOnAction((ActionEvent t) -> {
-            nAbout.launch(mainWindowPane.getScene().getWindow(), false);
-        });
-
-        //...I said "About buttons". Plural. Yep.	
-        Button tellMe2 = new Button("More About (Ver.)");
-        tellMe2.setOnAction((ActionEvent t) -> {
-            nAbout.more(mainWindowPane.getScene().getWindow());
-        });
+        
 
         //Button allowing you to attempt to force a manual game save, when allowed
         Button saveMe = new Button("save game as...");
+        saveMe.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
         saveMe.setTooltip(new Tooltip("Changes the location where your game is being auto-saved"
                 + "\nAND IMMEDIATELY saves to that new location!"));
         saveMe.setOnAction((ActionEvent t) -> {
@@ -3019,8 +3565,9 @@ public class FXUIGameMaster extends Application {
         saveMe.setDisable(true);
 
         //Button to launch the logplayer (assuming a previous game has actually taken place)
-        Button logPlayback = new Button("open log player.");
-        logPlayback.setOnAction((ActionEvent t) -> {
+        Button logPlaybackBtn = new Button("open log player.");
+        logPlaybackBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+        logPlaybackBtn.setOnAction((ActionEvent t) -> {
             Platform.runLater(() -> {
                 LogPlayer.setAsLaunchedFromFXUIGM();
                 new LogPlayer().start(new Stage());
@@ -3028,62 +3575,74 @@ public class FXUIGameMaster extends Application {
         });
 
         //Button to exit the application entirely
-        Button exitApp = new Button("Lights out!\n(Exit to desktop)");
-        exitApp.setOnAction((ActionEvent t) -> {
+        Button exitAppBtn = new Button("Lights out!\n(Exit to desktop)");
+        exitAppBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+        exitAppBtn.setOnAction((ActionEvent t) -> {
             FXUIGameMaster.tryToExit(primaryStage);
         });
 
 		//Checkbox to allow you to set whether you want to have the log file created
         //(Note: the logfile allows you to review the actions taken during the game)
-        CheckBox doLogging = new CheckBox("Enable logging?\nauto (yes)");
-        doLogging.setTooltip(new Tooltip("YES: Always log (each game overwrites the log of the last game for normal games)\n"
+        CheckBox doLoggingCBox = new CheckBox("Enable logging?\nauto (yes)");
+        doLoggingCBox.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+        doLoggingCBox.setTooltip(new Tooltip("YES: Always log (each game overwrites the log of the last game for normal games)\n"
                 + "NO: Never log (whatever log file exists will remain untouched)\n"
                 + "INDETERMINATE/AUTO: Effectively YES, unless redefined elsewhere.\n"
                 + "For game simulations (when available): enabling (setting to YES) may result in a flood of logs!"));
-        doLogging.setTextFill(Color.ANTIQUEWHITE);
-        doLogging.setOnAction((ActionEvent t) -> {
-            if (doLogging.isIndeterminate()) {
+        doLoggingCBox.setTextFill(Color.ANTIQUEWHITE);
+        doLoggingCBox.setOnAction((ActionEvent t) -> {
+            if (doLoggingCBox.isIndeterminate()) {
                 //tell it to do whatever it wants by default
                 forceEnableLogging = false;
                 forceLoggingIsIndeterminate = true;
-                doLogging.setText("Enable logging?\nauto (yes)");
-            } else if (doLogging.isSelected()) {
+                doLoggingCBox.setText("Enable logging?\nauto (yes)");
+            } else if (doLoggingCBox.isSelected()) {
                 //tell it to enable logging
                 forceEnableLogging = true;
                 forceLoggingIsIndeterminate = false;
-                doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
-            } else if (!doLogging.isSelected()) {
+                doLoggingCBox.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
+            } else if (!doLoggingCBox.isSelected()) {
                 //tell it to forcefully disable logging
                 forceEnableLogging = false;
                 forceLoggingIsIndeterminate = false;
-                doLogging.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
+                doLoggingCBox.setText("Enable logging?\n" + (FXUIGameMaster.loggingEnabled ? "Yes" : "No"));
             }
         });
-        doLogging.setIndeterminate(true);
+        doLoggingCBox.setIndeterminate(true);
 
-        Button flashCurrCountries = new Button("HIGHLIGHT current player's countries");
-        flashCurrCountries.setVisible(false);
-        flashCurrCountries.setLayoutX(25);
-        flashCurrCountries.setLayoutY(45);
-        flashCurrCountries.setOnAction((ActionEvent t) -> {
+        Button flashCountriesBtn = new Button("HIGHLIGHT current player's countries");
+        flashCountriesBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+        flashCountriesBtn.setVisible(false);
+        flashCountriesBtn.setLayoutX(25);
+        flashCountriesBtn.setLayoutY(45);
+        flashCountriesBtn.setOnAction((ActionEvent t) -> {
             if (currentPlayer != null) {
                 flashPlayerCountries(currentPlayer.getName());
             }
         });
         
         Button showLogBtn = new Button("Show log contents.");
+        showLogBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
         showLogBtn.setOnAction((ActionEvent t) -> {
             showLogContents();
         });
         
-        Button showAboutBtn = new Button("Options/About.");
-        showAboutBtn.setOnAction((ActionEvent t) -> {
-            showOptionsAndAbout(primaryStage.getScene().getWindow(),
-                    new Button[]{tellMe, tellMe2, windowOptions, audioOptions});
+        Button showOptsAboutBtn = new Button("Options/About.");
+        showOptsAboutBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
+        showOptsAboutBtn.setOnAction((ActionEvent t) -> {
+        	if(FLAT_UI)
+        	{
+        		showOptionsAndAboutFlat();
+        	}
+        	else{
+
+                showOptionsAndAbout(primaryStage.getScene().getWindow());
+        	}
         });
         
         //Toggle fullscreen.
         Button fullScrnBtn = new Button("Toggle Fullscreen.");
+        fullScrnBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
         fullScrnBtn.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
@@ -3104,14 +3663,14 @@ public class FXUIGameMaster extends Application {
         
         if (!fullAppExit) { //if we had no error
             primaryStatusButtonPanel.getChildren().addAll(subStatusTextElement,
-            	mainStatusTextElement, startButtonPanel, stopGameBtn, exitApp,
-            	showAboutBtn, showLogBtn, saveMe, doLogging, logPlayback, fullScrnBtn,
+            	mainStatusTextElement, startButtonPanel, stopGameBtn, exitAppBtn,
+            	showOptsAboutBtn, showLogBtn, saveMe, doLoggingCBox, logPlaybackBtn, fullScrnBtn,
             	FXUIGameMaster.extendedMessageDisplay);
             mainWindowPane.getChildren().addAll(activeGameIndic, musicPulseIndicator, 
-            		flashCurrCountries, primaryStatusButtonPanel);
+            		flashCountriesBtn, primaryStatusButtonPanel);
         } else { //if we had an error
             primaryStatusButtonPanel.getChildren().addAll(mainStatusTextElement, 
-            	exitApp);
+            	exitAppBtn);
             mainWindowPane.getChildren().addAll(primaryStatusButtonPanel);
             mainWindowPane.setOnKeyPressed(null);
         }
@@ -3122,7 +3681,6 @@ public class FXUIGameMaster extends Application {
 		 * We'll add the Scene to the Stage (the main window) later.
 		 */
         
-        Color colorToSet = Color.GREEN;
         //mainWindowPane.setBackground(new Background(new BackgroundFill(colorToSet, null, null)));
         Color altColor = Color.BLACK;
         scene = new Scene(mainWindowPane, altColor);
@@ -3139,9 +3697,9 @@ public class FXUIGameMaster extends Application {
         //in alternative setups, you could merely do "buttonCache.add(element)" for each individual object.
         buttonCache.set(ButtonPosEnum.BTN_START.ordinal(), startBtn);
         buttonCache.set(ButtonPosEnum.BTN_SAVE.ordinal(), saveMe);
-        buttonCache.set(ButtonPosEnum.BTN_HIGHLIGHT.ordinal(), flashCurrCountries);
-        buttonCache.set(ButtonPosEnum.CKBX_LOGGING.ordinal(), doLogging);
-        buttonCache.set(ButtonPosEnum.BTN_LOG_PLAYBACK.ordinal(), logPlayback);
+        buttonCache.set(ButtonPosEnum.BTN_HIGHLIGHT.ordinal(), flashCountriesBtn);
+        buttonCache.set(ButtonPosEnum.CKBX_LOGGING.ordinal(), doLoggingCBox);
+        buttonCache.set(ButtonPosEnum.BTN_LOG_PLAYBACK.ordinal(), logPlaybackBtn);
 
         //Get the primary window showin', already! (and set the initial size appropriately)
         primaryStage.setTitle("RISK!");
@@ -3184,12 +3742,22 @@ public class FXUIGameMaster extends Application {
     }
     
     /**
+     * Shows a simple message on the UI indicating if AutoBrite
+     * and eyeLief are enabled or disabled.
+     */
+    private static void showVisualFXStatus(){
+    	FXUIGameMaster.displayExtendedMessage("AutoBrite " + (isAutoBrightnessActive() ? "enabled" : "disabled")
+    			+ "\n" + "eyeLief " + (goldenHueApplied() ? "enabled" : "disabled"));
+    }
+    
+    /**
      * Enable automatic brightness (AutoBrite) adjustment using variables specific to this
      * class, without forcing other classes to access the necessary Pane object.
      * ...Thus allowing calls from other classes.
      */
     public static void enableAutoAdjustBrightness(){
     	autoAdjustBrightness(mainWindowPane);
+    	showVisualFXStatus();
     }
     
     /**
@@ -3201,11 +3769,10 @@ public class FXUIGameMaster extends Application {
     	if(aaBright != null && aaBright.isAlive() == true){
     		return;
     	}
-    	long dimTaskTime = 250l;
-    	int dimSteps = 25;
     	aaBright = new Thread(() -> {
     		FXUIGameMaster.runAutoBrightness = true;
-    		double startingOpacity = targetWindowPane.getOpacity();
+    		showVisualFXStatus();
+    		targetWindowPane.getOpacity();
     		targetWindowPane.getScene().getWindow();
     		try{
 	            while(FXUIGameMaster.mainStage.isShowing() && runAutoBrightness){
@@ -3223,6 +3790,7 @@ public class FXUIGameMaster extends Application {
 	            	//targetWindowPane.setOpacity(1.0d);
 	            	System.out.println("AutoBrite disabled.");
     		}
+    		showVisualFXStatus();
             aaBright = null;
         });
         aaBright.setName("autoAdjustBrightnessDaemon");
@@ -3254,13 +3822,13 @@ public class FXUIGameMaster extends Application {
     public static boolean requestToSetBrightness(double brightnessVal){
 		if(brightnessVal > 0.5d){
 			mainWindowPane.setOpacity(brightnessVal);
-			crossbar.storeBritenessOpacity(brightnessVal);
+			FXUI_Crossbar.storeBritenessOpacity(brightnessVal);
 			FXUIPlayer.applyBrightnessControlToKnownNodes(brightnessVal);
 			return true;
 		}
 		else{
 			mainWindowPane.setOpacity(0.5d);
-			crossbar.storeBritenessOpacity(0.5d);
+			FXUI_Crossbar.storeBritenessOpacity(0.5d);
 			FXUIPlayer.applyBrightnessControlToKnownNodes(0.5d);
 			return false;
 		}
@@ -3274,7 +3842,7 @@ public class FXUIGameMaster extends Application {
      * @return double value representing the suggested opacity.
      */
     private static double determineBrightnessForTimeOfDay(){
-    	Date date = new Date();
+    	new Date();
     	Calendar cale = Calendar.getInstance();
     	
     	int hourOfDate = cale.get(Calendar.HOUR_OF_DAY);
@@ -3305,9 +3873,10 @@ public class FXUIGameMaster extends Application {
         mainWindowPane.setBlendMode(BlendMode.ADD);
         FXUIGameMaster.colorAdjusted = true;
         scene.setFill(adjustedColor);
-        crossbar.storeStrainReliefColor(adjustedColor);
+        FXUI_Crossbar.storeStrainReliefColor(adjustedColor);
         FXUIPlayer.applyEyeStrainControlToKnownScenes(adjustedColor);
         System.out.println("eyeLief enabled");
+        showVisualFXStatus();
         return colorAdjusted;
     }
     
@@ -3320,10 +3889,11 @@ public class FXUIGameMaster extends Application {
     	Color newColor = Color.BLACK;
     	mainWindowPane.setBlendMode(null);
         scene.setFill(newColor);
-        crossbar.storeStrainReliefColor(newColor);
+        FXUI_Crossbar.storeStrainReliefColor(newColor);
         colorAdjusted = false;
         FXUIPlayer.applyEyeStrainControlToKnownScenes(newColor);
         System.out.println("eyeLief disabled");
+        showVisualFXStatus();
         return colorAdjusted;
     }
     
@@ -3714,7 +4284,7 @@ public class FXUIGameMaster extends Application {
     private static void tryToExit(Stage primaryStage) {
         Thread ttExit = new Thread(() -> {
             Platform.runLater(() -> {
-                audioManager.playEndJingle();
+                FXUIAudioAC.playEndJingle();
                 setSubStatus("xo");
                 mainStatusTextElement.setText("G O O D B Y E");
                 exitSplashScreen();
@@ -3789,8 +4359,8 @@ public class FXUIGameMaster extends Application {
 		}
 		else{ //if this isn't the FX thread, make it happen there!
 			Platform.runLater(() -> {
-                            passiveDialogHelper(textToShow, dialogIsShowing);
-                        });
+                passiveDialogHelper(textToShow, dialogIsShowing);
+            });
 		}
 		return 0;
     }
@@ -3918,7 +4488,7 @@ public class FXUIGameMaster extends Application {
             bodyText.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
 
             String spaceBufferContents = FXUIGameMaster.internalLogCache.isEmpty() ? 
-            		"[No content logged yet]" : "[Populating log content...]";
+            		"[nothing found. yet.]" : "[recalling events...]";
             Text spaceBuffer = new Text(spaceBufferContents);
             spaceBuffer.setTextAlignment(TextAlignment.CENTER);
             spaceBuffer.setFont(Font.font("Arial", FontWeight.LIGHT, 12));
@@ -4035,22 +4605,49 @@ public class FXUIGameMaster extends Application {
      * @param autoExit whether this window should automatically close after
      * a set amount of time (around 5 seconds)
      */
-    private void showOptionsAndAbout(Window owner, Button[] buttonsToShow) {
-    	if(buttonsToShow == null){
-    		return;
-    	}
+    private void showOptionsAndAbout(Window owner) {
     	
         final Stage dialog = new Stage();
 
         dialog.setTitle("Options & About");
-        if(buttonsToShow.length < 1){
-        	dialog.setTitle("No content provided!");
-        }
+        
         dialog.initOwner(owner);
-		//dialog.initStyle(StageStyle.UTILITY);
-        //dialog.initModality(Modality.WINDOW_MODAL);
+        //dialog.initStyle(StageStyle.UTILITY);
+        dialog.initModality(Modality.APPLICATION_MODAL);
         dialog.setX(owner.getX());
         dialog.setY(owner.getY() + 100);
+        
+        Window secondaryOwner = owner; //if not this, then dialog.getScene().getWindow()
+        
+        //your standard About buttons...
+        Button tellMe = new Button("About (Basic Info)");
+        tellMe.setOnAction((ActionEvent t) -> {
+            nAbout.launch(secondaryOwner, false);
+        });
+
+        //...I said "About buttons". Plural. Yep.	
+        Button tellMe2 = new Button("More About (Ver.)");
+        tellMe2.setOnAction((ActionEvent t) -> {
+            nAbout.more(secondaryOwner);
+        });
+        
+        //Button to show the window size options
+        Button windowOptions = new Button("Visual Options");
+        windowOptions.setOnAction((ActionEvent t) -> {
+            mainWindowResizeHandler.showSizeOptions(secondaryOwner);
+        });
+        
+        //Button to show audio options (volume, etc)
+        Button audioOptions = new Button("Audio Options");
+        audioOptions.setOnAction((ActionEvent t) -> {
+            if(FXUIGameMaster.audioManager != null){
+                FXUIGameMaster.audioManager.showAudioOptions(secondaryOwner);
+            }
+            else{
+                FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                        + "\nAudio Manager not loaded.");
+            }
+        });
 
         final Button closeButton = new Button("[close]");
         closeButton.setDefaultButton(true);
@@ -4061,7 +4658,7 @@ public class FXUIGameMaster extends Application {
         final VBox layout = new VBox(10);
         layout.setAlignment(Pos.CENTER);
         layout.setStyle("-fx-padding: 5;");
-        layout.getChildren().addAll(Arrays.asList(buttonsToShow));
+        layout.getChildren().addAll(tellMe, tellMe2, windowOptions, audioOptions);
         
         double widthOfLines = 250d;
         double strokeThicknessOfLines = 3.0d;
@@ -4077,6 +4674,109 @@ public class FXUIGameMaster extends Application {
         dialog.setScene(new Scene(internalScrollPane));
         dialog.show();
     }
+    
+    /**
+     * Allow the player to decide if they want to start a new game, or launch an
+     * old game. SHOULD NOT BE RUN ON JAVAFX THREAD. 
+     * Does not create a new window; instead, creates a flat dialog on top
+     * of main window contents.
+     * @return Will return -1 in two scenarios: if not on the JavaFX thread, or 
+     * if the game is not idle (if working mode doesn't equal idle). 
+     * Else, returns the working mode (whether new game or loaded game)
+     */
+    private void showOptionsAndAboutFlat() {
+    	AtomicBoolean gameSelectorIsShowing = new AtomicBoolean(true);
+        if (Platform.isFxApplicationThread()){
+        	showOptionsAndAboutFlat(gameSelectorIsShowing);
+        }
+        else{
+	        Platform.runLater(() -> {
+	        	showOptionsAndAboutFlat(gameSelectorIsShowing);
+	        });
+	        do {
+	            RiskUtils.sleep(100);
+	        } while (gameSelectorIsShowing.get() && FXUIGameMaster.mainStage.isShowing());
+        }
+    }
+
+    private void showOptionsAndAboutFlat(AtomicBoolean gameSelectorIsShowing) {
+        Window owner = mainWindowPane.getScene().getWindow();
+
+        final Pane miniPane = new Pane();
+    	final double fontMultiplier = 1.5;
+
+        final VBox layout = new VBox(5*fontMultiplier);
+        //layout.setLayoutX(100);
+        //layout.setLayoutY(100);
+        layout.setMinWidth(DEFAULT_CONTENT_WIDTH);
+        layout.setMinHeight(DEFAULT_CONTENT_HEIGHT);
+        layout.setAlignment(Pos.CENTER);
+        
+        layout.setStyle("-fx-background-color: dimgrey;-fx-opacity: 0.95");
+        
+      //your standard About buttons...
+        Button tellMe = new Button("About (Basic Info)");
+        tellMe.setOnAction((ActionEvent t) -> {
+            nAbout.launch(owner, false);
+        });
+
+        //...I said "About buttons". Plural. Yep.	
+        Button tellMe2 = new Button("More About (Ver.)");
+        tellMe2.setOnAction((ActionEvent t) -> {
+            nAbout.more(owner);
+        });
+        
+        //Button to show the window size options
+        Button windowOptions = new Button("Visual Options");
+        windowOptions.setOnAction((ActionEvent t) -> {
+            mainWindowResizeHandler.showSizeOptions(owner);
+        });
+        
+        //Button to show audio options (volume, etc)
+        Button audioOptions = new Button("Audio Options");
+        audioOptions.setOnAction((ActionEvent t) -> {
+            if(FXUIGameMaster.audioManager != null){
+                FXUIGameMaster.audioManager.showAudioOptions(owner);
+            }
+            else{
+                FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                        + "\nAudio Manager not loaded.");
+            }
+        });
+
+        final Button closeButton = new Button("[close]");
+        closeButton.setDefaultButton(true);
+        closeButton.setOnAction((ActionEvent t) -> {
+        	mainWindowPane.getChildren().remove(miniPane);
+            gameSelectorIsShowing.set(false);
+            });
+
+        
+        double widthOfLines = 250d;
+        double strokeThicknessOfLines = 3.0d;
+        Color colorOfLines = Color.WHEAT;
+        Line bufferLine = new Line(0,0,widthOfLines,0);
+        bufferLine.setStrokeWidth(strokeThicknessOfLines);
+        bufferLine.setStroke(colorOfLines);
+        
+
+        layout.getChildren().addAll(tellMe, tellMe2, windowOptions, audioOptions);
+        layout.getChildren().addAll(bufferLine,closeButton);
+        
+        
+        miniPane.getChildren().add(layout);
+        //dialog.setScene(new Scene(miniPane));
+
+        /*Tell the crossbar what the current dialog is
+         * (we are treating it as a human player dialog, for the sake of consistency)
+         */
+        mainWindowPane.getChildren().add(miniPane);
+        /*Alter the boolean indicating whether the content is showing; 
+         * without this, the logic will not continue correctly.
+         */
+        gameSelectorIsShowing.set(true);
+    }
+    
     
     /**
 	 * Enables a user to, with the flip of a particular boolean, control whether
