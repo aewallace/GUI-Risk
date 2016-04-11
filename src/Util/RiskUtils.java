@@ -1,16 +1,13 @@
 package Util;
+import Map.Continent;
+import Map.Country;
+import Map.RiskMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
 import java.util.Set;
-
-import Map.Continent;
-import Map.Country;
-import Map.RiskMap;
 import javafx.application.Platform;
 
 public class RiskUtils {
@@ -219,6 +216,8 @@ public class RiskUtils {
 	 * Sleeps threads. Makes use of Thread.sleep(), but internally suppresses any exceptions 
 	 * expected to occur. Not advised for use on JavaFX threads, 
 	 * as Thread.sleep() will make UI (or the entire app) frozen until all sleeps are done!
+         * Will not sleep if thread is currently interrupted, and will clear said interrupt status.
+         * Will KEEP interrupted status if thread is interrupted DURING sleep.
 	 * @param millisecs the length of time, in milliseconds, to sleep the thread. Type: 'long'.
 	 * @return "true" if the sleep succeeded, "false" if an exception was caught
 	 * or no sleeping occurred.
@@ -229,8 +228,10 @@ public class RiskUtils {
 		}
 		boolean didSucceed = false;
 		try {
-			Thread.sleep(millisecs);
-			didSucceed = true;
+			if(!Thread.interrupted()){
+				Thread.sleep(millisecs);
+				didSucceed = true;
+            }
 		} catch (InterruptedException e) {
 			//We never care about what caused the interruption so long as we're using this method.
 			//Just make sure we pass the interrupted state along.

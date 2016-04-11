@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,14 +39,17 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
@@ -67,12 +71,11 @@ import javafx.stage.Window;
 public class FXUIPlayer implements Player {
 
     public static final String versionInfo = "FXUI-RISK-Player\nVersion 0111\nStamp 2016.01.09, 14:11\nStability: Alpha(01)";
-
-    private static boolean instanceAlreadyCreated = false;
     private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
     private static Window owner = null;
     private double windowXCoord = 0;
     private double windowYCoord = 0;
+    private AtomicBoolean autoProgressDefense = new AtomicBoolean(false);
 
     public static void setOwnerWindow(Window ownerIn) {
         FXUIPlayer.owner = ownerIn;
@@ -124,7 +127,7 @@ public class FXUIPlayer implements Player {
 
     public FXUIPlayer(String nameIn) {
         this.name = nameIn;
-        
+
     }
 
     public FXUIPlayer(boolean askForName, Collection<String> unavailableNames) {
@@ -135,9 +138,9 @@ public class FXUIPlayer implements Player {
             this.name = "Human " + this.hashCode();
         }
     }
-    
-    private static Stage preparePersistentDialog(){
-        if(persistentDialog == null || !persistentDialog.isShowing()){
+
+    private static Stage preparePersistentDialog() {
+        if (persistentDialog == null || !persistentDialog.isShowing()) {
             Platform.runLater(() -> {
                 persistentDialog = new Stage();
                 FXUIPlayer.crossbar.setCurrentPlayerDialog(persistentDialog);
@@ -145,17 +148,17 @@ public class FXUIPlayer implements Player {
                 persistentDialog.setTitle("Please wait...");
                 if (FXUIPlayer.owner != null) {
                     persistentDialog.initOwner(FXUIPlayer.owner);
-                }               
+                }
             });
         }
         return persistentDialog;
     }
-    
-    private static void displayWithPersistentDialog(Scene contents){
-        
+
+    private static void displayWithPersistentDialog(Scene contents) {
+
     }
-    
-    private static void clearPersistentDialogContents(){
+
+    private static void clearPersistentDialogContents() {
         preparePersistentDialog();
     }
 
@@ -201,9 +204,9 @@ public class FXUIPlayer implements Player {
      * the local crossbar, immediately returns. If used with the incorrect
      * dialog, will stall indefinitely until the correct, associated dialog is
      * closed. Will be interrupted (and return) if an attempt to end the game is
-     * registered by the local Crossbar.
-     * Also prompts class to clear old references to past dialogs (Stages) which
-     * had been registered for brightness & eye-strain management.
+     * registered by the local Crossbar. Also prompts class to clear old
+     * references to past dialogs (Stages) which had been registered for
+     * brightness & eye-strain management.
      */
     private void waitForDialogToClose(FXUI_Crossbar xbar) {
         RiskUtils.sleep(1000);
@@ -230,80 +233,88 @@ public class FXUIPlayer implements Player {
             this.keepRunning = FXUIGameMaster.doYouWantToMakeAnExit(false, 0) <= 0;
         }
     }
-    
+
     /**
-     * Register a given Node for automatic or manual changing of the window's brightness
-     * (opacity), in an attempt to prevent blinding light during nighttime, based on
-     * the setting done by FXUIGameMaster & stored in the FXUI_Crossbar.
-     * @param stageIn the Stage which houses the Node used as the primary layout controller.
-     * @param nodeIn the primary layout controller & root of the Scene for the supplied Stage.
+     * Register a given Node for automatic or manual changing of the window's
+     * brightness (opacity), in an attempt to prevent blinding light during
+     * nighttime, based on the setting done by FXUIGameMaster & stored in the
+     * FXUI_Crossbar.
+     *
+     * @param stageIn the Stage which houses the Node used as the primary layout
+     * controller.
+     * @param nodeIn the primary layout controller & root of the Scene for the
+     * supplied Stage.
      */
-    private void registerNodeForBrightnessControl(Stage stageIn, Node nodeIn){
-    	nodesForBriteMap.put(stageIn,  nodeIn);
-    	applyBrightnessControlToKnownNodes(FXUI_Crossbar.getBritenessOpacity());
+    private void registerNodeForBrightnessControl(Stage stageIn, Node nodeIn) {
+        nodesForBriteMap.put(stageIn, nodeIn);
+        applyBrightnessControlToKnownNodes(FXUI_Crossbar.getBritenessOpacity());
     }
-    
+
     /**
      * Checks for any inactive Stages and, for those found, deregisters their
-     * associated layout Node from eye strain control. (Prevents the software 
-     * from trying to change the brightness of a Node which is no longer active).
+     * associated layout Node from eye strain control. (Prevents the software
+     * from trying to change the brightness of a Node which is no longer
+     * active).
      */
-    private void deregisterInactivesFromBrightnessControl(){
-    	for(Entry<Stage, Node> entrySN : nodesForBriteMap.entrySet()){
-    		if(!entrySN.getKey().isShowing()){
-    			nodesForBriteMap.remove(entrySN.getKey());
-    		}
-    	}
-    	
+    private void deregisterInactivesFromBrightnessControl() {
+        for (Entry<Stage, Node> entrySN : nodesForBriteMap.entrySet()) {
+            if (!entrySN.getKey().isShowing()) {
+                nodesForBriteMap.remove(entrySN.getKey());
+            }
+        }
+
     }
-    
+
     /**
      * Register a given Scene for automatic or manual changing of the background
-     * color, in an attempt to reduce eye strain, based on the setting done by 
+     * color, in an attempt to reduce eye strain, based on the setting done by
      * FXUIGameMaster & stored in the FXUI_Crossbar.
+     *
      * @param stageIn
      * @param sceneIn
      */
-    private void registerSceneForEyeStrainControl(Stage stageIn, Scene sceneIn){
-    	scenesForStrainReliefMap.put(stageIn, sceneIn);
-    	applyEyeStrainControlToKnownScenes(FXUI_Crossbar.getStrainReliefColor());
+    private void registerSceneForEyeStrainControl(Stage stageIn, Scene sceneIn) {
+        scenesForStrainReliefMap.put(stageIn, sceneIn);
+        applyEyeStrainControlToKnownScenes(FXUI_Crossbar.getStrainReliefColor());
     }
-    
+
     /**
      * Checks for any inactive Stages and, for those found, deregisters their
      * associated Scene from eye strain control. (Prevents the software from
      * trying to change the color of a Scene which is no longer active).
      */
-    private void deregisterInactivesFromEyeStrainControl(){
-    	for(Entry<Stage, Scene> entrySS : scenesForStrainReliefMap.entrySet()){
-    		if(!entrySS.getKey().isShowing()){
-    			scenesForStrainReliefMap.remove(entrySS.getKey());
-    		}
-    	}
-    	
+    private void deregisterInactivesFromEyeStrainControl() {
+        for (Entry<Stage, Scene> entrySS : scenesForStrainReliefMap.entrySet()) {
+            if (!entrySS.getKey().isShowing()) {
+                scenesForStrainReliefMap.remove(entrySS.getKey());
+            }
+        }
+
     }
-    
+
     /**
-     * Apply a given color to all known Scene objects 
-     * (FXUIPlayer-related Scene objects only) in an attempt to reduce eye strain.
+     * Apply a given color to all known Scene objects (FXUIPlayer-related Scene
+     * objects only) in an attempt to reduce eye strain.
+     *
      * @param colorToApply
      */
-    public static void applyEyeStrainControlToKnownScenes(Color colorToApply){
-    	for(Entry<Stage, Scene> sceneApp : scenesForStrainReliefMap.entrySet()){
-    		sceneApp.getValue().setFill(colorToApply);
-    	}
+    public static void applyEyeStrainControlToKnownScenes(Color colorToApply) {
+        for (Entry<Stage, Scene> sceneApp : scenesForStrainReliefMap.entrySet()) {
+            sceneApp.getValue().setFill(colorToApply);
+        }
     }
-    
+
     /**
-     * Apply a given brightness to all known Node objects (FXUIPlayer-related 
-     * Node objects only, such as a primary Pane, ScrollPane, or VBox/HBox), 
+     * Apply a given brightness to all known Node objects (FXUIPlayer-related
+     * Node objects only, such as a primary Pane, ScrollPane, or VBox/HBox),
      * based on the prior setting controlled by the FXUIGameMaster class.
+     *
      * @param opacity
      */
-    public static void applyBrightnessControlToKnownNodes(double opacity){
-    	for(Entry<Stage, Node> nodeApp : nodesForBriteMap.entrySet()){
-    		nodeApp.getValue().setOpacity(opacity);
-    	}
+    public static void applyBrightnessControlToKnownNodes(double opacity) {
+        for (Entry<Stage, Node> nodeApp : nodesForBriteMap.entrySet()) {
+            nodeApp.getValue().setOpacity(opacity);
+        }
     }
 
     /**
@@ -315,11 +326,11 @@ public class FXUIPlayer implements Player {
      */
     private boolean validateName(String potentialName, Collection<String> unavailableNames) {
         FXUIGameMaster.diagnosticPrintln("(" + potentialName + ")");
-        if (potentialName == null){
+        if (potentialName == null) {
             return false;
         }
         potentialName = potentialName.trim();
-        if(potentialName.length() < 1) {
+        if (potentialName.length() < 1) {
             return false;
         }
         if (unavailableNames != null && unavailableNames.contains(potentialName)) {
@@ -453,7 +464,7 @@ public class FXUIPlayer implements Player {
                             }
                         }
                     });
-                    
+
                     autoSet.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
                         public void handle(ActionEvent t) {
@@ -474,7 +485,6 @@ public class FXUIPlayer implements Player {
                             }
                         }
                     });
-                    
 
                     layout.getChildren().addAll(guideText, guideText2, statusText, potentialName, checkName, acceptIt, autoSet);
                     //formally add linear layout to scene, and display the dialog
@@ -620,13 +630,13 @@ public class FXUIPlayer implements Player {
 
                     layout.getChildren().addAll(statusText, acceptIt);
                     ScrollPane superSPane = new ScrollPane(layout);
-                    
+
                     //formally add linear layout to scene, and display the dialog
                     dialog.setScene(new Scene(superSPane));
-                    
+
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-                    
+
                     registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -801,7 +811,7 @@ public class FXUIPlayer implements Player {
 
                     //formally add linear layout to scene, and display the dialog
                     dialog.setScene(new Scene(layout));
-                    
+
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     registerNodeForBrightnessControl(dialog, layout);
@@ -953,7 +963,7 @@ public class FXUIPlayer implements Player {
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
-                    
+
                     registerNodeForBrightnessControl(dialog, spane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -1214,7 +1224,7 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
-                    
+
                     registerNodeForBrightnessControl(dialog, spane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -1281,8 +1291,8 @@ public class FXUIPlayer implements Player {
      * @param fromCountry
      * @param toCountry
      * @param minAdv
-     * @return advance response containing the number of armies being added
-     * to the new conquest.
+     * @return advance response containing the number of armies being added to
+     * the new conquest.
      */
     public AdvanceResponse advance(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards, Country fromCountry, Country toCountry, int minAdv) {
         //if the player asked to end the game, don't even display the dialog
@@ -1320,7 +1330,7 @@ public class FXUIPlayer implements Player {
                     final Button acceptance = new Button("Submit/OK");
                     fireButtonAfter3SHover(acceptance);
                     final Text acceptanceStatus = new Text("Minimum to advance: " + minAdv);
-                    
+
                     final Text briefInstructions = new Text("Advance some armies "
                             + "\ninto your new conquest!");
 
@@ -1340,21 +1350,21 @@ public class FXUIPlayer implements Player {
 
                         UpdateStatus() {
                         }
-                        
-                        private String troopOrTroops(int troopCount){
+
+                        private String troopOrTroops(int troopCount) {
                             return (troopCount == 1 ? "troop" : "troops");
                         }
 
                         public void refreshStatus() {
                             int srcCt = (sourceArmies - rsp.getNumArmies());
                             int dstCt = rsp.getNumArmies();
-                            sourceCount.setText("Leave\n" + srcCt+ "\n" 
-                                    + troopOrTroops(srcCt) + "\n" 
-                                    + "in\n" + fromCountry.getName() 
+                            sourceCount.setText("Leave\n" + srcCt + "\n"
+                                    + troopOrTroops(srcCt) + "\n"
+                                    + "in\n" + fromCountry.getName()
                                     + "\n:::::\n");
-                            destCount.setText("Advance\n" +  dstCt + "\n" 
-                                    + troopOrTroops(dstCt) + "\n" 
-                                    + "\ninto\n" + toCountry.getName() 
+                            destCount.setText("Advance\n" + dstCt + "\n"
+                                    + troopOrTroops(dstCt) + "\n"
+                                    + "\ninto\n" + toCountry.getName()
                                     + "\n:::::\n");
                             doubleCheck = false;
                         }
@@ -1378,7 +1388,7 @@ public class FXUIPlayer implements Player {
                     }
 
                     countryCounts.setAlignment(Pos.CENTER);
-                    
+
                     countryCounts.getChildren().addAll(sourceCount, destCount);
 
                     final UpdateStatus updater = new UpdateStatus();
@@ -1407,7 +1417,7 @@ public class FXUIPlayer implements Player {
                              * number of troops, AND make sure that we leave
                              * at least one army member in the source country,
                              * then we are fine.*/
-                            if (rsp.getNumArmies() > minAdv){
+                            if (rsp.getNumArmies() > minAdv) {
                                 updater.resetAcceptance();
                                 rsp.setNumArmies(rsp.getNumArmies() - 1);
                                 updater.refreshStatus();
@@ -1435,7 +1445,7 @@ public class FXUIPlayer implements Player {
                     layout.setAlignment(Pos.CENTER);
                     layout.setStyle("-fx-padding: 20;");
                     layout.getChildren().setAll(
-                            briefInstructions, countryCounts, allocationButtons, 
+                            briefInstructions, countryCounts, allocationButtons,
                             acceptanceStatus, acceptance
                     );
 
@@ -1443,7 +1453,7 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(layout));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
-                    
+
                     registerNodeForBrightnessControl(dialog, layout);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -1692,7 +1702,7 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
-                    
+
                     registerNodeForBrightnessControl(dialog, spane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -1769,6 +1779,19 @@ public class FXUIPlayer implements Player {
                     Button acceptIt = new Button("Accept/OK");
                     fireButtonAfter3SHover(acceptIt);
 
+                    final CheckBox autoDefend = new CheckBox("Auto-defend on successive turns");
+                    autoDefend.setTooltip(new Tooltip("Automatically roll dice on future turns (dialog still appears)"));
+                    autoDefend.setFont(Font.font("Arial", FontWeight.LIGHT, FontPosture.ITALIC, 16));
+                    autoDefend.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue,
+                                Boolean newValue) {
+                            autoProgressDefense.set(newValue);
+                        }
+                    }
+                    );
+                    autoDefend.setSelected(autoProgressDefense.get());
+
                     HBox acceptanceBtns = new HBox(10);
                     Text buttonDivider = new Text("***********");
 
@@ -1783,22 +1806,19 @@ public class FXUIPlayer implements Player {
                     putWindowAtLastKnownLocation(dialog);
 
                     //Generic instructions for attacking (the act of which is always optional, technically)
-                    final String guideTextContents = "You are being attacked!"
-                            + "\nAn anemo--err, an enemy--"
-                            + "\nhas chosen to attack you at"
-                            + "\n" + dfdCountry.getName() + "!"
-                            + "\nThe attacker is attacking from\n"
-                            + atkCountry.getName() + "."
-                            + "\nYou must decide how to defend yourself!"
-                            + "\n\nYou roll dice to defend. Roll the die"
-                            + "\n(or two dice, if you own enough countries)"
-                            + "\n(more dice = better chance of good defense)"
-                            + "\n(more dice = more troops lost if you lose)"
+                    final String guideTextContents = map.getCountryOwner(dfdCountry)
+                            + " of " + dfdCountry.getName() + ","
+                            + "\nyou are being attacked by\n"
+                            + map.getCountryOwner(atkCountry)
+                            + " of " + atkCountry.getName() + "."
+                            + "\nDefend yourself!"
+                            + "\n"
+                            + "\nHow many dice will you roll?"
                             + "\nYour attacker is rolling " + numAtkDice + "."
-                            + "\nYOU can roll a maximum of " + maxDfdDiceAvailable + "."
-                            + "\n...How many will you roll?";
+                            + "\nYOU can roll a maximum of " + maxDfdDiceAvailable + ".";
                     guideText.setText(guideTextContents);
                     guideText.setTextAlignment(TextAlignment.CENTER);
+                    
 
                     //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
                     statusText.setText("~~~");
@@ -1839,13 +1859,26 @@ public class FXUIPlayer implements Player {
                             dialog.close();
                         }
                     });
+                    
+                    final String helpTooltipContents = 
+                    		"\n\nYou roll dice to defend. Roll at least one die."
+                            + "\nYou may roll two dice if you own enough countries."
+                            + "\nRolling more dice gives you a better chance of having"
+                            + "\n a successful defense. However, more dice also"
+                            + "\nmeans you lose more troops if your defense fails.";
+                    Tooltip helpTooltip = new Tooltip(helpTooltipContents);
+                    diceCountInc.setTooltip(helpTooltip);
+                    diceCountDec.setTooltip(helpTooltip);
 
+                    if (autoProgressDefense.get()) {
+                        fireButtonUponCheckbox(acceptIt, autoDefend);
+                    }
                     acceptanceBtns.getChildren().addAll(acceptIt);
                     acceptanceBtns.setAlignment(Pos.CENTER);
 
                     //add status and buttons to layout
                     buttonDivider.setTextAlignment(TextAlignment.CENTER);
-                    layout.getChildren().addAll(guideText, statusText, buttonDivider, diceDisplay, acceptanceBtns);
+                    layout.getChildren().addAll(guideText, statusText, buttonDivider, diceDisplay, autoDefend, acceptanceBtns);
                     layout.setAlignment(Pos.CENTER);
 
                     //formally add linear layout to scene through the use of a scroll pane, and display the dialog
@@ -1853,7 +1886,7 @@ public class FXUIPlayer implements Player {
                     dialog.setScene(new Scene(spane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
-                    
+
                     registerNodeForBrightnessControl(dialog, spane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
@@ -1872,28 +1905,29 @@ public class FXUIPlayer implements Player {
         } while (this.keepRunning);
         return rsp;
     }
-    
+
     /**
-     * Takes a button that's been set up with a "setOnAction" command
-     * and makes it so that button will fire multiple times on long press.
-     * @param btn 
+     * Takes a button that's been set up with a "setOnAction" command and makes
+     * it so that button will fire multiple times on long press.
+     *
+     * @param btn
      */
-    private static void repeatFireOnPressAndHover(Button btn){
-        if(btn == null){
+    private static void repeatFireOnPressAndHover(Button btn) {
+        if (btn == null) {
             return;
         }
-        EventHandler<MouseEvent> mEvent = (new EventHandler<MouseEvent>(){
+        EventHandler<MouseEvent> mEvent = (new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
                 //btn.fire();
-                try{
+                try {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
                             final long fireDelta = 650;
                             RiskUtils.sleep(fireDelta);
-                            while(btn.isPressed() || btn.isHover()){
-                                try{
+                            while (btn.isPressed() || btn.isHover()) {
+                                try {
                                     Platform.runLater(new Runnable() {
                                         @Override
                                         public void run() {
@@ -1901,19 +1935,17 @@ public class FXUIPlayer implements Player {
                                         }
                                     });
                                     RiskUtils.sleep(fireDelta);
-                                }
-                                catch (Exception e){
-                                        e.printStackTrace();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
                                 }
                             }
                         }
                     });
                     ctdRun.setDaemon(true);
                     ctdRun.start();
-                }
-                catch (Exception e){
-                        e.printStackTrace();
-                        return;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return;
                 }
             }
 
@@ -1922,29 +1954,31 @@ public class FXUIPlayer implements Player {
         //btn.setOnMouseClicked(mEvent);
         //btn.setOnMouseEntered(mEvent);
     }
+
     /**
-     * Takes a button that's been set up with a "setOnAction" command
-     * and makes it so that button will fire on hover.
-     * Also makes it so that the button will continue to fire with extended hovering.
-     * @param btn 
+     * Takes a button that's been set up with a "setOnAction" command and makes
+     * it so that button will fire on hover. Also makes it so that the button
+     * will continue to fire with extended hovering.
+     *
+     * @param btn
      */
-    private static void fireButtonOnHover(Button btn){
-        if(btn == null){
+    private static void fireButtonOnHover(Button btn) {
+        if (btn == null) {
             return;
         }
-        btn.setOnMouseEntered(new EventHandler<MouseEvent>(){
+        btn.setOnMouseEntered(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
                 btn.fire();
-                
-                try{
+
+                try {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
                             final long refreshDelta = 975;
                             RiskUtils.sleep(refreshDelta);
-                            while(btn.isHover()){
-                                try{
+                            while (btn.isHover()) {
+                                try {
                                     Platform.runLater(new Runnable() {
                                         @Override
                                         public void run() {
@@ -1952,58 +1986,60 @@ public class FXUIPlayer implements Player {
                                         }
                                     });
                                     RiskUtils.sleep(refreshDelta);
-                                }
-                                catch (Exception e){
-                                        e.printStackTrace();
+                                } catch (Exception e) {
+                                    e.printStackTrace();
                                 }
                             }
                         }
                     });
                     ctdRun.setDaemon(true);
                     ctdRun.start();
-                }
-                catch (Exception e){
-                        e.printStackTrace();
-                        return;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return;
                 }
             }
 
         });
     }
-    
+
     /**
-     * Takes a list of buttons which have been set up with a "setOnAction" command
-     * and makes it so that buttons will fire on hover.
-     * Also makes it so that the buttons will continue to fire with extended hovering.
+     * Takes a list of buttons which have been set up with a "setOnAction"
+     * command and makes it so that buttons will fire on hover. Also makes it so
+     * that the buttons will continue to fire with extended hovering.
+     *
      * @param btns the list of buttons to configure.
      */
-    private static void fireButtonsOnHover(Button[] btns){
-        if(btns == null){return;}
-        for (Button btn : btns){
+    private static void fireButtonsOnHover(Button[] btns) {
+        if (btns == null) {
+            return;
+        }
+        for (Button btn : btns) {
             fireButtonOnHover(btn);
         }
     }
-    
+
     /**
-     * Takes a button that's been set up with a "setOnAction" command
-     * and makes it so that button will fire on hover.
-     * Also makes it so that the button will continue to fire with extended hovering.
-     * @param btn 
+     * Takes a button that's been set up with a "setOnAction" command and makes
+     * it so that button will fire on hover. Also makes it so that the button
+     * will continue to fire with extended hovering.
+     *
+     * @param btn
      */
-    private static void fireButtonAfter3SHover(Button btn){
-        if(btn == null){
+    private static void fireButtonAfter3SHover(Button btn) {
+        if (btn == null) {
             return;
         }
-        btn.setOnMouseEntered(new EventHandler<MouseEvent>(){
+        btn.setOnMouseEntered(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
                 final String origText = btn.getText();
-                
-                try{
+
+                try {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            
+
                             final int startingNo = 3;
                             int rept = startingNo;
                             Platform.runLater(new Runnable() {
@@ -2013,9 +2049,9 @@ public class FXUIPlayer implements Player {
                                 }
                             });
                             RiskUtils.sleep(975);
-                            
-                            while(btn.isHover() && rept > 0){
-                                try{
+
+                            while (btn.isHover() && rept > 0) {
+                                try {
                                     rept--;
                                     final int reptN = rept;
                                     Platform.runLater(new Runnable() {
@@ -2025,46 +2061,43 @@ public class FXUIPlayer implements Player {
                                         }
                                     });
                                     RiskUtils.sleep(975);
-                                    if(rept == 0){
+                                    if (rept == 0) {
                                         Platform.runLater(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            btn.fire();
-                                        }
-                                    });
+                                            @Override
+                                            public void run() {
+                                                btn.fire();
+                                            }
+                                        });
                                     }
-                                    
-                                    
-                                }
-                                catch (Exception e){
-                                        e.printStackTrace();
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
                                 }
                             }
-                            try{
-                            Platform.runLater(new Runnable() {
+                            try {
+                                Platform.runLater(new Runnable() {
                                     @Override
                                     public void run() {
                                         btn.setText(origText);
                                     }
                                 });
-                            } catch(Exception e) {
-                                
+                            } catch (Exception e) {
+
                             }
-                            
+
                         }
                     });
                     ctdRun.setDaemon(true);
                     ctdRun.start();
-                    btn.hoverProperty().addListener(new ChangeListener<Boolean>(){
-                    @Override
-                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
-                        ctdRun.interrupt();
-                    }
-                });
-                }
-                catch (Exception e){
-                        e.printStackTrace();
-                        return;
+                    btn.hoverProperty().addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                            ctdRun.interrupt();
+                        }
+                    });
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return;
                 }
             }
 
@@ -2072,42 +2105,123 @@ public class FXUIPlayer implements Player {
     }
 
     /**
-     * to determine whether the user is still playing the game, or if the user
-     * initiated a normal program exit from the system
+     * Takes a button that's been set up with a "setOnAction" command and makes
+     * it so that button will fire on hover. Also makes it so that the button
+     * will continue to fire with extended hovering.
+     *
+     * @param btn
      */
-    class ExitStateSubHelper {
-
-        private boolean systemExitUsed = true;
-
-        /**
-         * Get whether the program should attempt to exit back to the OS, or if
-         * the app should continue running after "dialog.close()" is called
-         *
-         * @return "false" ONCE AND ONLY ONCE after "setAsNonSystemClose()"
-         * until the next time said method is called again, returns "true"
-         * otherwise. (So only ask if we are closing the application once,
-         * because it defaults to saying "yes, we want to close the entire
-         * application!" every subsequent time until you raise the flag again).
-         */
-        public boolean isSystemExit() {
-            final boolean cExit = systemExitUsed;
-            systemExitUsed = true;
-            return cExit;
+    private static void fireButtonUponCheckbox(Button btn, CheckBox controllerCBox) {
+        if (btn == null) {
+            return;
         }
+        final String origText = btn.getText();
 
-        /**
-         * Raises a flag to tell the program to not attempt to exit. Aka "the
-         * user is interacting with the program as per normal use, so a dialog
-         * closing is OK". Use every time you close a dialog to prevent the app
-         * from asking if you're trying to leave/exit.
-         *
-         * @return "false" to indicate that we have successfully told the app to
-         * not fully exit, "true" otherwise. (Should never have "true" as a
-         * return!)
-         */
-        public boolean setAsNonSystemClose() {
-            systemExitUsed = false;
-            return systemExitUsed;
+        try {
+            Thread ctdRun = new Thread(new Runnable() {
+                @Override
+                public void run() {
+
+                    final int startingNo = 3;
+                    int rept = startingNo;
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            btn.setText(startingNo + "s: " + origText);
+                        }
+                    });
+                    RiskUtils.sleep(975);
+
+                    while (controllerCBox.isSelected() && rept > 0) {
+                        try {
+                            rept--;
+                            final int reptN = rept;
+                            Platform.runLater(new Runnable() {
+                                @Override
+                                public void run() {
+                                    btn.setText(reptN + "s: " + origText);
+                                }
+                            });
+                            RiskUtils.sleep(975);
+                            if (rept == 0) {
+                                Platform.runLater(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        btn.fire();
+                                    }
+                                });
+                            }
+
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    try {
+                        Platform.runLater(new Runnable() {
+                            @Override
+                            public void run() {
+                                btn.setText(origText);
+                            }
+                        });
+                    } catch (Exception e) {
+
+                    }
+
+                }
+            });
+            ctdRun.setDaemon(true);
+            ctdRun.start();
+            
+            controllerCBox.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                    ctdRun.interrupt();
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
         }
     }
+
 }
+
+/**
+ * to determine whether the user is still playing the game, or if the user
+ * initiated a normal program exit from the system
+ */
+class ExitStateSubHelper {
+
+    private boolean systemExitUsed = true;
+
+    /**
+     * Get whether the program should attempt to exit back to the OS, or if the
+     * app should continue running after "dialog.close()" is called
+     *
+     * @return "false" ONCE AND ONLY ONCE after "setAsNonSystemClose()" until
+     * the next time said method is called again, returns "true" otherwise. (So
+     * only ask if we are closing the application once, because it defaults to
+     * saying "yes, we want to close the entire application!" every subsequent
+     * time until you raise the flag again).
+     */
+    public boolean isSystemExit() {
+        final boolean cExit = systemExitUsed;
+        systemExitUsed = true;
+        return cExit;
+    }
+
+    /**
+     * Raises a flag to tell the program to not attempt to exit. Aka "the user
+     * is interacting with the program as per normal use, so a dialog closing is
+     * OK". Use every time you close a dialog to prevent the app from asking if
+     * you're trying to leave/exit.
+     *
+     * @return "false" to indicate that we have successfully told the app to not
+     * fully exit, "true" otherwise. (Should never have "true" as a return!)
+     */
+    public boolean setAsNonSystemClose() {
+        systemExitUsed = false;
+        return systemExitUsed;
+    }
+}
+
