@@ -1,6 +1,8 @@
 package Util;
 
 import Master.FXUIGameMaster;
+import static Master.FXUIGameMaster.DEFAULT_CONTENT_WIDTH;
+import static Master.FXUIGameMaster.DEFAULT_CONTENT_HEIGHT;
 import Player.FXUIPlayer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
@@ -12,18 +14,22 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
+import javafx.scene.CacheHint;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Tooltip;
+import javafx.scene.effect.GaussianBlur;
+import javafx.scene.effect.Glow;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -414,15 +420,14 @@ public class WindowResizeHandler {
         /*finally, we actually set the size of the window*/
         detachResizeListeners();
         FXUIGameMaster.diagnosticPrintln("Snapping to dimensions...");
-        activeScene.getRoot().getTransforms().setAll(scale);
-        activeScene.getRoot().setLayoutX(0);
-        activeScene.getRoot().setLayoutY(0);
         activeStage.setWidth(newContentWidth + windowDecorationWidth);
         activeStage.setHeight(newContentHeight + windowDecorationHeight);
         activeStage.centerOnScreen();
+        activeScene.getRoot().getTransforms().setAll(scale);
+        activeScene.getRoot().setLayoutX(0);
+        activeScene.getRoot().setLayoutY(0);
         FXUIGameMaster.diagnosticPrintln("FitToScreen complete.");
         attachResizeListeners();
-            
     }
     
     /**
@@ -612,6 +617,10 @@ public class WindowResizeHandler {
      * HEIGHT.
      */
     private void resize(int triggerType) {
+    	if(resizeThreadIsActive.get()){
+    		FXUIGameMaster.diagnosticPrintln("skipping resize trigger...(thread active)");
+    		return;
+    	}
         if (this.activeStage == null || this.activeScene == null) {
             FXUIGameMaster.diagnosticPrintln("skipping resize...(invalid Stage or invalid Scene)");
             return;
@@ -622,6 +631,7 @@ public class WindowResizeHandler {
             new Thread(null, new Runnable() {
                 @Override
                 public void run() {
+                	resizeThreadIsActive.set(true);
                     resizeHelper(triggerType);
                 }
             }, "WRH.resize").start();
@@ -629,6 +639,7 @@ public class WindowResizeHandler {
     }
 
     private void resizeHelper(int triggerType) {
+    	final Pane hideScreenBehindPane = FXUIGameMaster.requestPaneDisplay(makeAdjustmentScreen());
         FXUIGameMaster.diagnosticPrintln("Initial resizeHelper call stats "
         	+ "(W:H:windowDecorationHeight): " + this.widthHistory 
         	+ ":::" + this.heightHistory + ":::" + this.windowDecorationHeight);
@@ -652,18 +663,20 @@ public class WindowResizeHandler {
 
         do {
             FXUIGameMaster.diagnosticPrintln("Waiting for user to stop altering dimensions.");
-            //RiskUtils.sleep(2 * waitTime);
             this.widthHistory = this.activeStage.getWidth();
             this.heightHistory = this.activeStage.getHeight();
             if(waitForFullScreenTransition){
-            	RiskUtils.sleep(4 * waitTime);
+            	RiskUtils.sleep(6 * waitTime);
             }
             else{
-            	RiskUtils.sleep(2 * waitTime);
+            	RiskUtils.sleep(4 * waitTime);
             }
             FXUIGameMaster.diagnosticPrintln("The screen is now set to fullscreen at the end of this "
                     + "waiting process: " + activeStage.isFullScreen());
-        } while (this.widthHistory != this.activeStage.getWidth() && this.heightHistory != this.activeStage.getHeight());
+            FXUIGameMaster.diagnosticPrintln("Width history versus current width: " + this.widthHistory 
+            		+ " :: " + this.activeStage.getWidth() + " >> Height: " + this.heightHistory 
+            		+ " :: " + this.activeStage.getHeight());
+        } while (this.widthHistory != this.activeStage.getWidth() || this.heightHistory != this.activeStage.getHeight());
         final boolean stageIsFullscreen = activeStage.isFullScreen();
 
         /*Used in the future to determine what steps of the resizing process must occur.*/
@@ -702,8 +715,8 @@ public class WindowResizeHandler {
         
         //If we attempted to resize our content to a dimension beyond the screen's bounds, we just snap back to the max dimensions available.
         determineActiveScreenBounds();
-        if (newContentWidth >= activeScreenWidth - this.windowDecorationWidth ||
-            newContentHeight >= activeScreenHeight - this.windowDecorationHeight)
+        if ((newContentWidth >= activeScreenWidth - this.windowDecorationWidth)||
+            (newContentHeight >= activeScreenHeight - this.windowDecorationHeight))
         {   /*In this case, handle the size calulation being outside acceptable 
             bounds, while the app is in windowed mode (not fullscreen)
             */
@@ -719,6 +732,7 @@ public class WindowResizeHandler {
             the screen IS indeed fullscreen
             */
             else /*if(stageIsFullscreen)*/{
+            	RiskUtils.sleep(4*waitTime);
                 Platform.runLater(new Runnable() {
                     @Override
                     public void run() {
@@ -727,6 +741,7 @@ public class WindowResizeHandler {
                     }
                 });
             }
+            RiskUtils.sleep(2*waitTime);
         } 
         else {
             /*Store the new width and/or height in variables that can be 
@@ -796,6 +811,7 @@ public class WindowResizeHandler {
             //this.sliderToAdjust.setValue(this.activeStage.getWidth()/this.idealContentWidth);
             this.sliderToAdjust.setDisable(false);
         }
+        FXUIGameMaster.requestPaneRemoval(hideScreenBehindPane);
         FXUIGameMaster.diagnosticPrintln("Exit resize thread.");
     }
     
@@ -986,6 +1002,7 @@ public class WindowResizeHandler {
             		+ "for nighttime gameplay, or play in dark environments"
             		+ " [more effective when game is dimmed, less effective when"
             		+ " game brightness is maximized]"));
+            eyeReliefChoice.getSelectionModel().select(FXUIGameMaster.getActiveEyeLiefStrength());
             eyeReliefChoice.getSelectionModel().selectedIndexProperty().addListener(
             	new ChangeListener<Number>(){
 					@Override
@@ -1005,7 +1022,6 @@ public class WindowResizeHandler {
 					}
             	}
             );
-            eyeReliefChoice.getSelectionModel().select(FXUIGameMaster.getActiveEyeLiefStrength());
             
             CheckBox autoDim = new CheckBox("AutoBrite(auto dimming)");
             autoDim.setTooltip(new Tooltip("Automatically dim window based on time of day. "
@@ -1118,5 +1134,46 @@ public class WindowResizeHandler {
             e.printStackTrace();
         }
         attachResizeSlider(null);
+    }
+    
+    /**
+     * Upon launch, show & animate a splash screen over the regular screen contents.
+     */
+    private Pane makeAdjustmentScreen(){
+    	final Rectangle backgroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	backgroundRect.setFill(Color.MIDNIGHTBLUE);
+    	backgroundRect.setOpacity(0.7d);
+    	final Text textHello = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "adjusting window");
+    	textHello.setTextAlignment(TextAlignment.CENTER);
+        textHello.setFont(Font.font("Arial", FontWeight.BOLD, 96));
+        textHello.setFill(Color.BLACK);
+        textHello.setStroke(Color.BLUEVIOLET);
+    	final Rectangle foregroundRect = new Rectangle(0,DEFAULT_CONTENT_HEIGHT/3,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT/3);
+    	foregroundRect.setFill(Color.DARKSLATEBLUE);
+    	final Text foregroundText = new Text("RISK");
+    	foregroundText.setTextAlignment(TextAlignment.CENTER);
+        foregroundText.setFont(Font.font("System", FontWeight.BOLD, 128));
+        foregroundText.setFill(Color.BLACK);
+        foregroundText.setStroke(Color.BLUEVIOLET);
+        GaussianBlur gBlur = new GaussianBlur(2);
+        Glow gGlow = new Glow(1.0d);
+        gGlow.setInput(gBlur);
+    	foregroundText.setEffect(gGlow);
+    	final Text foregroundTeXtra = new Text("please wait");
+    	foregroundTeXtra.setTextAlignment(TextAlignment.CENTER);
+        foregroundTeXtra.setFont(Font.font("System", FontWeight.BOLD, 24));
+        foregroundTeXtra.setFill(Color.MIDNIGHTBLUE);
+        foregroundTeXtra.setStroke(Color.BLACK);
+        foregroundTeXtra.setEffect(gBlur);
+        final VBox foreTextBox = new VBox(5);
+        foreTextBox.getChildren().setAll(foregroundText, foregroundTeXtra);
+        foreTextBox.setLayoutX(DEFAULT_CONTENT_WIDTH/2.5);
+        foreTextBox.setLayoutY(DEFAULT_CONTENT_HEIGHT/4);
+        foreTextBox.setAlignment(Pos.CENTER);
+        Pane forePane = new Pane();
+        forePane.getChildren().addAll(backgroundRect, foregroundRect, foreTextBox, textHello);
+        forePane.setCache(true);
+        forePane.setCacheHint(CacheHint.SPEED);
+        return forePane;
     }
 }

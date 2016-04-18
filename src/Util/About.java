@@ -10,7 +10,7 @@ import LogPlayer.LogPlayer;
 import Master.FXUIGameMaster;
 import Player.FXUIPlayer;
 import Util.WindowResizeHandler;
-import Util.FXUIAudio;
+import Util.FXUIAudioAC;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
@@ -203,7 +203,7 @@ public class About {
         final Text subVersionInfo = new Text("\n" + FXUIPlayer.versionInfo
                 + "\n\n" + LogPlayer.versionInfo + "\n\n" 
 				+ WindowResizeHandler.versionInfo + "\n\n"
-				+ FXUIAudio.shortVersion + "\n" + FXUIAudio.audioFileOrigSrc + "\n\n");
+				+ FXUIAudioAC.shortVersion + "\n" + FXUIAudioAC.audioFileOrigSrc + "\n\n");
         subVersionInfo.setTextAlignment(TextAlignment.CENTER);
         subVersionInfo.setFont(Font.font("Arial", FontWeight.THIN, 11));
         subVersionInfo.setFill(About.globalTextColor);

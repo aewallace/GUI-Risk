@@ -51,8 +51,8 @@ import javafx.util.Duration;
  * 
  * Class used to play notes as the game progresses.
  */
-public class FXUIAudio {
-	public static final String shortVersion = "FXUIAudio MP/AC 0.1.9.1747\n10 Nov 2015";
+public class FXUIAudioMP {
+	public static final String shortVersion = "FXUIAudio MP 0.2.0.1255\n15 April 2016";
 	protected static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
@@ -90,7 +90,8 @@ public class FXUIAudio {
 	protected static boolean hasVisualIndicator = false;
 	protected static AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
 
-	public FXUIAudio() {
+	public FXUIAudioMP() {
+                System.out.println("AudioMP audio manager present.");
 		canonicalClassName = this.getClass().getCanonicalName();
 		this.playBootJingle();
 		this.delayedLoadFiles();
@@ -109,7 +110,7 @@ public class FXUIAudio {
                 @Override
                 public void run() {
 					RiskUtils.sleep(5000);
-					FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + FXUIAudio.canonicalClassName
+					FXUIGameMaster.diagnosticPrintln("Initializing audio manager " + FXUIAudioMP.canonicalClassName
 						+ " version " + shortVersion +". Please wait.");
                 	for(int i = 0; i < audioFileNames.size(); i++){
 						/*
@@ -134,8 +135,8 @@ public class FXUIAudio {
 								+ " No extra audio will be played.");
 					}
 					else{
-						FXUIAudio.listSize = FXUIAudio.mediaPlaybackMap.size();
-						FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudio.listSize);
+						FXUIAudioMP.listSize = FXUIAudioMP.mediaPlaybackMap.size();
+						FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudioMP.listSize);
 					}
                 }
         }, "delayedLoadAudioFiles");
@@ -163,8 +164,8 @@ public class FXUIAudio {
 				ne.setOpacity(0.5d);
 				ne.setEffect(new Glow(1.0d));
 			}
-			FXUIAudio.visualIndicator = ne;
-			FXUIAudio.hasVisualIndicator = true;
+			FXUIAudioMP.visualIndicator = ne;
+			FXUIAudioMP.hasVisualIndicator = true;
 			if (nds != null){
 				final int otherIndicCount = nds.length;
 				ne.opacityProperty().addListener(new ChangeListener<Number>(){
@@ -183,7 +184,7 @@ public class FXUIAudio {
 
 		}
 		else{
-			FXUIAudio.hasVisualIndicator = false;
+			FXUIAudioMP.hasVisualIndicator = false;
 		}
 	}
 	
@@ -196,7 +197,7 @@ public class FXUIAudio {
 		Thread pulse = new Thread(null, new Runnable() {
             @Override
             public void run() {
-            	if(FXUIAudio.hasVisualIndicator == true){
+            	if(FXUIAudioMP.hasVisualIndicator == true){
             		toTheBeatHelper();
         		}
             }
@@ -223,7 +224,7 @@ public class FXUIAudio {
                 @Override
                 public void run() {
                 	try{
-        				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
+        				FXUIAudioMP.visualIndicator.setOpacity((double)input/discreteSteps);
 						if(lastStroke){
 							nextInnerAnimStepAllowed.set(true);
 						}
@@ -249,7 +250,7 @@ public class FXUIAudio {
                 @Override
                 public void run() {
                 	try{
-        				FXUIAudio.visualIndicator.setOpacity((double)input/discreteSteps);
+        				FXUIAudioMP.visualIndicator.setOpacity((double)input/discreteSteps);
 						if(lastStroke){
 							nextInnerAnimStepAllowed.set(true);
 						}
@@ -278,25 +279,25 @@ public class FXUIAudio {
 	 */
 	public static boolean playNextNote(){
 		try{
-			if(FXUIAudio.bootAudioMP != null){
-				FXUIAudio.bootAudioMP.stop();
+			if(FXUIAudioMP.bootAudioMP != null){
+				FXUIAudioMP.bootAudioMP.stop();
 			}
 			if(audioLoadSuccess == false){
 				return false;
 			}
-			if(FXUIAudio.blockNextPlay.get() || !FXUIAudio.playAudio){
+			if(FXUIAudioMP.blockNextPlay.get() || !FXUIAudioMP.playAudio){
 				return false;
 			}
-			if(!FXUIAudio.initialized){
+			if(!FXUIAudioMP.initialized){
 				return false;
 			}
 			positionInList++;
-			if(positionInList >= FXUIAudio.listSize){
+			if(positionInList >= FXUIAudioMP.listSize){
 				positionInList = 0;
 			}
 			
 			final int indexToPlay = positionInList;
-			FXUIAudio.blockNextPlay.set(true);
+			FXUIAudioMP.blockNextPlay.set(true);
 			if (!Platform.isFxApplicationThread()) {
 				Platform.runLater(new Runnable() {
 	                @Override
@@ -309,11 +310,11 @@ public class FXUIAudio {
 				playFileAtIndex(indexToPlay);
 			}
 			toTheBeat();
-			RiskUtils.runLaterWithDelay(FXUIAudio.delayBetweenNextPlayMS,
+			RiskUtils.runLaterWithDelay(FXUIAudioMP.delayBetweenNextPlayMS,
 			new Runnable() {
 	            @Override
 	            public void run() {
-	            	FXUIAudio.blockNextPlay.set(false);
+	            	FXUIAudioMP.blockNextPlay.set(false);
 	            }
 	        });
 		}
@@ -328,7 +329,7 @@ public class FXUIAudio {
 	 * notes. ... This may also be used as the starting jingle in the future.
 	 */
 	public static void playEndJingle(){
-		if(!FXUIAudio.initialized){
+		if(!FXUIAudioMP.initialized){
 			return;
 		}
 		try{
@@ -356,10 +357,10 @@ public class FXUIAudio {
 	
 	protected static boolean playFileAtIndex(int indexToPlay){
 		try{
-			FXUIAudio.playList.add(mediaPlaybackMap.get(audioFileNames.get(indexToPlay)));
+			FXUIAudioMP.playList.add(mediaPlaybackMap.get(audioFileNames.get(indexToPlay)));
 			limitFilePlaybackCount();
 			//FXUIAudio.mediaPlaybackMap.get(audioFileNames.get(indexToPlay)).stop();
-			FXUIAudio.mediaPlaybackMap.get(audioFileNames.get(indexToPlay)).play();
+			FXUIAudioMP.mediaPlaybackMap.get(audioFileNames.get(indexToPlay)).play();
 		}
 		catch(Exception e){
 			return false;
@@ -374,8 +375,8 @@ public class FXUIAudio {
 	 * @param currentAudioIdx
 	 */
 	protected static void limitFilePlaybackCount(){
-		if(FXUIAudio.playList.size() > maxConcurrentClipCount){
-			FXUIAudio.playList.removeFirst().stop();
+		if(FXUIAudioMP.playList.size() > maxConcurrentClipCount){
+			FXUIAudioMP.playList.removeFirst().stop();
 		}
 	}
 	
@@ -402,7 +403,7 @@ public class FXUIAudio {
 	 */
 	protected boolean bootJingleHelper(){
 		MediaPlayer mediaPlayer = null;
-		if( (mediaPlayer = loadAudioFileToMediaPlayer(FXUIAudio.bootAudioFileName))
+		if( (mediaPlayer = loadAudioFileToMediaPlayer(FXUIAudioMP.bootAudioFileName))
 				!= null )
 		{
 			mediaPlayer.setVolume(audioVolumePercent);
@@ -481,11 +482,11 @@ public class FXUIAudio {
 		if(volume <= 0){
 			success = true;
 			mute = true;
-			FXUIAudio.audioVolumePercent = 0.0d;
+			FXUIAudioMP.audioVolumePercent = 0.0d;
 		}
 		else if(volume > 1.0d){
 			success = false;
-			FXUIAudio.audioVolumePercent = 1.0d;
+			FXUIAudioMP.audioVolumePercent = 1.0d;
 		}
 		else{
 			success = true;
@@ -574,9 +575,9 @@ public class FXUIAudio {
             final Button yeah = new Button("Apply Changes");
             final Button nah = new Button("Close Window");
 
-            final Slider audioVolSlider = new Slider(0.0f, 1.0f, FXUIAudio.audioVolumePercent);
+            final Slider audioVolSlider = new Slider(0.0f, 1.0f, FXUIAudioMP.audioVolumePercent);
             final CheckBox doPlayAudio = new CheckBox("Play audio?");
-            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudio.audioVolumePercent*100) + "%]");
+            final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudioMP.audioVolumePercent*100) + "%]");
             
             audioVolSlider.setSnapToTicks(false);
             audioVolSlider.setShowTickMarks(true);
@@ -595,7 +596,7 @@ public class FXUIAudio {
                 }
             });
             
-            doPlayAudio.setSelected(FXUIAudio.playAudio);
+            doPlayAudio.setSelected(FXUIAudioMP.playAudio);
             doPlayAudio.setTooltip(new Tooltip("Enable (checked) or disable "
             		+ "(unchecked) playback of audio."));
             doPlayAudio.setTextFill(Color.ANTIQUEWHITE);
@@ -614,9 +615,9 @@ public class FXUIAudio {
                 public void handle(ActionEvent t) {
                 	yeah.setDisable(true);
                 	if (doPlayAudio.isSelected()) {
-                    	FXUIAudio.playAudio = true;
+                    	FXUIAudioMP.playAudio = true;
                     } else if (!doPlayAudio.isSelected()) {
-                        FXUIAudio.playAudio = false;
+                        FXUIAudioMP.playAudio = false;
                     }
                 	doPlayAudio.setDisable(true);
                 	audioVolSlider.setDisable(true);

@@ -45,6 +45,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -602,6 +603,24 @@ public class FXUIPlayer implements Player {
                                 }
                                 refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
                             }
+                        });
+                        singleCountryDisp.setOnScroll(new EventHandler<ScrollEvent>(){
+							@Override
+							public void handle(ScrollEvent event) {
+								// TODO Auto-generated method stub
+								System.out.println("Scroll delta: " + event.getDeltaY());
+								if(event.getTotalDeltaY() > 0){
+									for(int amtScroll = 0; amtScroll < (int)event.getDeltaY()/7; amtScroll++){
+										plus.fire();
+									}
+								}
+								else{
+									for(int amtScroll = (int) event.getDeltaY()/7; amtScroll < 0; amtScroll++){
+										minus.fire();
+									}
+								}
+								
+							}
                         });
                         singleCountryDisp.getChildren().addAll(plus, minus);
                         layout.getChildren().add(singleCountryDisp);
@@ -1364,7 +1383,7 @@ public class FXUIPlayer implements Player {
                                     + "\n:::::\n");
                             destCount.setText("Advance\n" + dstCt + "\n"
                                     + troopOrTroops(dstCt) + "\n"
-                                    + "\ninto\n" + toCountry.getName()
+                                    + "into\n" + toCountry.getName()
                                     + "\n:::::\n");
                             doubleCheck = false;
                         }

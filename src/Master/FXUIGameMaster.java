@@ -25,7 +25,6 @@ import Response.ReinforcementResponse;
 import Util.About;
 import Util.Card;
 import Util.DiceRoller;
-import Util.FXUIAudio;
 import Util.FXUIAudioAC;
 import Util.FXUI_Crossbar;
 import Util.PlayerEliminatedException;
@@ -91,8 +90,10 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
@@ -134,9 +135,9 @@ public class FXUIGameMaster extends Application {
     /*
      *Continue on with remaining variables and constants as normal... 
      */
-    public static final String VERSION_INFO = "ZERO-RISK-Master\nVersion 012A\nStamp 2016.04.10, 21:26\nStability:Alpha(01)";
+    public static final String VERSION_INFO = "FXUI RISK Master\nVersion 012D\n2016.04.17, 21:26\nStability: Release";
     // TODO make it such that it's not just loaded-game, new-game, and idle for states; also include "shutting down" a state, along with "end game no shutdown"
-    private static final String X_ABOUT = "AudioAC  |  eyeLief  |  AutoBrite";
+    private static final String X_ABOUT = "Audio MP/AC  |  eyeLief  |  AutoBrite";
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
     private static final String MAP_BACKGROUND_IMG = "RiskBoard.jpg";
     private static final String DEFAULT_CHKPNT_FILE_NAME = "fxuigm_save.s2r";
@@ -147,12 +148,12 @@ public class FXUIGameMaster extends Application {
     public static final int DEFAULT_CONTENT_HEIGHT = 1062;
     public static final int DEFAULT_DIALOG_OFFSET = 300;
     private static final short IDLE_MODE = 0, NEW_GAME_MODE = 1, LOADED_GAME_MODE = 2;
-    private static final AtomicBoolean gamePaused = new AtomicBoolean(false);
     private static final boolean FLAT_UI = true;
     private static int workingMode = IDLE_MODE;
     protected static final String LOGFILE = "LOG.txt";
     protected static final String STATSFILE = "STATS.txt";
     protected static final String EVENT_DELIM = "...";
+    protected static final AtomicBoolean gamePaused = new AtomicBoolean(false);
     protected static final boolean LOGGING_OFF = false, LOGGING_ON = true;
     protected static boolean forceEnableLogging = false, forceLoggingIsIndeterminate = true;
     protected static boolean loggingEnabled = true; //this is the one that has the final say as to whether the log file is created
@@ -233,6 +234,7 @@ public class FXUIGameMaster extends Application {
 	private static boolean runAutoBrightness;
 	private static int eyeLiefStrength;
 	private static boolean hideOtherPlayers = false;
+	private static AtomicBoolean cleanExit = new AtomicBoolean(false);
 	
 	public static final int EYELIEF_OFF = 0, EYELIEF_LO = 1, EYELIEF_HI = 2;
     private static final boolean LOAD_ALT_SAVE = false, LOAD_DEFAULT_SAVE = true;
@@ -2897,11 +2899,6 @@ public class FXUIGameMaster extends Application {
             RiskConstants.resetTurnIn();
             PlayerFactory.resetPlayerCounts();
             boolean doWeLog = (!forceLoggingIsIndeterminate && forceEnableLogging) || (forceLoggingIsIndeterminate ? LOGGING_ON : LOGGING_OFF);
-            /**
-             * Be aware: "DEFAULT_PLAYERS" means various types of bots ONLY!
-             * If there is ever a future version where this is untrue,
-             * then this method of setting up players will be invalid!
-             */
 
             initializeFXGMClass("Countries.txt", FXUIGameMaster.desiredPlayersForGame, doWeLog);
 
@@ -3005,7 +3002,7 @@ public class FXUIGameMaster extends Application {
                             int nextY = reader.nextInt();
                             String nextCountry = reader.nextLine().trim();
                             Text txt = new Text(nextX, nextY, nextCountry + "\n0");
-                            txt.setCacheHint(CacheHint.SPEED);
+                            txt.setCache(false);
                             txt.setStroke(Color.BLACK);
                             txt.setFill(Color.BLUEVIOLET);
                             txt.setFont(Font.font("Verdana", FontWeight.BOLD, 20));
@@ -3430,13 +3427,16 @@ public class FXUIGameMaster extends Application {
         playerChangeIndicPrimary.setStroke(colorOfLines);
         playerChangeIndicPrimary.setFill(colorOfLines);
         playerChangeIndicPrimary.setEffect(new Glow(1.0d));
+        playerChangeIndicPrimary.setCache(true);
         playerChangeIndicPrimary.setCacheHint(CacheHint.SPEED);
         
-        Line playerChangeIndicSecondary = new Line(0,0,0,40);
-        playerChangeIndicSecondary.setStrokeWidth(strokeThicknessOfLines);
-        playerChangeIndicSecondary.setStroke(colorOfLines);
+        //Line playerChangeIndicSecondary = new Line(0,0,0,40);
+        Circle playerChangeIndicSecondary = new Circle(4);
+        //playerChangeIndicSecondary.setStrokeWidth(strokeThicknessOfLines);
+        //playerChangeIndicSecondary.setStroke(colorOfLines);
         playerChangeIndicSecondary.setFill(colorOfLines);
         playerChangeIndicSecondary.setEffect(new Glow(1.0d));
+        playerChangeIndicSecondary.setCache(true);
         playerChangeIndicSecondary.setCacheHint(CacheHint.SPEED);
         
 
@@ -3456,17 +3456,6 @@ public class FXUIGameMaster extends Application {
         activeGameIndicS.setFill(colorOfLines);
         activeGameIndicS.setEffect(new Glow(1.0d));
         
-        /*
-         * Associate the two music pulse indicators, primary and secondary, with the
-         * audio manager.
-         */
-        
-        FXUIAudio.setVisualIndicators(playerChangeIndicPrimary, new Node[]{playerChangeIndicSecondary});
-        /*
-         * Associate the two game activity indicators, large and small, so they
-         * may animate in unison.
-         */
-        this.setGameRunningIndicator(activeGameIndic, new Node[]{activeGameIndicS});
         
         /*
          * We set the image in the pane based on whether there was an error or not.
@@ -3541,16 +3530,25 @@ public class FXUIGameMaster extends Application {
         //The vertical box to contain the major buttons and status.
         VBox primaryStatusButtonPanel = new VBox(10);
         HBox startButtonPanel = new HBox(0);
+        StackPane startStack = new StackPane();
+        Rectangle startStackBkgnd = new Rectangle(0,0,130,42);
+        Glow bkgndGlow = new Glow(1.0d);
+        
+        startButtonPanel.setAlignment(Pos.CENTER_LEFT);
+        
+        startStackBkgnd.setStroke(Color.GREY);
+        startStackBkgnd.setStrokeWidth(strokeThicknessOfLines);
+        startStackBkgnd.setFill(Color.BLACK);
+    	startStackBkgnd.setEffect(bkgndGlow);
+        startStack.setAlignment(Pos.CENTER);
 
         primaryStatusButtonPanel.setAlignment(Pos.CENTER_LEFT);
         primaryStatusButtonPanel.setLayoutX(29);
         primaryStatusButtonPanel.setLayoutY(495);
         
-        startButtonPanel.setAlignment(Pos.CENTER_LEFT);
-        
         //allow display of extended messages in the main window.
         FXUIGameMaster.extendedMessageDisplay = new Text("-");
-        FXUIGameMaster.extendedMessageDisplay.setFont(Font.font("Verdana", FontWeight.NORMAL, 9*FONT_MULTIPLIER));
+        FXUIGameMaster.extendedMessageDisplay.setFont(Font.font("Verdana", FontWeight.NORMAL, 11*FONT_MULTIPLIER));
         FXUIGameMaster.extendedMessageDisplay.setFill(Color.WHITE);
 
         //cache prior messages so we can display in a non-interactive dialog
@@ -3574,7 +3572,6 @@ public class FXUIGameMaster extends Application {
                 createGameLogicThread();
             }
         });
-        startButtonPanel.getChildren().addAll(playerChangeIndicSecondary,startBtn,activeGameIndicS);
         
 
         //Button allowing you to attempt to force a manual game save, when allowed
@@ -3610,11 +3607,11 @@ public class FXUIGameMaster extends Application {
         Button exitAppBtn = new Button("Lights out!\n(Exit to desktop)");
         exitAppBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 9*FONT_MULTIPLIER));
         exitAppBtn.setOnAction((ActionEvent t) -> {
+        	FXUIGameMaster.cleanExit.set(true);
             FXUIGameMaster.tryToExit(primaryStage);
         });
         
-
-	//Checkbox to allow you to set whether you want to have the log file created
+        //Checkbox to allow you to set whether you want to have the log file created
         //(Note: the logfile allows you to review the actions taken during the game)
         CheckBox doLoggingCBox = new CheckBox("Enable logging?\nauto (yes)");
         doLoggingCBox.setFont(Font.font("Arial", FontWeight.LIGHT, 8*FONT_MULTIPLIER));
@@ -3692,11 +3689,14 @@ public class FXUIGameMaster extends Application {
         });
         
         /*
-         * Add buttons to panel. Tweak these additions depending on whether there was an error
+         * Add buttons to panels. Tweak these additions depending on whether there was an error
          */
-        
         VBox otherButtonPanel = new VBox(8);
         otherButtonPanel.setAlignment(Pos.CENTER_LEFT);
+        
+
+        startStack.getChildren().addAll(startStackBkgnd, startBtn);
+        startButtonPanel.getChildren().addAll(/*activeGameIndicS,*/startStack,playerChangeIndicSecondary);
         otherButtonPanel.getChildren().addAll(showLogBtn, pauseStopGameBtn, exitAppBtn,
             	showOptsAboutBtn, saveMe, doLoggingCBox, logPlaybackBtn, fullScrnBtn);
         if (!fullAppExit) { //if we had no error
@@ -3720,6 +3720,20 @@ public class FXUIGameMaster extends Application {
             FXUIGameMaster.primaryInteractionPane.getChildren().addAll(primaryStatusButtonPanel);
             FXUIGameMaster.primaryInteractionPane.setOnKeyPressed(null);
         }
+        
+
+
+        /*
+         * Associate the two music pulse indicators, primary and secondary, with the
+         * audio manager.
+         */
+        
+        FXUIAudioAC.setVisualIndicators(playerChangeIndicPrimary, new Node[]{playerChangeIndicSecondary});
+        /*
+         * Associate the two game activity indicators, large and small, so they
+         * may animate in unison.
+         */
+        this.setGameRunningIndicator(activeGameIndic, new Node[]{activeGameIndicS, startStackBkgnd});
         
         
 		//****layout of text & buttons displayed upon launch ends here.***
@@ -3753,7 +3767,7 @@ public class FXUIGameMaster extends Application {
         buttonCache.set(ButtonPosEnum.BTN_FULLEXIT.ordinal(), exitAppBtn);
         
         //Get the primary window showin', already! (and set the initial size appropriately)
-        primaryStage.setTitle("RISK//!");
+        primaryStage.setTitle("RISKu");
         primaryStage.setScene(scene);
         
         //Save this so we can make use of the Stage's information elsewhere.
@@ -3781,7 +3795,7 @@ public class FXUIGameMaster extends Application {
          * Do other "welcome" things: About, auto brightness, 
          * eye protection, init audio manager, button enable
          */
-		nAbout.launch(mainWindowPane.getScene().getWindow(), true);
+		//nAbout.launch(mainWindowPane.getScene().getWindow(), true);
 		enableAutoAdjustBrightness();
 		applyEyeLief(EYELIEF_LO);
         audioManager = new FXUIAudioAC();
@@ -3791,7 +3805,7 @@ public class FXUIGameMaster extends Application {
          * Print to output that we're ready. This is the end of the process.
          * The buttons shown on the UI take over from this point.
          */
-        System.out.println("RISK// is ready.\n" + FXUIGameMaster.VERSION_INFO);
+        System.out.println("RISKu is ready.\n" + FXUIGameMaster.VERSION_INFO);
         
     }
     
@@ -3924,7 +3938,7 @@ public class FXUIGameMaster extends Application {
         else{ //stronger application
         	adjustedColor = colorToSet.deriveColor(0d, 1.0d, 0.2d, 1d);
         }
-        mainWindowPane.setCacheHint(CacheHint.SPEED);
+        mainWindowPane.setCache(false);
         mainWindowPane.setBlendMode(BlendMode.ADD);
         FXUIGameMaster.colorAdjusted = true;
         scene.setFill(adjustedColor);
@@ -3997,14 +4011,14 @@ public class FXUIGameMaster extends Application {
     private void showBootSplashScreen(){
     	final Rectangle backgroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
     	backgroundRect.setFill(Color.BLACK);
-    	final Text textHello = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "H E L L O");
+    	final Text textHello = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "hi.");
     	textHello.setTextAlignment(TextAlignment.CENTER);
         textHello.setFont(Font.font("Arial", FontWeight.BOLD, 128));
         textHello.setFill(Color.ALICEBLUE);
         textHello.setStroke(Color.CORAL);
-    	final Rectangle foregroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	final Rectangle foregroundRect = new Rectangle(0,DEFAULT_CONTENT_HEIGHT/3,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT/3);
     	foregroundRect.setFill(Color.ALICEBLUE);
-    	final Text foregroundText = new Text(/*DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, */"RISK//");
+    	final Text foregroundText = new Text(/*DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, */"RISKu");
     	foregroundText.setTextAlignment(TextAlignment.CENTER);
         foregroundText.setFont(Font.font("System", FontWeight.BOLD, 256));
         foregroundText.setFill(Color.BLACK);
@@ -4013,7 +4027,7 @@ public class FXUIGameMaster extends Application {
         Glow gGlow = new Glow(1.0d);
         gGlow.setInput(gBlur);
     	foregroundText.setEffect(gGlow);
-    	final Text foregroundTeXtra = new Text(/*DEFAULT_CONTENT_WIDTH/1.80, DEFAULT_CONTENT_HEIGHT/1.65, */X_ABOUT + "\n" + VERSION_INFO);
+    	final Text foregroundTeXtra = new Text("risk for the discerning player.");
     	foregroundTeXtra.setTextAlignment(TextAlignment.CENTER);
         foregroundTeXtra.setFont(Font.font("System", FontWeight.BOLD, 24));
         foregroundTeXtra.setFill(Color.GREY);
@@ -4021,11 +4035,13 @@ public class FXUIGameMaster extends Application {
         foregroundTeXtra.setEffect(gBlur);
         final VBox foreTextBox = new VBox(5);
         foreTextBox.getChildren().setAll(foregroundText, foregroundTeXtra);
-        foreTextBox.setLayoutX(DEFAULT_CONTENT_WIDTH/1.75);
-        foreTextBox.setLayoutY(DEFAULT_CONTENT_HEIGHT/3);
+        foreTextBox.setLayoutX(DEFAULT_CONTENT_WIDTH/2.5);
+        foreTextBox.setLayoutY(DEFAULT_CONTENT_HEIGHT/4);
         foreTextBox.setAlignment(Pos.CENTER);
         Pane forePane = new Pane();
         forePane.getChildren().addAll(foregroundRect, foreTextBox);
+        forePane.setCache(true);
+        forePane.setCacheHint(CacheHint.SPEED);
         mainWindowPane.getChildren().addAll(backgroundRect, textHello, forePane);
         forePane.disabledProperty().addListener((ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) -> {
             mainWindowPane.getChildren().removeAll(backgroundRect, textHello);
@@ -4041,8 +4057,8 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void bootSplashHelper(Node foregroundPane){
-		final int overallAnimTime = 4750;
-		final double discreteSteps = 150;
+		final int overallAnimTime = 4800;
+		final double discreteSteps = 120;
 		final int stepAnimTime = (int)(overallAnimTime/discreteSteps);
 		final AtomicBoolean complete = new AtomicBoolean(false);
 		for (double frameNo = discreteSteps+1; frameNo > 0; frameNo--){
@@ -4053,10 +4069,13 @@ public class FXUIGameMaster extends Application {
                             complete.set(true);
             });
 			RiskUtils.sleep((int)(stepAnimTime));
-			while(!complete.get() && !FXUIGameMaster.fullAppExit){
+			if(!complete.get() && !FXUIGameMaster.fullAppExit){
 				RiskUtils.sleep((int)(stepAnimTime));
 				//decide if we want to drop/skip a frame; typically, yes.
 				frameNo = frameNo > 1 ? frameNo-1 : 1;
+			}
+			while(!complete.get() && !FXUIGameMaster.fullAppExit){
+				RiskUtils.sleep((int)(stepAnimTime));
 			}
 		}
 		Platform.runLater(() -> {
@@ -4076,14 +4095,14 @@ public class FXUIGameMaster extends Application {
     private static void showExitSplashScreen(){
     	final Rectangle backgroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
     	backgroundRectangle.setFill(Color.BLACK);
-    	final Text textGoodbye = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "G O O D B Y E");
+    	final Text textGoodbye = new Text(DEFAULT_CONTENT_WIDTH/5, DEFAULT_CONTENT_HEIGHT/1.75, "goodbye.");
     	textGoodbye.setTextAlignment(TextAlignment.CENTER);
         textGoodbye.setFont(Font.font("Arial", FontWeight.BOLD, 128));
         textGoodbye.setFill(Color.ALICEBLUE);
         textGoodbye.setStroke(Color.CORAL);
-    	final Rectangle foregroundRectangle = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
+    	final Rectangle foregroundRectangle = new Rectangle(0,DEFAULT_CONTENT_HEIGHT/3,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT/3);
     	foregroundRectangle.setFill(Color.DARKRED);
-    	final Text textZeroRisk = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISK//");
+    	final Text textZeroRisk = new Text(DEFAULT_CONTENT_WIDTH/1.75, DEFAULT_CONTENT_HEIGHT/1.75, "RISKu");
     	textZeroRisk.setTextAlignment(TextAlignment.CENTER);
         textZeroRisk.setFont(Font.font("System", FontWeight.BOLD, 256));
         textZeroRisk.setFill(Color.WHITE);
@@ -4093,8 +4112,20 @@ public class FXUIGameMaster extends Application {
         gGlow.setInput(gBlur);
     	textZeroRisk.setEffect(gGlow);
         textGoodbye.setOpacity(0);
+        textGoodbye.setCache(true);
+        textGoodbye.setCacheHint(CacheHint.SPEED);
+        VBox vboxGbyeTxt = new VBox(10);
+        vboxGbyeTxt.setPrefSize(DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+        vboxGbyeTxt.setAlignment(Pos.CENTER);
+        vboxGbyeTxt.getChildren().addAll(textGoodbye);
+        VBox vboxRskTxt = new VBox(10);
+        vboxRskTxt.setPrefSize(DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+        vboxRskTxt.setAlignment(Pos.CENTER);
+        vboxRskTxt.getChildren().addAll(textZeroRisk);
         foregroundRectangle.setOpacity(0);
-        mainWindowPane.getChildren().addAll(backgroundRectangle, textZeroRisk, foregroundRectangle,textGoodbye);
+        foregroundRectangle.setCache(true);
+        foregroundRectangle.setCacheHint(CacheHint.SPEED);
+        mainWindowPane.getChildren().addAll(backgroundRectangle, vboxRskTxt, foregroundRectangle,vboxGbyeTxt);
 
         Thread pulse = new Thread(null, () -> {
             exitSplashHelper(textGoodbye, foregroundRectangle);
@@ -4105,7 +4136,7 @@ public class FXUIGameMaster extends Application {
     
 	
 	private static void exitSplashHelper(Text splashText, Rectangle splashBackground){
-		final int overallAnimTime = 2750;
+		final int overallAnimTime = 2800;
 		final int discreteSteps = 150;
 		final AtomicBoolean complete = new AtomicBoolean(false);
 		for (int i = 0; i < discreteSteps+1 && FXUIGameMaster.mainStage.isShowing(); i++){
@@ -4117,10 +4148,13 @@ public class FXUIGameMaster extends Application {
 	            complete.set(true);
             });
 			RiskUtils.sleep((int)(overallAnimTime/discreteSteps));
-			while(!complete.get() && !FXUIGameMaster.fullAppExit){
+			if(!complete.get() && !FXUIGameMaster.fullAppExit){
 				RiskUtils.sleep((int)(overallAnimTime/(2*discreteSteps)));
 				//decide if we want to drop/skip a frame; typically, yes.
-				i = i < discreteSteps - 1? i+1 : discreteSteps - 1;
+				i = input < discreteSteps - 1? input+1 : discreteSteps - 1;
+			}
+			while(!complete.get() && !FXUIGameMaster.fullAppExit){
+				RiskUtils.sleep((int)(overallAnimTime/(2*discreteSteps)));
 			}
 		}
 	}
@@ -4255,7 +4289,12 @@ public class FXUIGameMaster extends Application {
 		gGlow.setInput(gBlur);
 		PAUSE_TEXT.setEffect(gGlow);
 		PAUSE_TEXT.setOpacity(0);
+		PAUSE_TEXT.setCache(true);
+		PAUSE_TEXT.setCacheHint(CacheHint.SPEED);
+		foregroundRectangle.setCache(true);
+		foregroundRectangle.setCacheHint(CacheHint.SPEED);
 		foregroundRectangle.setOpacity(1);
+		
 
 		Button resumeBtn = new Button("Play more.\n(RESUME current game)");
 		resumeBtn.setLayoutX(DEFAULT_CONTENT_WIDTH / 1.55);
@@ -4309,6 +4348,7 @@ public class FXUIGameMaster extends Application {
 			}
 		});
 		
+		
 		Platform.runLater(() -> {
 					FXUIGameMaster.primaryInteractionPane.setDisable(true);
                     pauseScreenPane.getChildren().addAll(backgroundRectangle, PAUSE_SUBTEXT, foregroundRectangle, PAUSE_TEXT, RESUME_INSTRUCTIONS, resumeBtn, stopGameBtn);
@@ -4326,7 +4366,7 @@ public class FXUIGameMaster extends Application {
 	private static void pauseScreenHelper(final Text splashText, final Rectangle splashBackground,
 			final AtomicBoolean gameIsPaused) 
 	{
-		final int animationTime = 18750;
+		final int animationTime = 36*1000;
 		final int fadeSteps = 3;
 		final int adjustedStepCount = 3 * fadeSteps;
 		final int timeBetweenSteps = animationTime / fadeSteps;
@@ -4362,35 +4402,28 @@ public class FXUIGameMaster extends Application {
 		System.out.println("Game unpaused.");
 	}
 	
-	
-	private void setGameRunningIndicator(Node ne, Node[] nds){
-		if(ne != null){
+	/**
+	 * Assign a primary Node to pulse as an indicator that the game is running.
+	 * Other nodes may be associated with the primary node, to pulse simultaneously.
+	 * @param priNode the main Node to pulse. cannot be null.
+	 * @param assocNodes array of secondary Nodes to associate with primary Node.
+	 * may be null, empty, have one element, or have multiple elements.
+	 */
+	private void setGameRunningIndicator(Node priNode, Node[] assocNodes){
+		if(priNode != null){
 			if(Platform.isFxApplicationThread()){
-				ne.setOpacity(0.5d);
+				priNode.setOpacity(0.5d);
 			}
-			FXUIGameMaster.gameRunningIndicator = ne;
-			if (nds != null){
-				final int otherIndicCount = nds.length;
-				if(otherIndicCount > 1){
-					ne.opacityProperty().addListener((ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
-                                            for (int i = 0; i < otherIndicCount; i++){
-                                                try{
-                                                    nds[i].setOpacity(newValue.doubleValue());
-                                                }
-                                                catch(Exception e){
-                                                }
-                                            }
-                                        });
-				}
-				else if(otherIndicCount == 1){
-					ne.opacityProperty().addListener((ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
-                                            try{
-                                                nds[0].setOpacity(newValue.doubleValue());
-                                            }
-                                            catch(Exception e){
-                                            }
-                                        });
-				}
+			FXUIGameMaster.gameRunningIndicator = priNode;
+			for (int i = 0; assocNodes != null && i < assocNodes.length; i++){
+				final Node nodeIn = assocNodes[i];
+				priNode.opacityProperty().addListener((ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
+	                try{
+	                   nodeIn.setOpacity(newValue.doubleValue());
+	                }
+	                catch(Exception e){
+	                }
+	            });
 			}
 
 		}
@@ -4521,8 +4554,13 @@ public class FXUIGameMaster extends Application {
                 FXUIGameMaster.endGame = true;
                 RiskUtils.sleep(500); //Singular use on the FX thread.
                 //primaryStage.hide();
-                doYouWantToMakeAnExit(true, 0);
-                primaryStage.close();
+                if(!FXUIGameMaster.cleanExit .get() || (FXUIGameMaster.priGameLogicThread != null && FXUIGameMaster.priGameLogicThread.isAlive()))
+                {
+                	doYouWantToMakeAnExit(true, 0);
+                }
+                if(FXUIGameMaster.cleanExit .get()){
+                	primaryStage.close();
+                }
             });
         });
         ttExit.setName("tryToExit");
@@ -4980,6 +5018,46 @@ public class FXUIGameMaster extends Application {
          * without this, the logic will not continue correctly.
          */
         gameSelectorIsShowing.set(true);
+    }
+    
+    /**
+     * Allow the temporary addition of a pane on top of contents in the main window.
+     * @param paneToShow
+     * @return the pane that was added.
+     */
+    public static Pane requestPaneDisplay(Pane paneToShow){
+    	Platform.runLater(() -> {
+    		try{
+    	    	if(paneToShow != null){
+    	    		FXUIGameMaster.mainWindowPane.getChildren().add(paneToShow);
+    	    	}
+        	}
+        	catch(Exception gex){
+        		System.out.println("[attempt to display pane failed]");
+        		diagnosticPrintln(gex.getMessage());
+        	}
+        });
+    	return paneToShow;
+    }
+    
+    /**
+     * Facilitate removal of a known temporary pane from the main window.
+     * @param paneToRemove
+     * @return the pane that was removed.
+     */
+    public static Pane requestPaneRemoval(Pane paneToRemove){
+    	Platform.runLater(() -> {
+    		try{
+    	    	if(paneToRemove != null){
+    	    		FXUIGameMaster.mainWindowPane.getChildren().remove(paneToRemove);
+    	    	}
+        	}
+        	catch(Exception gex){
+        		System.out.println("[attempt to remove pane failed]");
+        		diagnosticPrintln(gex.getMessage());
+        	}
+        });
+    	return paneToRemove;
     }
     
     
