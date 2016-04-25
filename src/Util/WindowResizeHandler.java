@@ -48,7 +48,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 0018\nStamp 2016.01.10, 17:34\nStability:Alpha(01)";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 0018\nStamp 2016.4.18, 17:34\nStability: Beta";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;

@@ -1,5 +1,5 @@
 #!/bin/bash
-SCRIPTTITLE="JavaFX RISK build-building script v1.3";
+SCRIPTTITLE="JavaFX RISK build-building script v1.4 [for mp3 audio]";
 JDKERR="Did you add the JDK location to your \$PATH variables?\nsomething like...\nexport PATH=\$PATH:\"/cygdrive/C/Program Files/Java/jdk1.8.0_45/bin/\""
 
 #Depending on platform, this may be used to compile + run the JavaFX version of Risk.
@@ -55,7 +55,7 @@ echo Main-Class: Master.FXUIGameMaster >manifest.txt
 echo "   Copying resources to build folder. (benign errors may occur)."
 cp **/RiskBoard*.jpg RiskBoard*.jpg **/TextNodes.txt TextNodes.txt manifest.txt build
 cp **/Icon.jpg Icon.jpg build
-cp *.m4a **/*.m4a **/**/*.m4a **/**/**/*.m4a build
+cp *.mp3 **/*.mp3 **/**/*.mp3 **/**/**/*.mp3 build
 
 #move into the build folder for proper compilation
 cd build
@@ -63,7 +63,7 @@ cd build
 #package everything into an easy-to-use Jar file.
 #includes additional resources such as the map & list of countries.
 echo "   Attempting to create runnable Jar . . ."
-jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg *.m4a
+jar cvfm ../App.jar manifest.txt **/*.class *.txt *.jpg *.mp3
 if [ ! $? -eq 0 ]
 then
 	printf "Minor error occurred. Might have been major. We’ll see."

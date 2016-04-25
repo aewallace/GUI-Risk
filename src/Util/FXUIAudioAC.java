@@ -50,22 +50,22 @@ import javafx.stage.WindowEvent;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudioAC {
-	public static final String shortVersion = "FXUIAudio AC / 0.2.A.1128\n11 April 2016";
+	public static final String shortVersion = "FXUIAudio AC / 0.2.B.2353\n24 April 2016";
 	protected static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
         protected static final String jarResourceFolderLocation = "/resources/Audio/";
         protected static final String jarRootLocation ="/";
 	protected static List<String> audioFileNames = Arrays.asList(
-			"Piano.mf.D2.m4a", "Piano.mf.Db2.m4a", "Piano.mf.D3.m4a", "Piano.mf.Db3.m4a", 
-			"Piano.mf.D4.m4a", "Piano.mf.Db4.m4a", "Piano.mf.D5.m4a", "Piano.mf.Db5.m4a",
-			"Piano.mf.D6.m4a", "Piano.mf.Db6.m4a", "Piano.mf.D7.m4a", "Piano.mf.Db7.m4a"
+			"Piano.mf.D2.mp3", "Piano.mf.Db2.mp3", "Piano.mf.D3.mp3", "Piano.mf.Db3.mp3", 
+			"Piano.mf.D4.mp3", "Piano.mf.Db4.mp3", "Piano.mf.D5.mp3", "Piano.mf.Db5.mp3",
+			"Piano.mf.D6.mp3", "Piano.mf.Db6.mp3", "Piano.mf.D7.mp3", "Piano.mf.Db7.mp3"
 			);
 	protected static List<String> xtraAudioFileNames = Arrays.asList(
-			"Piano.mf.A5.m4a", "Piano.mf.Ab5.m4a", "Piano.mf.B5.m4a", "Piano.mf.Bb5.m4a",
-			"Piano.mf.E4.m4a", "Piano.mf.Eb4.m4a"
+			"Piano.mf.A5.mp3", "Piano.mf.Ab5.mp3", "Piano.mf.B5.mp3", "Piano.mf.Bb5.mp3",
+			"Piano.mf.E4.mp3", "Piano.mf.Eb4.mp3"
 			);
-	protected static final String bootAudioFileName = "xylophone.rosewood.roll.ff.F4B4.m4a";
+	protected static final String bootAudioFileName = "xylophone.rosewood.roll.ff.F4B4.mp3";
 	protected static int positionInClipList = 0;
 	protected static int availableClipCount = 0;
 	protected static Random rand = new Random();
@@ -248,16 +248,7 @@ public class FXUIAudioAC {
 	        final int indexToPlay = positionInClipList;
 	        FXUIAudioAC.blockNextPlay.set(true);
 	        FXUIGameMaster.diagnosticPrintln(audioFileNames.get(positionInClipList));
-	        if (!Platform.isFxApplicationThread()) {
-	            Platform.runLater(new Runnable() {
-	                @Override
-	                public void run() {
-	                    playFileAtIndex(indexToPlay);
-	                }
-	            });
-	        } else {
-	            playFileAtIndex(indexToPlay);
-	        }
+	        playFileAtIndex(indexToPlay);
 	        toTheBeat();
 	        RiskUtils.runLaterWithDelay(FXUIAudioAC.delayBetweenNextPlayMS,
 	                new Runnable() {
