@@ -1,13 +1,10 @@
 //FXUI GameMaster-Player Crossbar Link
-//Albert Wallace, 2015. (Version 0006, Stamp 2016.01.09, 14:13, Type Alpha(01).
+//Albert Wallace, 2015. (Version 0006, Stamp 2016.5.01, 00:03, Type Alpha(01).
 //for Seth Denney's RISK, JavaFX UI-capable version
 
 package Util;
 
 import java.util.ArrayList;
-
-import Player.FXUIPlayer;
-import Player.Player;
 import javafx.application.Platform;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
@@ -57,6 +54,12 @@ public class FXUI_Crossbar {
 		return currentPlayerJFXStage != null;
 	}
 	
+        /**
+         * Attempts to close the current player dialog being shown.
+         * Assumes success so long as there is a dialog whatsoever.
+         * @return "true" if dialog exists (assume success); "false" if no
+         * such dialog exists.
+         */
 	public boolean tryCloseCurrentPlayerDialog()
 	{
 		if (currentPlayerJFXStage != null)

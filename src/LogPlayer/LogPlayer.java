@@ -1,32 +1,48 @@
 package LogPlayer;
 
+import Util.About;
 import Util.TextNodes;
+
+import java.awt.Desktop;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import Master.FXUIGameMaster;
+
 import java.lang.InterruptedException;
 
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.scene.text.TextAlignment;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 public class LogPlayer extends Application {
 
-    public static final String versionInfo = "Log-Player\nVersion 00x0Dh,\nStamp 2015.11.10, 18:00,\nStability: Beta(02)";
+    public static final String versionInfo = "Log-Player\nVersion 00x10h,\nStamp 2016.4.25, 18:00,\nStability: Beta(02)";
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final int RAPID_PLAY_TIME_DELTA = 1170;
@@ -87,7 +103,43 @@ public class LogPlayer extends Application {
     @Override
     public void start(Stage primaryStage) {
         try {
-            this.log = new Scanner(new File(LOG_FILE));
+            pane = new Pane();
+            pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
+
+            errorDisplayBit = false;
+            errorText = "";
+            
+            this.log = null;
+            try {
+            	this.log = new Scanner(new File(LOG_FILE));
+            }
+            catch (FileNotFoundException e) {
+            	errorDisplayBit = true;
+            	errorText = ("LOGPLAYER: couldn't find old log text file: " + LOG_FILE + "\n");
+            }
+            if(this.log == null && showLoadFailurePrompt()){
+            	final FileChooser fileChooser = new FileChooser();
+            	fileChooser.setTitle("Couldn't find default log;\nSelect a log file");
+            	fileChooser.setInitialFileName(LOG_FILE);
+                File file = fileChooser.showOpenDialog(new Stage());
+                if(file != null){
+                	try{
+                    	this.log = new Scanner(file);
+                    	errorDisplayBit = false;
+                    }
+                	catch (FileNotFoundException e) {
+                		e.printStackTrace();
+                    	errorText += ("LOGPLAYER: couldn't find old log text file: " + file.getAbsolutePath());
+                    	errorDisplayBit = true;
+                    }
+                }
+            }
+            if(errorDisplayBit){
+            	System.out.println(errorText);
+            }
+            else{
+            	errorText = "Status...";
+            }
             this.nextToken = null;
             this.currentButton = PAUSE;
             this.currentSimpleStatus = "";
@@ -101,12 +153,6 @@ public class LogPlayer extends Application {
             this.mapStateCache = new ArrayList<HashMap<String, Text>>();
             this.cancelActiveActions = false;
             this.threadMap = new HashMap<Long, Thread>();
-
-            pane = new Pane();
-            pane.setPrefSize(DEFAULT_APP_WIDTH + 200, DEFAULT_APP_HEIGHT + 30);
-
-            errorDisplayBit = false;
-            errorText = "Status...";
 
             loadTextNodes("TextNodes.txt");
             loadPlayers();
@@ -293,11 +339,67 @@ public class LogPlayer extends Application {
             }
 
             scene = new Scene(scrollPane, DEFAULT_APP_WIDTH, DEFAULT_APP_HEIGHT);
-            primaryStage.setTitle("Log Player: RISK Game Review");
+            primaryStage.setTitle("LogPlayer: RISK Game Review");
             primaryStage.setScene(scene);
             primaryStage.show();
-        } catch (FileNotFoundException e) {
+        } catch (Exception e) {
+        	e.printStackTrace();
         }
+    }
+    
+    /**
+     * Show a dialog indicating the default log couldn't be loaded, and indicate
+     * that the user will need to manually locate a valid log file.
+     * Should the user try to exit without hitting the OK button...well, see the return value.
+     * Does not actually load a log file itself!
+     * @return "true" if the user is OK with trying to find a log file (aka the user
+     * selects the affirmative button), "false" if the user otherwise closes the window
+     * without selecting "OK" (taken to assume the user doesn't care)
+     */
+    private static boolean showLoadFailurePrompt() {
+        final Stage dialog = new Stage();
+        final AtomicBoolean affirmativeResponse = new AtomicBoolean(false);
+        dialog.setTitle("RISK! LogPlayer");
+
+        final Text info1 = new Text();
+        info1.setText("Welcome to the RISK! LogPlayer\n");
+        info1.setTextAlignment(TextAlignment.CENTER);
+        info1.setFont(Font.font("Arial", FontWeight.BOLD, 20));
+        info1.setFill(Color.WHITE);
+        final Text info2 = new Text();
+        info2.setText("LogPlayer couldn't find the default "
+        		+ "log file, " + LOG_FILE + "."
+        		+ "\n\nPlease manually select a valid RISK! log file.");
+        info2.setTextAlignment(TextAlignment.CENTER);
+        info2.setFont(Font.font("Arial", FontWeight.THIN, 14));
+        info2.setFill(Color.WHITE);
+        info2.setStrokeWidth(0.2);
+
+        final Button submitButton = new Button("OK, let's go!");
+        submitButton.setDefaultButton(true);
+        submitButton.setOnAction(new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent t) {
+            	affirmativeResponse.set(true);
+                dialog.close();
+            }
+        });
+
+        final VBox layout = new VBox(10);
+        layout.setAlignment(Pos.CENTER);
+        layout.setPadding(new Insets(45, 15, 45, 15));
+        layout.setBackground(new Background(new BackgroundFill(Color.CORNFLOWERBLUE, null, null)));
+        layout.getChildren().setAll(
+        		/*iconIn,*/
+                info1, info2,
+                submitButton
+        );
+        
+        ScrollPane internalScrollPane = new ScrollPane(layout);
+
+        dialog.setScene(new Scene(internalScrollPane));
+        dialog.showAndWait();
+        return affirmativeResponse.get();
     }
 
     private void addThreadToMap(Thread threadIn) {
@@ -515,6 +617,10 @@ public class LogPlayer extends Application {
     }
 
     private void loadPlayers() {
+    	if(this.log == null){
+    		System.out.println("Can't load players from nonexistent log. Critical fault.");
+    		return;
+    	}
         try {
             ArrayList<Color> colors = new ArrayList<Color>();
             colors.add(Color.WHITE);
@@ -544,6 +650,7 @@ public class LogPlayer extends Application {
                 }
             }
         } catch (Exception e) {
+        	e.printStackTrace();
         }
     }
 

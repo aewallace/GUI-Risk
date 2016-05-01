@@ -56,7 +56,7 @@ public class About {
      * @param autoExit whether this window should automatically close after
      * a set amount of time (around 5 seconds)
      */
-    public void launch(Window owner, boolean autoExit) {
+    public void showFriendlyInfo(Window owner, boolean autoExit) {
         final Stage dialog = new Stage();
         
         dialog.setTitle("Hi, friend. :D");
@@ -147,7 +147,7 @@ public class About {
      * 
      * @param owner The Window of the Stage calling this method
      */
-    public void more(Window owner) {
+    public void showAdvancedVerInfo(Window owner) {
         final Stage dialog = new Stage();
 
         dialog.setTitle("more.");

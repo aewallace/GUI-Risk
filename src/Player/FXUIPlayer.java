@@ -28,6 +28,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javafx.application.Platform;
@@ -71,7 +72,7 @@ import javafx.stage.Window;
  */
 public class FXUIPlayer implements Player {
 
-    public static final String versionInfo = "FXUI-RISK-Player\nVersion 0111\nStamp 2016.01.09, 14:11\nStability: Alpha(01)";
+    public static final String versionInfo = "FXUI-RISK-Player\nVersion 0112\nStamp 2016.5.01, 00:00\nStability: Alpha(01)";
     private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
     private static Window owner = null;
     private double windowXCoord = 0;
@@ -104,9 +105,8 @@ public class FXUIPlayer implements Player {
     private static final int MAX_NAME_LENGTH = 22;
     private int reinforcementsApplied = 0;
     private int maxAtkDiceAvailable = 0;
-    private boolean passTurn = false;
-    private final String blankText = "-----";
-    private String attackTarget = blankText, attackSource = blankText;
+    //private boolean passTurn = false;
+    //private String attackTarget = blankText, attackSource = blankText;
     private boolean keepRunning = false;
     private final ExitStateSubHelper exitDecider = new ExitStateSubHelper();
     private static Stage persistentDialog = null;
@@ -695,8 +695,10 @@ public class FXUIPlayer implements Player {
         //else...make the window and keep displaying until the user has confirmed selection
         final CardTurnInResponse rsp = new CardTurnInResponse();
         final HashMap<Integer, Card> cardsToTurnIn = new HashMap<>();
+        AtomicBoolean passTurn = new AtomicBoolean(false);
         do {
-            this.passTurn = true;
+            //this.passTurn = true;
+            passTurn.set(true);
             this.keepRunning = false;
             final HashMap<Integer, Text> cardStatusMapping = new HashMap<>();
             Platform.runLater(new Runnable() {
@@ -791,7 +793,7 @@ public class FXUIPlayer implements Player {
                                     rsp.addCard(cdOut);
                                 }
                                 if (CardTurnInResponse.isValidResponse(rsp, myCards)) {
-                                    passTurn = false;
+                                    passTurn.set(false);
                                     exitDecider.setAsNonSystemClose();
                                     saveLastKnownWindowLocation(dialog);
                                     dialog.close();
@@ -800,7 +802,7 @@ public class FXUIPlayer implements Player {
                                     rsp.resetCards();
                                 }
                             } else if (!turnInRequired) {
-                                passTurn = true;
+                                passTurn.set(true);
                                 exitDecider.setAsNonSystemClose();
                                 saveLastKnownWindowLocation(dialog);
                                 dialog.close();
@@ -813,7 +815,7 @@ public class FXUIPlayer implements Player {
                     skipIt.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
                         public void handle(ActionEvent t) {
-                            passTurn = true;
+                            passTurn.set(true);
                             exitDecider.setAsNonSystemClose();
                             saveLastKnownWindowLocation(dialog);
                             dialog.close();
@@ -849,8 +851,7 @@ public class FXUIPlayer implements Player {
             FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
         } while (this.keepRunning);
 
-        if (passTurn) {
-            passTurn = false;
+        if (passTurn.get()) {
             return null;
         }
         return rsp;
@@ -1048,6 +1049,10 @@ public class FXUIPlayer implements Player {
 
         //else...make the window and keep displaying until the user has confirmed selection
         final AttackResponse rsp = new AttackResponse();
+        final AtomicBoolean passTurn = new AtomicBoolean(false);
+        final String blankText = "-----";
+        final AtomicReference<String> attackTarget = new AtomicReference<>(blankText);
+        final AtomicReference<String> attackSource = new AtomicReference<>(blankText);
         do {
             this.keepRunning = false;
             Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
@@ -1099,13 +1104,16 @@ public class FXUIPlayer implements Player {
                     layout.setAlignment(Pos.CENTER);
                     layout.setStyle("-fx-padding: 20;");
                     putWindowAtLastKnownLocation(dialog);
+                    
 
                     //Generic instructions for attacking (the act of which is always optional, technically)
-                    guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
+                    //guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
+                    guideText.setText("Attack? [optional]");
                     guideText.setTextAlignment(TextAlignment.CENTER);
 
                     //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
-                    statusText.setText("Current selection: Attacking\n[no selection???]\nfrom\n[no selection???].");
+                    final String baseStatusTextString = "Current selection: Attacking\n%s\nfrom\n%s";
+                    statusText.setText(String.format(baseStatusTextString, "[N/A]", "[N/A]"));
                     statusText.setTextAlignment(TextAlignment.CENTER);
 
                     sourceCountriesVBox.setAlignment(Pos.CENTER);
@@ -1154,9 +1162,10 @@ public class FXUIPlayer implements Player {
                                 maxAtkDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
                                 rsp.setNumDice(maxAtkDiceAvailable); //default to the max dice available for an attack
                                 updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
-                                attackSource = source.getName();
-                                attackTarget = blankText;
-                                statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+                                attackSource.set(source.getName());
+                                attackTarget.set(blankText);
+                                statusText.setText(String.format(baseStatusTextString, attackTarget.get(), attackSource.get()));
+                                //statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
                                 statusText.setFill(Color.BLACK);
                                 targetCountriesVBox.getChildren().clear();
                                 targetCountriesVBox.getChildren().add(new Text("Target:"));
@@ -1168,8 +1177,9 @@ public class FXUIPlayer implements Player {
                                             @Override
                                             public void handle(ActionEvent t) {
                                                 rsp.setDfdCountry(target);
-                                                attackTarget = target.getName();
-                                                statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
+                                                attackTarget.set(target.getName());
+                                                statusText.setText(String.format(baseStatusTextString, attackTarget, attackSource));
+                                                //statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
                                             }
                                         });
                                         targetCountriesVBox.getChildren().add(ctTgtBtn);
@@ -1190,7 +1200,7 @@ public class FXUIPlayer implements Player {
                                     statusText.setText("Not a valid response; try another combo.");
                                     statusText.setFill(Color.RED);
                                 } else {
-                                    passTurn = false;
+                                    passTurn.set(false);
                                     exitDecider.setAsNonSystemClose();
                                     saveLastKnownWindowLocation(dialog);
                                     dialog.close();
@@ -1206,7 +1216,7 @@ public class FXUIPlayer implements Player {
                     skipIt.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
                         public void handle(ActionEvent t) {
-                            passTurn = true;
+                            passTurn.set(true);
                             exitDecider.setAsNonSystemClose();
                             saveLastKnownWindowLocation(dialog);
                             dialog.close();
@@ -1259,11 +1269,10 @@ public class FXUIPlayer implements Player {
             checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
             //if we have completed all business within the dialog, cleanup and return as required.
             FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
-            attackSource = blankText;
-            attackTarget = blankText;
+            attackSource.set(blankText);
+            attackTarget.set(blankText);
         } while (this.keepRunning);
-        if (passTurn) {
-            passTurn = false;
+        if (passTurn.get()) {
             return null;
         }
         return rsp;
@@ -1507,6 +1516,7 @@ public class FXUIPlayer implements Player {
         //else...make the window and keep displaying until the user has confirmed selection
 
         final FortifyResponse rsp = new FortifyResponse();
+        AtomicBoolean passTurn = new AtomicBoolean(false);
 
         do {
             this.keepRunning = false;
@@ -1685,7 +1695,7 @@ public class FXUIPlayer implements Player {
                                     && rsp.getToCountry() != null
                                     && FortifyResponse.isValidResponse(rsp, map, playaName)) {
                                 exitDecider.setAsNonSystemClose();
-                                passTurn = false;
+                                passTurn.set(false);
                                 saveLastKnownWindowLocation(dialog);
                                 dialog.close();
                             } else {
@@ -1701,7 +1711,7 @@ public class FXUIPlayer implements Player {
                     skipIt.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
                         public void handle(ActionEvent event) {
-                            passTurn = true;
+                            passTurn.set(true);
                             exitDecider.setAsNonSystemClose();
                             saveLastKnownWindowLocation(dialog);
                             dialog.close();
@@ -1736,8 +1746,7 @@ public class FXUIPlayer implements Player {
             checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
             FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
         } while (this.keepRunning);
-        if (passTurn) {
-            passTurn = false;
+        if (passTurn.get()) {
             return null;
         }
         return rsp;
@@ -1872,7 +1881,6 @@ public class FXUIPlayer implements Player {
                     acceptIt.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
                         public void handle(ActionEvent t) {
-                            passTurn = false;
                             exitDecider.setAsNonSystemClose();
                             saveLastKnownWindowLocation(dialog);
                             dialog.close();
@@ -1943,17 +1951,42 @@ public class FXUIPlayer implements Player {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            final long fireDelta = 650;
+                            final long fireDelta = 950;
                             RiskUtils.sleep(fireDelta);
+                            final AtomicInteger fireCountSincePress = new AtomicInteger(0);
+                            final short maxFireSlowdownThresh = 5;
+                            btn.pressedProperty().addListener(new ChangeListener<Boolean>(){
+                                @Override
+                                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                                    /* reset the fire count when button is physically pressed
+                                     * should restore speed.*/
+                                    if(newValue.booleanValue() == true) fireCountSincePress.set(0);
+                                }
+                            });
+                            btn.hoverProperty().addListener(new ChangeListener<Boolean>(){
+                                @Override
+                                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                                    /* reset the fire count when button is physically pressed
+                                     * should restore speed.*/
+                                    if(newValue.booleanValue() == false && !btn.isPressed())
+                                    {
+                                        btn.setOpacity(1);
+                                    }
+                                }
+                            });
                             while (btn.isPressed() || btn.isHover()) {
                                 try {
                                     Platform.runLater(new Runnable() {
                                         @Override
                                         public void run() {
                                             btn.fire();
+                                            btn.setOpacity(0.5d + (double)(fireCountSincePress.get()%2)/2);
                                         }
                                     });
-                                    RiskUtils.sleep(fireDelta);
+                                    RiskUtils.sleep(fireDelta + (275*fireCountSincePress.get()));
+                                    if(fireCountSincePress.get() < maxFireSlowdownThresh){
+                                        fireCountSincePress.incrementAndGet();
+                                    }
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }

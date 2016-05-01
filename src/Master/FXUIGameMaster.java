@@ -81,7 +81,6 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.effect.BlendMode;
-import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.effect.Glow;
 import javafx.scene.image.Image;
@@ -137,7 +136,7 @@ public class FXUIGameMaster extends Application {
      *Continue on with remaining variables and constants as normal... 
      */
     public static final String APP_FRIENDLY_NAME = "RISK";
-    public static final String VERSION_INFO = "FXUI RISK Master\nVersion 0134\n2016.04.24, 21:26\nStability: Release";
+    public static final String VERSION_INFO = "FXUI RISK Master\nVersion 01.36\n2016.5.01, 00:04\nStability: Release";
     // TODO make it such that it's not just loaded-game, new-game, and idle for states; also include "shutting down" a state, along with "end game no shutdown"
     private static final String X_ABOUT = "Audio MP/AC  |  eyeLief  |  AutoBrite";
     public static final String ERROR = "(ERROR!!)", INFO = "(info:)", WARN = "(warning-)";
@@ -191,6 +190,8 @@ public class FXUIGameMaster extends Application {
     private static Stage mainStage;
     private static Pane mainWindowPane;
     private static Pane primaryInteractionPane;
+    private static StackPane stackerPane;
+    private static ScrollPane testScrollPane;
     private static Text subStatusTextElement;
     private static Text mainStatusTextElement;
     private static Text extendedMessageDisplay;
@@ -231,6 +232,9 @@ public class FXUIGameMaster extends Application {
     private static Thread clockedUIRefreshThreadB = null;
     private static Node gameRunningIndicator = null;
 	private static boolean indicatorAnimatedAlready = false;
+        private static Line playerChangeIndicPrimary = null;
+        //Line playerChangeIndicSecondary = new Line(0,0,0,40);
+        private static Circle playerChangeIndicSecondary = null;
 	private static boolean colorAdjusted;
 	private static boolean runAutoBrightness;
 	private static int eyeLiefStrength;
@@ -1025,8 +1029,8 @@ public class FXUIGameMaster extends Application {
         });
         
         logPlaybackBtn.setOnAction((ActionEvent t) -> {
+            LogPlayer.setAsLaunchedFromFXUIGM();
             Platform.runLater(() -> {
-                LogPlayer.setAsLaunchedFromFXUIGM();
                 new LogPlayer().start(new Stage());
             });
         });
@@ -1732,7 +1736,7 @@ public class FXUIGameMaster extends Application {
                             return "Stalemate!";
                         }
                     }
-                    FXUIAudioAC.playNextNote();
+                    if(audioManager != null) audioManager.playNextNote();
                     FXUIGameMaster.currentPlayer = this.playerNameToPlayerObjHMap.get(this.players.get(turn));
                     canUpdateUIAndSave = FXUIGameMaster.currentPlayer.getClass().toString().equals(FXUIPlayer.class.toString());
                     writeLogLn(true, FXUIGameMaster.currentPlayer.getName() + " is starting their turn.");
@@ -1778,7 +1782,7 @@ public class FXUIGameMaster extends Application {
             representPlayersOnUI();
             if (!FXUIGameMaster.fullAppExit && !FXUIGameMaster.endGame && this.players.size() > 0) {
             	winState = true;
-                FXUIAudioAC.playEndJingle();
+                if(audioManager != null) audioManager.playEndJingle();
                 writeStatsLn();
                 System.out.println(this.players.get(0) + " is the victor!");
                 writeLogLn(true, this.players.get(0) + " is the victor!");
@@ -1964,6 +1968,14 @@ public class FXUIGameMaster extends Application {
         int attempts = 0;
         boolean valid = false;
         reinforcements += getCardTurnIn(currentPlayer, getPlayerCardCounts());
+        while(FXUIGameMaster.gamePaused.get())
+        {
+            RiskUtils.sleep(500);
+        }
+        while(FXUIGameMaster.gamePaused.get() && !(FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame))
+        {
+            RiskUtils.sleep(500);
+        }
         if (FXUIGameMaster.endGame = crossbar.isHumanEndingGame() || FXUIGameMaster.endGame) {
             return;
         }
@@ -3035,19 +3047,7 @@ public class FXUIGameMaster extends Application {
                     int nextY = reader.nextInt();
                     String nextCountry = reader.nextLine().trim();
                     Text txt = new Text(nextX, nextY, nextCountry + "\n0");
-                    txt.setCache(true);
-                    txt.setCacheHint(CacheHint.QUALITY);
-                    //enable clicking/tapping on the country.
-                    //beta feature added 2015-10-10 as a TODO
-                    txt.setOnMouseClicked((MouseEvent t) -> {
-                        System.out.println(nextCountry);
-                    });
-                    txt.setFont(Font.font("Verdana", FontWeight.BOLD, 12*
-                    		FXUIGameMaster.FONT_MULTIPLIER));
-                    txt.setStroke(Color.BLACK);
-                    txt.setFill(Color.GREY);
-                    txt.setSmooth(true);
-                    txt.setEffect(gGlow);
+                    formatCountryNode(txt, nextCountry, gGlow);
                     this.textNodeMap.put(nextCountry, txt);
                     FXUIGameMaster.primaryInteractionPane.getChildren().add(txt);
                 }
@@ -3063,18 +3063,36 @@ public class FXUIGameMaster extends Application {
                     int nextY = reader.nextInt();
                     String nextCountry = reader.nextLine().trim();
                     Text txt = new Text(nextX, nextY, nextCountry + "\n0");
-                    txt.setCache(true);
-                    txt.setCacheHint(CacheHint.QUALITY);
-                    txt.setStroke(Color.BLACK);
-                    txt.setFill(Color.BLUEVIOLET);
-                    txt.setFont(Font.font("Verdana", FontWeight.BOLD, 12*
-                            FXUIGameMaster.FONT_MULTIPLIER));
-                    txt.setSmooth(true);
-                    txt.setEffect(gGlow);
+                    formatCountryNode(txt, nextCountry, gGlow);
                     this.textNodeMap.put(nextCountry, txt);
                     FXUIGameMaster.primaryInteractionPane.getChildren().add(txt);
                 }
             }
+        }
+    }
+    
+    /**
+     * Formats each country node to a uniform style for the beginning of the game.
+     * Also enables the user to click the country and have that info passed...somewhere.
+     * @param txt
+     * @param countryName
+     * @param textEffect 
+     */
+    private void formatCountryNode(Text txt, String countryName, Glow textEffect){
+        if(txt != null){
+            txt.setCache(true);
+                    txt.setCacheHint(CacheHint.QUALITY);
+                    //enable clicking/tapping on the country.
+                    //beta feature added 2015-10-10 as a TODO
+                    txt.setOnMouseClicked((MouseEvent t) -> {
+                        System.out.println(countryName);
+                    });
+                    txt.setFont(Font.font("Verdana", FontWeight.BOLD, 12*
+                    		FXUIGameMaster.FONT_MULTIPLIER));
+                    txt.setStroke(Color.BLACK);
+                    txt.setFill(Color.GREY);
+                    txt.setSmooth(true);
+                    txt.setEffect(textEffect);
         }
     }
 
@@ -3452,7 +3470,7 @@ public class FXUIGameMaster extends Application {
          */
         double strokeThicknessOfLines = 4d;
         Color colorOfLines = Color.WHITE;
-        Line playerChangeIndicPrimary = new Line(0,DEFAULT_CONTENT_HEIGHT-10,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT-10);
+        playerChangeIndicPrimary = new Line(0,DEFAULT_CONTENT_HEIGHT-10,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT-10);
         //Rectangle accentLine = new Rectangle(4,4,DEFAULT_CONTENT_WIDTH-8,DEFAULT_CONTENT_HEIGHT-8);
         playerChangeIndicPrimary.setStrokeWidth(strokeThicknessOfLines);
         playerChangeIndicPrimary.setStroke(colorOfLines);
@@ -3461,8 +3479,9 @@ public class FXUIGameMaster extends Application {
         playerChangeIndicPrimary.setCache(true);
         playerChangeIndicPrimary.setCacheHint(CacheHint.SPEED);
         
+        
         //Line playerChangeIndicSecondary = new Line(0,0,0,40);
-        Circle playerChangeIndicSecondary = new Circle(4);
+        playerChangeIndicSecondary = new Circle(4);
         //playerChangeIndicSecondary.setStrokeWidth(strokeThicknessOfLines);
         //playerChangeIndicSecondary.setStroke(colorOfLines);
         playerChangeIndicSecondary.setFill(colorOfLines);
@@ -3683,7 +3702,7 @@ public class FXUIGameMaster extends Application {
             showLogContents();
         });
         
-        Button showOptsAboutBtn = new Button("options | about.");
+        Button showOptsAboutBtn = new Button("options | more...");
         showOptsAboutBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 9*FONT_MULTIPLIER));
         showOptsAboutBtn.setOnAction((ActionEvent t) -> {
         	if(FLAT_UI)
@@ -3706,7 +3725,7 @@ public class FXUIGameMaster extends Application {
         startStack.getChildren().addAll(startStackBkgnd, startBtn);
         startButtonPanel.getChildren().addAll(/*activeGameIndicS,*/startStack,playerChangeIndicSecondary);
         otherButtonPanel.getChildren().addAll(showLogBtn, pauseStopGameBtn, exitAppBtn,
-            	showOptsAboutBtn, saveMe, doLoggingCBox);
+            	showOptsAboutBtn);
         if (!fullAppExit) { //if we had no error
             primaryStatusButtonPanel.getChildren().addAll(subStatusTextElement,
             	mainStatusTextElement, startButtonPanel, otherButtonPanel,
@@ -3730,13 +3749,6 @@ public class FXUIGameMaster extends Application {
         }
         
 
-
-        /*
-         * Associate the two music pulse indicators, primary and secondary, with the
-         * audio manager.
-         */
-        
-        FXUIAudioAC.setVisualIndicators(playerChangeIndicPrimary, new Node[]{playerChangeIndicSecondary});
         /*
          * Associate the two game activity indicators, large and small, so they
          * may animate in unison.
@@ -3750,10 +3762,26 @@ public class FXUIGameMaster extends Application {
 		 * Add the layout (and, by extension, its contents) to the Scene.
 		 * We'll add the Scene to the Stage (the main window) later.
 		 */
-        FXUIGameMaster.primaryInteractionPane.setBackground(null);
-        FXUIGameMaster.mainWindowPane.setBackground(null);
+        //FXUIGameMaster.primaryInteractionPane.setBackground(null);
+        //FXUIGameMaster.mainWindowPane.setBackground(null);
+        mainWindowPane.setCache(true);
+        mainWindowPane.setCacheHint(CacheHint.QUALITY);
+        mainWindowPane.setBlendMode(BlendMode.ADD);
+        stackerPane = new StackPane();
+        stackerPane.setPrefSize(DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+        testScrollPane = new ScrollPane();
+        testScrollPane.setPannable(true);
+        //testScrollPane.setPrefSize(DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+        //testScrollPane.setFitToHeight(false);
+        //testScrollPane.setFitToWidth(false);
+        //testScrollPane.setPrefViewportHeight(DEFAULT_CONTENT_HEIGHT);
+        //testScrollPane.setPrefViewportWidth(DEFAULT_CONTENT_WIDTH);
         Color altColor = Color.BLACK;
-        scene = new Scene(mainWindowPane, altColor);
+        testScrollPane.setContent(null);
+        testScrollPane.setBackground(null);
+        stackerPane.getChildren().addAll(testScrollPane, mainWindowPane);
+        scene = new Scene(stackerPane, altColor);
+        
         //scene = new Scene(FXUIGameMaster.primaryInteractionPane);
         
 
@@ -3781,9 +3809,18 @@ public class FXUIGameMaster extends Application {
         FXUIGameMaster.mainStage = primaryStage;
         
         //Get the splash screen queued up, then show the window.
-        showBootSplashScreen();
+        testScrollPane.setVisible(false);
         primaryStage.show();
+        final Node viewportAccess = testScrollPane.lookup(".viewport");
+        viewportAccess.setStyle("-fx-background-color: transparent");
+        testScrollPane.setVisible(true);
+        final Node staticViewportAccess = stackerPane.lookup(".viewport");
+        staticViewportAccess.setStyle("-fx-background-color: transparent");
+        stackerPane.setVisible(true);
+        stackerPane.setBackground(null);
+        showBootSplashScreen();
 
+        
         //enable the game to gracefully support resizing of the window
         enableAutomaticResizingFunctionality(primaryStage);
 
@@ -3807,7 +3844,7 @@ public class FXUIGameMaster extends Application {
         if(!fullAppExit){
 			enableAutoAdjustBrightness();
 			applyEyeLief(EYELIEF_LO);
-	        audioManager = new FXUIAudioAC();
+                        //requestEnableAudioManager();
 	        setButtonAvailability();
 	        System.out.println(APP_FRIENDLY_NAME + " is ready.\n" + FXUIGameMaster.VERSION_INFO);
         }
@@ -3819,9 +3856,27 @@ public class FXUIGameMaster extends Application {
         	System.out.println(APP_FRIENDLY_NAME + " encountered an error and "
         			+ "needs to close. Ver info:\n" + FXUIGameMaster.VERSION_INFO);
         }
-
-       
-        
+    }
+    
+    /**
+     * Enable and initialize the audio manager.
+     * Depending on setup, this may or may not trigger the boot sound.
+     * @return "true" if new audio manager was created, or audio manager already
+     * exists; "false" otherwise.
+     */
+    public static boolean requestEnableAudioManager(){
+        if(audioManager == null){
+            audioManager = new FXUIAudioAC();
+            audioManager.setVisualIndicators(playerChangeIndicPrimary, new Node[]{playerChangeIndicSecondary});
+        }
+        return (audioManager != null);
+    }
+    
+    /**
+     * Disable the audio manager.
+     */
+    public static void requestDisableAudioManager(){
+        audioManager = null;
     }
     
     /**
@@ -3953,9 +4008,6 @@ public class FXUIGameMaster extends Application {
         else{ //stronger application
         	adjustedColor = colorToSet.deriveColor(0d, 1.0d, 0.2d, 1d);
         }
-        mainWindowPane.setCache(true);
-        mainWindowPane.setCacheHint(CacheHint.QUALITY);
-        mainWindowPane.setBlendMode(BlendMode.ADD);
         FXUIGameMaster.colorAdjusted = true;
         scene.setFill(adjustedColor);
         FXUI_Crossbar.storeStrainReliefColor(adjustedColor);
@@ -4341,11 +4393,54 @@ public class FXUIGameMaster extends Application {
 		foregroundRectangle.setCache(true);
 		foregroundRectangle.setCacheHint(CacheHint.SPEED);
 		foregroundRectangle.setOpacity(1);
+                
+                HBox visibleButtonBox = new HBox(50);
+                visibleButtonBox.setLayoutX(DEFAULT_CONTENT_WIDTH / 2.25);
+		visibleButtonBox.setLayoutY(DEFAULT_CONTENT_HEIGHT / 1.50);
+                
+                Button saveButtonSrc = (Button) buttonCache.get(ButtonPosEnum.BTN_SAVE.ordinal());
+                
+                final String saveButtonBaseString = "SAVE game.\n";
+                final String cantSaveNoCheck = "(no checkpoint yet)";
+                final String cantSaveBotsOnly = "(bots only - no checkpoints)";
+                final String saveAllowed = "(SAVE - checkpoint available)";
+                Button saveButton = new Button(saveButtonBaseString + "(SAVE - checkpoint available)");
 		
+		saveButton.setShape(new Rectangle(50, 50));
+		saveButton.setStyle("-fx-base: deepskyblue");
+		saveButton.setFont(Font.font("Arial", FontWeight.LIGHT, 12 * FONT_MULTIPLIER));
+		saveButton.requestFocus();
+		saveButton.setDefaultButton(true);
+		saveButton.setOnAction((ActionEvent t) -> {
+			saveButtonSrc.fire();
+		});
+                final ChangeListener<Boolean> saveDisabledCListener = new ChangeListener<Boolean>(){
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                        if(saveButtonSrc.isDisabled()){
+                            if(FXUIGameMaster.runBotsOnly){
+                                saveButton.setText(saveButtonBaseString + cantSaveBotsOnly);
+                            }
+                            else{
+                                saveButton.setText(saveButtonBaseString + cantSaveNoCheck);
+                            }
+                        }
+                        else{
+                            saveButton.setText(saveButtonBaseString + saveAllowed);
+                        }
+                    }
+                };
+                saveButtonSrc.disableProperty().addListener(new ChangeListener<Boolean>(){
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                        saveButton.setDisable(saveButtonSrc.isDisabled());
+                    }
+                });
+                saveButton.disableProperty().addListener(saveDisabledCListener);
+                saveButton.setDisable(saveButtonSrc.isDisable());
 
 		Button resumeBtn = new Button("Play more.\n(RESUME current game)");
-		resumeBtn.setLayoutX(DEFAULT_CONTENT_WIDTH / 1.55);
-		resumeBtn.setLayoutY(DEFAULT_CONTENT_HEIGHT / 1.50);
+		
 		resumeBtn.setShape(new Rectangle(50, 50));
 		resumeBtn.setStyle("-fx-base: yellow");
 		resumeBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12 * FONT_MULTIPLIER));
@@ -4360,22 +4455,26 @@ public class FXUIGameMaster extends Application {
 		});
 
 		Button stopGameBtn = new Button("Bow out.\n(END current game)");
-		stopGameBtn.setLayoutX(DEFAULT_CONTENT_WIDTH / 1.25);
-		stopGameBtn.setLayoutY(DEFAULT_CONTENT_HEIGHT / 1.50);
 		stopGameBtn.setShape(new Rectangle(50, 50));
 		stopGameBtn.setStyle("-fx-base: orange");
         stopGameBtn.setFont(Font.font("Arial", FontWeight.LIGHT, 12*FONT_MULTIPLIER));
         stopGameBtn.setOnAction((ActionEvent t) -> {
             Platform.runLater(() -> {
                 //crossbar.signalHumanEndingGame();
-                if(!crossbar.tryCloseCurrentPlayerDialog()){
+                //if(!crossbar.tryCloseCurrentPlayerDialog()){
                     if(FXUIGameMaster.doYouWantToMakeAnExit(false,0) > 0){
                         FXUIGameMaster.endGame = true;
                         resumeBtn.fire();
+                        crossbar.tryCloseCurrentPlayerDialog();
                     }
-                }
+                //}
+                //else{
+                //    resumeBtn.fire();
+                //}
             });
         });
+        
+        visibleButtonBox.getChildren().addAll(saveButton, resumeBtn, stopGameBtn);
         
         EventHandler<MouseEvent> clickToClose = (MouseEvent t) -> {
             resumeBtn.fire();
@@ -4389,8 +4488,7 @@ public class FXUIGameMaster extends Application {
 		foregroundRectangle.opacityProperty().addListener(new ChangeListener<Number>(){
 			@Override
 			public void changed(ObservableValue<? extends Number> observable, Number oldValue, Number newValue) {
-				resumeBtn.setOpacity(newValue.doubleValue());
-				stopGameBtn.setOpacity(newValue.doubleValue());
+				visibleButtonBox.setOpacity(newValue.doubleValue());
 				backgroundRectangle.setOpacity(1.0d - (newValue.doubleValue() / 2));
 			}
 		});
@@ -4398,7 +4496,8 @@ public class FXUIGameMaster extends Application {
 		
 		Platform.runLater(() -> {
 					FXUIGameMaster.primaryInteractionPane.setDisable(true);
-                    pauseScreenPane.getChildren().addAll(backgroundRectangle, PAUSE_SUBTEXT, foregroundRectangle, PAUSE_TEXT, RESUME_INSTRUCTIONS, resumeBtn, stopGameBtn);
+                    pauseScreenPane.getChildren().addAll(backgroundRectangle, PAUSE_SUBTEXT, foregroundRectangle, PAUSE_TEXT,
+                            RESUME_INSTRUCTIONS, visibleButtonBox);
                     mainWindowPane.getChildren().add(pauseScreenPane);
                 });
 
@@ -4539,7 +4638,9 @@ public class FXUIGameMaster extends Application {
         FXUIGameMaster.diagnosticPrintln("WindowDecorationHeight < ::: > WindowDecorationWidth " + windowDecorationHeight + " <:::> " + windowDecorationWidth);
         testStage.close();
         /*End part where we get extra window size information*/
-        FXUIGameMaster.mainWindowResizeHandler = new WindowResizeHandler(stageIn, (double) DEFAULT_CONTENT_WIDTH / DEFAULT_CONTENT_HEIGHT, windowDecorationWidth, windowDecorationHeight, DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
+        FXUIGameMaster.mainWindowResizeHandler = new WindowResizeHandler
+        		(stageIn, stackerPane, mainWindowPane, testScrollPane,
+        				(double) DEFAULT_CONTENT_WIDTH / DEFAULT_CONTENT_HEIGHT, windowDecorationWidth, windowDecorationHeight, DEFAULT_CONTENT_WIDTH, DEFAULT_CONTENT_HEIGHT);
         FXUIGameMaster.mainWindowResizeHandler.setCallerActive();
     }
 
@@ -4552,7 +4653,7 @@ public class FXUIGameMaster extends Application {
     private static void tryToExit(Stage primaryStage) {
         Thread ttExit = new Thread(() -> {
             Platform.runLater(() -> {
-                FXUIAudioAC.playEndJingle();
+                if(audioManager != null) audioManager.playEndJingle();
                 showExitSplashScreen();
             });
             if(FXUIGameMaster.mainStage.isShowing()){
@@ -4880,13 +4981,13 @@ public class FXUIGameMaster extends Application {
         //your standard About buttons...
         Button tellMe = new Button("About (Basic Info)");
         tellMe.setOnAction((ActionEvent t) -> {
-            nAbout.launch(secondaryOwner, false);
+            nAbout.showFriendlyInfo(secondaryOwner, false);
         });
 
         //...I said "About buttons". Plural. Yep.	
         Button tellMe2 = new Button("More About (Ver.)");
         tellMe2.setOnAction((ActionEvent t) -> {
-            nAbout.more(secondaryOwner);
+            nAbout.showAdvancedVerInfo(secondaryOwner);
         });
         
         //Button to show the window size options
@@ -4895,6 +4996,7 @@ public class FXUIGameMaster extends Application {
             mainWindowResizeHandler.showSizeOptions(secondaryOwner);
         });
         
+        AtomicInteger enableAudioCounter = new AtomicInteger(3);
         //Button to show audio options (volume, etc)
         Button audioOptions = new Button("Audio Options");
         audioOptions.setOnAction((ActionEvent t) -> {
@@ -4902,8 +5004,16 @@ public class FXUIGameMaster extends Application {
                 FXUIGameMaster.audioManager.showAudioOptions(secondaryOwner);
             }
             else{
-                FXUIGameMaster.showPassiveDialog("FXUIAudio:"
-                        + "\nAudio Manager not loaded.");
+                if(enableAudioCounter.get() == 1){
+                    requestEnableAudioManager();
+                    FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                            + "\nAudio Manager now enabled.\nOptions now available.");
+                }
+                else{
+                    FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                            + "\nAudio Manager not enabled.\nSelect " 
+                            + enableAudioCounter.getAndDecrement() + " time(s) to enable.");
+                }
             }
         });
 
@@ -4974,13 +5084,13 @@ public class FXUIGameMaster extends Application {
       //your standard About buttons...
         Button tellMe = new Button("About (Basic Info)");
         tellMe.setOnAction((ActionEvent t) -> {
-            nAbout.launch(owner, false);
+            nAbout.showFriendlyInfo(owner, false);
         });
 
         //...I said "About buttons". Plural. Yep.	
         Button tellMe2 = new Button("More About (Ver.)");
         tellMe2.setOnAction((ActionEvent t) -> {
-            nAbout.more(owner);
+            nAbout.showAdvancedVerInfo(owner);
         });
         
         //Button to show the window size options
@@ -4990,14 +5100,27 @@ public class FXUIGameMaster extends Application {
         });
         
         //Button to show audio options (volume, etc)
-        Button audioOptions = new Button("Audio Options");
+        AtomicInteger enableAudioCounter = new AtomicInteger(4);
+        final String baseAuOptText = "Audio Options";
+        Button audioOptions = new Button(audioManager == null ? "[enable audio]" : baseAuOptText);
         audioOptions.setOnAction((ActionEvent t) -> {
             if(FXUIGameMaster.audioManager != null){
                 FXUIGameMaster.audioManager.showAudioOptions(owner);
             }
             else{
-                FXUIGameMaster.showPassiveDialog("FXUIAudio:"
-                        + "\nAudio Manager not loaded.");
+                if(enableAudioCounter.get() == 0){
+                    requestEnableAudioManager();
+                    audioOptions.setText(baseAuOptText);
+                    /*FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                            + "\nAudio Manager now enabled.\nOptions now available.");*/
+                }
+                else{
+                    audioOptions.setText(baseAuOptText + ": press " 
+                            + enableAudioCounter.getAndDecrement() + "x");
+                    /*FXUIGameMaster.showPassiveDialog("FXUIAudio:"
+                            + "\nAudio Manager not enabled.\nSelect " 
+                            + enableAudioCounter.getAndDecrement() + " time(s) to enable.");*/
+                }
             }
         });
 
@@ -5007,6 +5130,20 @@ public class FXUIGameMaster extends Application {
         	mainWindowPane.getChildren().remove(miniPane);
             gameSelectorIsShowing.set(false);
             });
+        
+        final Button gatherOpenWindows = new Button("[gather windows]");
+        gatherOpenWindows.setOnAction((ActionEvent t) -> {
+            if(crossbar.getCurrentPlayerDialog() != null && crossbar.getCurrentPlayerDialog().isShowing()){
+                crossbar.getCurrentPlayerDialog().setX(mainStage.getX());
+                crossbar.getCurrentPlayerDialog().setY(mainStage.getY());
+            }
+            else{
+                gatherOpenWindows.setText("[gather windows][N/A]");
+            }
+        });
+        
+        CheckBox performLogging = (CheckBox) buttonCache.get(ButtonPosEnum.CKBX_LOGGING.ordinal());
+        
 
         
         double widthOfLines = 250d;
@@ -5017,7 +5154,7 @@ public class FXUIGameMaster extends Application {
         bufferLine.setStroke(colorOfLines);
         
 
-        layout.getChildren().addAll(tellMe, tellMe2, windowOptions, audioOptions);
+        layout.getChildren().addAll(tellMe, tellMe2, windowOptions, audioOptions, gatherOpenWindows, performLogging);
         layout.getChildren().addAll(bufferLine,closeButton);
         
         
@@ -5036,7 +5173,7 @@ public class FXUIGameMaster extends Application {
     
     /**
      * Allow the temporary addition of a pane on top of contents in the main window.
-     * @param paneToShow
+     * @param paneToShow the pane to show
      * @return the pane that was added.
      */
     public static Pane requestPaneDisplay(Pane paneToShow){
@@ -5081,10 +5218,12 @@ public class FXUIGameMaster extends Application {
 	 * affected boolean set to "false" will result in the message being
 	 * suppressed. Affected boolean: {@link WindowResizeHandler#DIAGNOSTIC_MODE}.
 	 * @param contentOut the content to be conditionally displayed.
+	 * @param returns "true" if allowed to print, "false" otherwise.
 	 */
-	public static void diagnosticPrintln(String contentOut) {
+	public static boolean diagnosticPrintln(String contentOut) {
         if (FXUIGameMaster.DIAGNOSTIC_MODE) {
             System.out.println(contentOut);
         }
+        return FXUIGameMaster.DIAGNOSTIC_MODE;
     }
 }

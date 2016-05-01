@@ -50,7 +50,7 @@ import javafx.stage.WindowEvent;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudioAC {
-	public static final String shortVersion = "FXUIAudio AC / 0.2.B.2353\n24 April 2016";
+	public static final String shortVersion = "FXUIAudio AC / 0.2.C.0006\n01 May 2016";
 	protected static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
@@ -66,26 +66,26 @@ public class FXUIAudioAC {
 			"Piano.mf.E4.mp3", "Piano.mf.Eb4.mp3"
 			);
 	protected static final String bootAudioFileName = "xylophone.rosewood.roll.ff.F4B4.mp3";
-	protected static int positionInClipList = 0;
-	protected static int availableClipCount = 0;
-	protected static Random rand = new Random();
-	protected static int loadingMethod = 0;
-	protected static boolean playAudio = true;
-	protected static boolean audioLoadSuccess = true;
-	protected static AtomicBoolean blockNextPlay = new AtomicBoolean(false);
-	protected static boolean initialized = false;
+	protected int positionInClipList = 0;
+	protected int availableClipCount = 0;
+	protected Random rand = new Random();
+	protected int loadingMethod = 0;
+	protected boolean playAudio = true;
+	protected boolean audioLoadSuccess = true;
+	protected AtomicBoolean blockNextPlay = new AtomicBoolean(false);
+	protected boolean initialized = false;
 	/**
 	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
 	 */
-	protected static double audioVolumePercent = 0.5d;
-	protected static Node visualIndicator = null;
-	protected static boolean hasVisualIndicator = false;
-	protected static AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
-	private static Map<String, AudioClip> mediaPlaybackMap = new HashMap<String, AudioClip>();
-	private static AudioClip bootAudio = null;
-	protected static int maxConcurrentClipCount = 3;
-	private static LinkedList<AudioClip> playList = new LinkedList<AudioClip>();
-	protected static long delayBetweenNextPlayMS = 900;
+	protected double audioVolumePercent = 0.5d;
+	protected Node visualIndicator = null;
+	protected boolean hasVisualIndicator = false;
+	protected AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
+	protected Map<String, AudioClip> mediaPlaybackMap = new HashMap<String, AudioClip>();
+	protected static AudioClip bootAudio = null;
+	protected static final int maxConcurrentClipCount = 3;
+	protected LinkedList<AudioClip> playList = new LinkedList<AudioClip>();
+	protected static final long delayBetweenNextPlayMS = 900;
 
 	public FXUIAudioAC() {
                 System.out.println("AudioAC audio manager enabled.");
@@ -107,13 +107,13 @@ public class FXUIAudioAC {
 	 * (null accepted, empty set accepted, one or more accepted)
 	 * simultaneously modified during each call to {@link toTheBeat}.
 	 */
-	public static void setVisualIndicators(Node priNode, Node[] assocNodes){
+	public void setVisualIndicators(Node priNode, Node[] assocNodes){
 		if(priNode != null){
 			if(Platform.isFxApplicationThread()){
 				priNode.setOpacity(0.5d);
 				priNode.setEffect(new Glow(1.0d));
 			}
-			FXUIAudioAC.visualIndicator = priNode;
+			visualIndicator = priNode;
 			for (int i = 0; assocNodes != null && i < assocNodes.length; i++){
 				final Node nodeIn = assocNodes[i];
 				priNode.opacityProperty().addListener((ObservableValue<? extends Number> observable, Number oldValue, Number newValue) -> {
@@ -124,10 +124,10 @@ public class FXUIAudioAC {
 	                }
 	            });
 			}
-			FXUIAudioAC.hasVisualIndicator = true;
+			hasVisualIndicator = true;
 		}
 		else{
-			FXUIAudioAC.hasVisualIndicator = false;
+			hasVisualIndicator = false;
 		}
 	}
 	
@@ -135,12 +135,12 @@ public class FXUIAudioAC {
 	 * Flash/pulse visual indicator. Pair with the start of an audio clip
 	 * to produce a sort of "to the beat" visual effect.
 	 */
-	protected static void toTheBeat()
+	protected void toTheBeat()
 	{
 		Thread pulse = new Thread(null, new Runnable() {
             @Override
             public void run() {
-            	if(FXUIAudioAC.hasVisualIndicator == true){
+            	if(hasVisualIndicator == true){
             		toTheBeatHelper();
         		}
             }
@@ -149,7 +149,7 @@ public class FXUIAudioAC {
 	    pulse.start();
 	}
 	
-	protected static void toTheBeatHelper(){
+	protected void toTheBeatHelper(){
 		int animTime = 650;
 		int discreteSteps = 20, startingStep = 10, stoppingStep = 0;
 		long sleepTime = animTime/discreteSteps;
@@ -167,7 +167,7 @@ public class FXUIAudioAC {
                 @Override
                 public void run() {
                 	try{
-        				FXUIAudioAC.visualIndicator.setOpacity((double)input/discreteSteps);
+        				visualIndicator.setOpacity((double)input/discreteSteps);
 						if(lastStroke){
 							nextInnerAnimStepAllowed.set(true);
 						}
@@ -193,7 +193,7 @@ public class FXUIAudioAC {
                 @Override
                 public void run() {
                 	try{
-        				FXUIAudioAC.visualIndicator.setOpacity((double)input/discreteSteps);
+        				visualIndicator.setOpacity((double)input/discreteSteps);
 						if(lastStroke){
 							nextInnerAnimStepAllowed.set(true);
 						}
@@ -222,31 +222,31 @@ public class FXUIAudioAC {
 	 * @return "true" if next note will be played, "false" if delayed or cannot
 	 * play
 	 */
-	public static boolean playNextNote() {
+	public boolean playNextNote() {
 	    FXUIGameMaster.diagnosticPrintln("Next Note being played");
 	    try {
-	        if (FXUIAudioAC.bootAudio != null) {
-	            FXUIAudioAC.bootAudio.stop();
-	        }
 	        if (audioLoadSuccess == false) {
 	            FXUIGameMaster.diagnosticPrintln("Next Note: audio load success FALSE");
 	            return false;
 	        }
-	        if (FXUIAudioAC.blockNextPlay.get() || !FXUIAudioAC.playAudio) {
+	        if (blockNextPlay.get() || !playAudio) {
 	            FXUIGameMaster.diagnosticPrintln("Next Note: playback blocked[time delay]");
 	            return false;
 	        }
-	        if (!FXUIAudioAC.initialized) {
+	        if (!initialized) {
 	            FXUIGameMaster.diagnosticPrintln("Next Note: not INITIALIZED!");
 	            return false;
 	        }
+                if (FXUIAudioAC.bootAudio != null) {
+	            FXUIAudioAC.bootAudio.stop();
+	        }
 	        positionInClipList--;
 	        if (positionInClipList < 0) {
-	            positionInClipList = FXUIAudioAC.availableClipCount - 1;
+	            positionInClipList = availableClipCount - 1;
 	        }
 	
 	        final int indexToPlay = positionInClipList;
-	        FXUIAudioAC.blockNextPlay.set(true);
+	        blockNextPlay.set(true);
 	        FXUIGameMaster.diagnosticPrintln(audioFileNames.get(positionInClipList));
 	        playFileAtIndex(indexToPlay);
 	        toTheBeat();
@@ -254,7 +254,7 @@ public class FXUIAudioAC {
 	                new Runnable() {
 	            @Override
 	            public void run() {
-	                FXUIAudioAC.blockNextPlay.set(false);
+	               blockNextPlay.set(false);
 	            }
 	        });
 	    } catch (Exception e) {
@@ -262,14 +262,15 @@ public class FXUIAudioAC {
 	    }
 	    return true;
 	}
+        
 
 	/**
 	 * Play an ending jingle of 2 specific notes from the list of possible
 	 * notes. (Currently last two notes) ... This may also be used as the
 	 * starting jingle in the future.
 	 */
-	public static void playEndJingle() {
-	    if (!FXUIAudioAC.initialized) {
+	public void playEndJingle() {
+	    if (!initialized) {
 	        return;
 	    }
 	    try {
@@ -294,11 +295,11 @@ public class FXUIAudioAC {
 	    }
 	}
 
-	protected static boolean playFileAtIndex(int indexToPlay) {
+	protected boolean playFileAtIndex(int indexToPlay) {
 	    try {
-	        FXUIAudioAC.playList.add(mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)));
+	        playList.add(mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)));
 	        limitFilePlaybackCount();
-	        FXUIAudioAC.mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)).play();
+	        mediaPlaybackMap.get(FXUIAudioAC.audioFileNames.get(indexToPlay)).play();
 	    } catch (Exception e) {
 	        return false;
 	    }
@@ -312,9 +313,9 @@ public class FXUIAudioAC {
 	 *
 	 * @param currentAudioIdx
 	 */
-	protected static void limitFilePlaybackCount() {
-	    if (FXUIAudioAC.playList.size() > maxConcurrentClipCount) {
-	        FXUIAudioAC.playList.removeFirst().stop();
+	protected void limitFilePlaybackCount() {
+	    if (playList.size() > maxConcurrentClipCount) {
+	        playList.removeFirst().stop();
 	    }
 	}
 
@@ -356,8 +357,8 @@ public class FXUIAudioAC {
 	                    FXUIGameMaster.diagnosticPrintln("Couldn't access necessary audio files."
 	                            + " No extra audio will be played.");
 	                } else {
-	                    FXUIAudioAC.availableClipCount = FXUIAudioAC.mediaPlaybackMap.size();
-	                    FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + FXUIAudioAC.availableClipCount);
+	                    availableClipCount = mediaPlaybackMap.size();
+	                    FXUIGameMaster.diagnosticPrintln("Audio manager loaded. Files loaded: " + availableClipCount);
 	                }
 	            }
 	        }, "delayedLoadAudioFiles");
@@ -479,10 +480,10 @@ public class FXUIAudioAC {
 	    if (volume <= 0) {
 	        success = true;
 	        mute = true;
-	        FXUIAudioAC.audioVolumePercent = 0.0d;
+	        audioVolumePercent = 0.0d;
 	    } else if (volume > 1.0d) {
 	        success = false;
-	        FXUIAudioAC.audioVolumePercent = 1.0d;
+	        audioVolumePercent = 1.0d;
 	    } else {
 	        success = true;
 	        audioVolumePercent = volume;
@@ -568,9 +569,9 @@ public class FXUIAudioAC {
 	        final Button yeah = new Button("Apply Changes");
 	        final Button nah = new Button("Close Window");
 	
-	        final Slider audioVolSlider = new Slider(0.0f, 1.0f, FXUIAudioAC.audioVolumePercent);
+	        final Slider audioVolSlider = new Slider(0.0f, 1.0f, audioVolumePercent);
 	        final CheckBox doPlayAudio = new CheckBox("Play audio?");
-	        final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", FXUIAudioAC.audioVolumePercent * 100) + "%]");
+	        final Text audioSliderLabel = new Text("Audio Volume [" + String.format("%.2f", audioVolumePercent * 100) + "%]");
 	
 	        audioVolSlider.setSnapToTicks(false);
 	        audioVolSlider.setShowTickMarks(true);
@@ -587,7 +588,7 @@ public class FXUIAudioAC {
 	            }
 	        });
 	
-	        doPlayAudio.setSelected(FXUIAudioAC.playAudio);
+	        doPlayAudio.setSelected(playAudio);
 	        doPlayAudio.setTooltip(new Tooltip("Enable (checked) or disable "
 	                + "(unchecked) playback of audio."));
 	        doPlayAudio.setTextFill(Color.ANTIQUEWHITE);
@@ -606,9 +607,9 @@ public class FXUIAudioAC {
 	            public void handle(ActionEvent t) {
 	                yeah.setDisable(true);
 	                if (doPlayAudio.isSelected()) {
-	                    FXUIAudioAC.playAudio = true;
+	                    playAudio = true;
 	                } else if (!doPlayAudio.isSelected()) {
-	                    FXUIAudioAC.playAudio = false;
+	                    playAudio = false;
 	                }
 	                doPlayAudio.setDisable(true);
 	                audioVolSlider.setDisable(true);
