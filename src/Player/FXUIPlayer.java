@@ -11,6 +11,7 @@ package Player;
 import Map.Country;
 import Map.RiskMap;
 import Master.FXUIGameMaster;
+import static Master.FXUIGameMaster.COUNTRIES_BY_NAME;
 import Response.AdvanceResponse;
 import Response.AttackResponse;
 import Response.CardTurnInResponse;
@@ -21,7 +22,9 @@ import Util.Card;
 import Util.FXUI_Crossbar;
 import Util.RiskConstants;
 import Util.RiskUtils;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -31,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -44,12 +48,14 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
+import javafx.scene.effect.BlendMode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
 import javafx.scene.text.FontWeight;
@@ -58,6 +64,7 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 
 // TODO revise handling of "system exits". Consider updating the crossbar, so FXUIGameMaster can respond appropriately with a well-placed check?
 /**
@@ -72,15 +79,37 @@ import javafx.stage.Window;
  */
 public class FXUIPlayer implements Player {
 
-    public static final String versionInfo = "FXUI-RISK-Player\nVersion 0112\nStamp 2016.5.01, 00:00\nStability: Alpha(01)";
+    public static final String versionInfo = "FXUI-RISK-Player\nVersion 0113\nStamp 2016.6.28, 08:50\nStability: Alpha(01)";
     private static FXUI_Crossbar crossbar = new FXUI_Crossbar();
+    private static Pane paneToAddControls = null;
+    private static HashMap<String, Text> textNodeMap = null;
+    private static boolean controlsInMainWindow = false;
     private static Window owner = null;
     private double windowXCoord = 0;
     private double windowYCoord = 0;
     private AtomicBoolean autoProgressDefense = new AtomicBoolean(false);
+    private static final String defaultBackgroundColorStr = "-fx-base: mistyrose; ";
+    private static final String defaultLayoutPadding = "-fx-padding: 20; ";
+    private static final double mainWindowPosOffset = -15d;
 
     public static void setOwnerWindow(Window ownerIn) {
         FXUIPlayer.owner = ownerIn;
+    }
+
+    /**
+     * Try to connect the main window to this class, so this class can
+     * add/remove controls in the main window as necessary.
+     *
+     * @param paneForControls
+     * @param controlTextLoc
+     */
+    public static void setMainWindowConnection(Pane paneForControls, HashMap<String, Text> controlTextLoc) {
+        if (paneForControls == null || controlTextLoc == null) {
+            throw new UnsupportedOperationException("Can't add null control info to FXUIPlayer.");
+        }
+        FXUIPlayer.paneToAddControls = paneForControls;
+        FXUIPlayer.textNodeMap = controlTextLoc;
+        FXUIPlayer.controlsInMainWindow = true;
     }
 
     /**
@@ -315,6 +344,7 @@ public class FXUIPlayer implements Player {
     public static void applyBrightnessControlToKnownNodes(double opacity) {
         for (Entry<Stage, Node> nodeApp : nodesForBriteMap.entrySet()) {
             nodeApp.getValue().setOpacity(opacity);
+            nodeApp.getValue().setBlendMode(BlendMode.ADD);
         }
     }
 
@@ -355,6 +385,32 @@ public class FXUIPlayer implements Player {
     public String getName() {
         return this.name;
     }
+    
+    /**
+     * Prepare a VBox for use with each dialog window.
+     * Formats with color, spacing, etc.
+     * @return the layout VBox
+     */
+    private VBox getVBoxFormattedForLayout(){
+    	final VBox fmtLayout = new VBox(10);
+    	fmtLayout.setAlignment(Pos.CENTER);
+        fmtLayout.setStyle(defaultLayoutPadding + defaultBackgroundColorStr);
+    	return fmtLayout;
+    }
+    
+    /**
+     * Edit a given ScrollPane for use in a dialog. Allows for
+     * desired colors of a given parent node to show through, etc.
+     * MUST CALL AFTER WINDOW IS SHOWING.
+     * @return
+     */
+    private void formatSPaneInlayAfterShow(ScrollPane sPaneToEdit){
+    	sPaneToEdit.setPannable(true);
+    	sPaneToEdit.setStyle(defaultBackgroundColorStr);
+		//sPaneToEdit.setBackground(null);
+		Node viewportAccess = sPaneToEdit.lookup(".viewport");
+		viewportAccess.setStyle("-fx-background-color: transparent");
+    }
 
     /**
      * Presents a dialog to ask a user for the name they want Designed to run on
@@ -372,9 +428,9 @@ public class FXUIPlayer implements Player {
         //Make the window and keep displaying until the user has confirmed selection
         do {
             this.keepRunning = false;
-            final VBox layout = new VBox(10);
+            final VBox layout = getVBoxFormattedForLayout();
             final Text guideText = new Text(); //generic prompt info
-            final Text guideText2 = new Text(); //in-deoth prompt info
+            final Text guideText2 = new Text(); //in-depth prompt info
             final Text statusText = new Text(); //status: acceptable or unacceptable
             timesLeft.set(maxTimes);
             Platform.runLater(new Runnable() {
@@ -396,9 +452,6 @@ public class FXUIPlayer implements Player {
                         dialog.initOwner(FXUIPlayer.owner);
                     }
 
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
-
                     guideText.setText("Please give us a name for your player, Human.");
                     guideText.setTextAlignment(TextAlignment.CENTER);
                     guideText.setFont(Font.font("System", 16));
@@ -416,7 +469,7 @@ public class FXUIPlayer implements Player {
                     Button acceptIt = new Button("accept/ok");
                     fireButtonAfter3SHover(acceptIt);
                     Button autoSet = new Button("skip(auto-set)");
-                    repeatFireOnPressAndHover(autoSet);
+                    repeatFireOnLongPress(autoSet);
 
                     potentialName.setOnKeyTyped(new EventHandler<KeyEvent>() {
                         @Override
@@ -521,6 +574,9 @@ public class FXUIPlayer implements Player {
         if (crossbar.isHumanEndingGame()) {
             return null;
         }
+        if (FXUIPlayer.controlsInMainWindow) {
+            return getInitialAllocationFlat(map, reinforcements);
+        }
 
         //else...make the window and keep displaying until the user has confirmed selection
         final ReinforcementResponse rsp = new ReinforcementResponse();
@@ -531,7 +587,7 @@ public class FXUIPlayer implements Player {
             final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
             final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
 
-            final VBox layout = new VBox(10);
+            final VBox layout = getVBoxFormattedForLayout();
             final Text guideText = new Text(); //generic instructions for initial allocation
             final Text statusText = new Text(); //status: total reinforcements available, reinf used, reinf available.
             Platform.runLater(new Runnable() {
@@ -551,10 +607,7 @@ public class FXUIPlayer implements Player {
                         dialog.initOwner(FXUIPlayer.owner);
                     }
                     putWindowAtLastKnownLocation(dialog);
-
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
-
+                    
                     guideText.setText("You have been assigned starting countries (seen below)\nand " + reinforcements + " initial troops;"
                             + "\nplease allocate those troops now.\nOne troop per country minimum;\nMust use all available troops.");
                     guideText.setTextAlignment(TextAlignment.CENTER);
@@ -567,6 +620,11 @@ public class FXUIPlayer implements Player {
 					* plus the buttons to increment/decrement said count. (Target minimum count for each country is 1).
 					* Text + buttons are immediately added to the target vertical layout one row/country at a time.
                      */
+                    //FXUIPlayer.paneToAddControls = paneForControls;
+                    //FXUIPlayer.textNodeMap = controlTextLoc;
+                    //FXUIPlayer.controlsInMainWindow = true;
+                    final ArrayList<Node> mainWindowControlCache = new ArrayList<Node>();
+
                     for (final Country ctIn : myCountries) {
                         final HBox singleCountryDisp = new HBox(4);
                         singleCountryDisp.setAlignment(Pos.CENTER);
@@ -578,7 +636,7 @@ public class FXUIPlayer implements Player {
 
                         //button to increment reinforcement count for selected country
                         Button plus = new Button("+");
-                        repeatFireOnPressAndHover(plus);
+                        repeatFireOnLongPress(plus);
                         plus.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent event) {
@@ -592,7 +650,7 @@ public class FXUIPlayer implements Player {
                         });
                         //button to decrement reinforcement count for selected country
                         Button minus = new Button("-");
-                        repeatFireOnPressAndHover(minus);
+                        repeatFireOnLongPress(minus);
                         minus.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent t) {
@@ -604,26 +662,9 @@ public class FXUIPlayer implements Player {
                                 refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
                             }
                         });
-                        singleCountryDisp.setOnScroll(new EventHandler<ScrollEvent>(){
-							@Override
-							public void handle(ScrollEvent event) {
-								// TODO Auto-generated method stub
-								System.out.println("Scroll delta: " + event.getDeltaY());
-								if(event.getTotalDeltaY() > 0){
-									for(int amtScroll = 0; amtScroll < (int)event.getDeltaY()/7; amtScroll++){
-										plus.fire();
-									}
-								}
-								else{
-									for(int amtScroll = (int) event.getDeltaY()/7; amtScroll < 0; amtScroll++){
-										minus.fire();
-									}
-								}
-								
-							}
-                        });
                         singleCountryDisp.getChildren().addAll(plus, minus);
                         layout.getChildren().add(singleCountryDisp);
+                        
                     }
 
                     refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
@@ -640,9 +681,19 @@ public class FXUIPlayer implements Player {
                                 }
                                 exitDecider.setAsNonSystemClose();
                                 saveLastKnownWindowLocation(dialog);
+
                                 dialog.close();
                             } else {
                                 refreshReinforcementDisplay(true, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+                            }
+                        }
+                    });
+
+                    dialog.setOnHiding(new EventHandler<WindowEvent>() {
+                        @Override
+                        public void handle(WindowEvent event) {
+                            for (Node potentialRemove : mainWindowControlCache) {
+                                FXUIPlayer.paneToAddControls.getChildren().remove(potentialRemove);
                             }
                         }
                     });
@@ -659,6 +710,211 @@ public class FXUIPlayer implements Player {
                     registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
+
+                    formatSPaneInlayAfterShow(superSPane);
+                }
+            });
+
+            /**
+             * End mandatory FX thread processing. Immediately following this,
+             * pause to wait for FX dialog to be closed!
+             */
+            waitForDialogToClose(FXUIPlayer.crossbar);
+            checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
+            reinforcementsApplied = 0;
+            FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+        } while (this.keepRunning);
+        return rsp;
+    }
+    
+    /**
+     * Specify an allocation of the player's initial reinforcements. RESPONSE
+     * REQUIRED
+     *
+     * @param map
+     * @param reinforcements
+     * @return initial allocation
+     */
+    public ReinforcementResponse getInitialAllocationFlat(RiskMap map, int reinforcements) {
+        //if the player asked to end the game, don't even display the dialog
+        if (crossbar.isHumanEndingGame()) {
+            return null;
+        }
+
+        //else...make the window and keep displaying until the user has confirmed selection
+        final ReinforcementResponse rsp = new ReinforcementResponse();
+        do {
+            this.keepRunning = false;
+
+            final Set<Country> myCountries = RiskUtils.getPlayerCountries(map, this.name);
+            final HashMap<String, Integer> countryUsedReinforcementCount = new HashMap<String, Integer>();
+            final HashMap<String, Text> countryTextCache = new HashMap<String, Text>();
+
+            final VBox layout = getVBoxFormattedForLayout();
+            final Text guideText = new Text(); //generic instructions for initial allocation
+            final Text statusText = new Text(); //status: total reinforcements available, reinf used, reinf available.
+            Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                    /**
+                     * *********
+                     * Begin mandatory processing on FX thread. (Required for
+                     * Stage objects.)
+                     */
+
+                    final Stage dialog = new Stage();
+
+                    //now let us continue with window/element setup
+                    dialog.setTitle("Initial Troop Allocation!");
+                    if (FXUIPlayer.owner != null) {
+                        dialog.initOwner(FXUIPlayer.owner);
+                    }
+                    putWindowAtLastKnownLocation(dialog);
+                    
+                    guideText.setText("You have been assigned starting countries (seen below)\nand " + reinforcements + " initial troops;"
+                            + "\nplease allocate those troops now.\nOne troop per country minimum;\nMust use all available troops.");
+                    guideText.setTextAlignment(TextAlignment.CENTER);
+                    layout.getChildren().add(guideText);
+
+                    statusText.setText("Total: " + reinforcements + "\nUsed: " + reinforcementsApplied + "\nAvailable: " + (reinforcements - reinforcementsApplied));
+
+                    /*
+					* Text to indicate country + count being sent to that country for each country you own,
+					* plus the buttons to increment/decrement said count. (Target minimum count for each country is 1).
+					* Text + buttons are immediately added to the target vertical layout one row/country at a time.
+                     */
+                    
+                    //TODO remove this reference info
+                    //Place containing coordinates, and destination for controls:
+                    //FXUIPlayer.paneToAddControls = paneForControls;
+                    //FXUIPlayer.textNodeMap = controlTextLoc;
+                    //FXUIPlayer.controlsInMainWindow = true;
+                    
+                    final ArrayList<Node> mainWindowControlCache = new ArrayList<Node>();
+
+                    
+                    //click targets to display individual controls
+                    for (final Country ctIn : myCountries) {
+                    	
+                    }
+                    //controls to actually change allotment
+                    for (final Country ctIn : myCountries) {
+                        final HBox singleCountryDisp = new HBox(4);
+                        singleCountryDisp.setAlignment(Pos.CENTER);
+                        map.getCountryArmies(ctIn);
+                        countryUsedReinforcementCount.put(ctIn.getName(), 1);
+                        reinforcementsApplied++;
+                        countryTextCache.put(ctIn.getName(), new Text(ctIn.getName() + " + 1"));
+                        //singleCountryDisp.getChildren().add(countryTextCache.get(ctIn.getName()));
+
+                        //button to increment reinforcement count for selected country
+                        Button plus = new Button("+");
+                        repeatFireOnLongPress(plus);
+                        plus.setOnAction(new EventHandler<ActionEvent>() {
+                            @Override
+                            public void handle(ActionEvent event) {
+                                final String countryAffected = ctIn.getName();
+                                if (reinforcementsApplied + 1 <= reinforcements) {
+                                    reinforcementsApplied++;
+                                    countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected) + 1);
+                                }
+                                refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+                            }
+                        });
+                        //button to decrement reinforcement count for selected country
+                        Button minus = new Button("-");
+                        repeatFireOnLongPress(minus);
+                        minus.setOnAction(new EventHandler<ActionEvent>() {
+                            @Override
+                            public void handle(ActionEvent t) {
+                                final String countryAffected = ctIn.getName();
+                                if (reinforcementsApplied - 1 >= 0 && countryUsedReinforcementCount.get(countryAffected) - 1 >= 1) {
+                                    reinforcementsApplied--;
+                                    countryUsedReinforcementCount.put(countryAffected, countryUsedReinforcementCount.get(countryAffected) - 1);
+                                }
+                                refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+                            }
+                        });
+                        singleCountryDisp.getChildren().addAll(minus, countryTextCache.get(ctIn.getName()), plus);
+                        //layout.getChildren().add(singleCountryDisp);
+                        if (FXUIPlayer.controlsInMainWindow) {
+                        	final double baseScaleAmount = 0.7;
+                            HBox duplicate = new HBox();
+                            duplicate.setStyle("-fx-background-color: white");
+                            duplicate.setLayoutX(FXUIPlayer.textNodeMap.get(ctIn.getName()).getX() + mainWindowPosOffset);
+                            duplicate.setLayoutY(FXUIPlayer.textNodeMap.get(ctIn.getName()).getY() + mainWindowPosOffset); //TODO refine how you cover the existing text
+                            duplicate.getChildren().add(singleCountryDisp);
+                            mainWindowControlCache.add(duplicate);
+                            duplicate.setScaleX(baseScaleAmount);
+                            duplicate.setScaleY(baseScaleAmount);
+                            duplicate.hoverProperty().addListener(new ChangeListener<Boolean>() {
+                                @Override
+                                public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue,
+                                        Boolean newValue) {
+                                    final double scaleAmount = newValue.booleanValue() ? 2.0 : baseScaleAmount;
+                                    duplicate.setScaleX(scaleAmount);
+                                    duplicate.setScaleY(scaleAmount);
+                                    duplicate.toFront();
+                                    //TODO validate shifting values; the threshold may be too low
+                                    //or too high, and/or may cause the boxes to shift too much.
+                                    if(newValue && (duplicate.getLayoutX() < 200 || duplicate.getLayoutX() > FXUIGameMaster.DEFAULT_CONTENT_WIDTH - 270)){
+                                    	duplicate.setTranslateX(duplicate.getLayoutX() < 200 ? 50 : -50);
+                                    }
+                                    else{
+                                    	duplicate.setTranslateX(0);
+                                    }
+
+                                }
+                            });
+                            FXUIPlayer.paneToAddControls.getChildren().add(duplicate);
+                        }
+                    }
+
+                    refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+
+                    //button to attempt to accept final reinforcement allocation
+                    Button acceptIt = new Button("Accept/OK");
+                    fireButtonAfter3SHover(acceptIt);
+                    acceptIt.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            if (reinforcementsApplied == reinforcements) {
+                                for (Country country : myCountries) {
+                                    rsp.reinforce(country, countryUsedReinforcementCount.get(country.getName()));
+                                }
+                                exitDecider.setAsNonSystemClose();
+                                saveLastKnownWindowLocation(dialog);
+
+                                dialog.close();
+                            } else {
+                                refreshReinforcementDisplay(true, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
+                            }
+                        }
+                    });
+
+                    dialog.setOnHiding(new EventHandler<WindowEvent>() {
+                        @Override
+                        public void handle(WindowEvent event) {
+                            for (Node potentialRemove : mainWindowControlCache) {
+                                FXUIPlayer.paneToAddControls.getChildren().remove(potentialRemove);
+                            }
+                        }
+                    });
+
+                    layout.getChildren().addAll(statusText, acceptIt);
+                    ScrollPane superSPane = new ScrollPane(layout);
+
+                    //formally add linear layout to scene, and display the dialog
+                    dialog.setScene(new Scene(superSPane));
+
+                    FXUIPlayer.crossbar.setCurrentHumanName(getName());
+                    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+
+                    registerNodeForBrightnessControl(dialog, superSPane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
+                    dialog.show();
+
+                    formatSPaneInlayAfterShow(superSPane);
                 }
             });
 
@@ -720,8 +976,7 @@ public class FXUIPlayer implements Player {
                     final String guideTextIfOptional = "Turn In Cards?\nIf you can form a set of cards with...\n3x same type\nOR\n3x different type\nOR\nWild+Any two\n"
                             + "...You are allowed to do so at this point.\nOtherwise, you may review your cards for later use.";
 
-                    final VBox layout = new VBox(10);
-
+                    final VBox layout = getVBoxFormattedForLayout();
                     final HBox cardArrayDisplayRowA = new HBox(4);
                     final HBox cardArrayDisplayRowB = new HBox(4);
 
@@ -738,9 +993,6 @@ public class FXUIPlayer implements Player {
                     }
 
                     putWindowAtLastKnownLocation(dialog);
-
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
 
                     //further set up the guide text, depending on whether you must turn in cards or not
                     guideText.setText(turnInRequired ? guideTextIfRequired : guideTextIfOptional);
@@ -888,11 +1140,12 @@ public class FXUIPlayer implements Player {
                      * Stage objects.)
                      */
                     final Stage dialog = new Stage();
-                    final VBox layout = new VBox(10);
-                    ScrollPane spane = new ScrollPane();
-                    Text guideText = new Text();
+                    final VBox layout = getVBoxFormattedForLayout();
+                    
+                    final ScrollPane superSPane = new ScrollPane();
+                    final Text guideText = new Text();
                     final Text statusText = new Text();
-                    Button acceptIt = new Button("Accept/OK");
+                    final Button acceptIt = new Button("Accept/OK");
                     fireButtonAfter3SHover(acceptIt);
 
                     //updating the elements with their contents &/or styles...
@@ -901,8 +1154,6 @@ public class FXUIPlayer implements Player {
                         dialog.initOwner(FXUIPlayer.owner);
                     }
                     putWindowAtLastKnownLocation(dialog);
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
 
                     //Generic instructions for reinforcement
                     guideText.setText("Please place extra reinforcements\nin the countries you own.");
@@ -920,8 +1171,8 @@ public class FXUIPlayer implements Player {
                         final HBox singleCountryDisp = new HBox(4);
                         Button plus = new Button("+");
                         Button minus = new Button("-");
-                        repeatFireOnPressAndHover(plus);
-                        repeatFireOnPressAndHover(minus);
+                        repeatFireOnLongPress(plus);
+                        repeatFireOnLongPress(minus);
                         singleCountryDisp.setAlignment(Pos.CENTER);
                         map.getCountryArmies(ctIn);
                         countryUsedReinforcementCount.put(ctIn.getName(), 0);
@@ -978,15 +1229,16 @@ public class FXUIPlayer implements Player {
                     layout.getChildren().addAll(statusText, acceptIt);
 
                     //formally add linear layout to scene, and display the dialog
-                    spane.setContent(layout);
-                    dialog.setScene(new Scene(spane));
+                    superSPane.setContent(layout);
+                    dialog.setScene(new Scene(superSPane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     refreshReinforcementDisplay(false, countryTextCache, countryUsedReinforcementCount, statusText, reinforcements);
 
-                    registerNodeForBrightnessControl(dialog, spane);
+                    registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
+                    formatSPaneInlayAfterShow(superSPane);
                 }
             });
 
@@ -1032,6 +1284,13 @@ public class FXUIPlayer implements Player {
             }
         }
     }
+    
+    //FLAT ATTACK:
+    //IF source = destination, deselect (button + country)
+    //IF source already selected, deselect & reselect (button + country)
+    //IF destination already selected, deselct & reselect (button + country)
+    //IF click button once active, deselect (button + country)
+    //ELSE, select (button + country)
 
     /**
      * Specify how and where an attack should be mounted. RESPONSE OPTIONAL
@@ -1041,21 +1300,50 @@ public class FXUIPlayer implements Player {
      * @param playerCards
      * @return attack choice
      */
-    public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
+    public AttackResponse attackFlat(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
         //if the player asked to end the game, don't even display the dialog
         if (crossbar.isHumanEndingGame()) {
             return null;
         }
-
         //else...make the window and keep displaying until the user has confirmed selection
         final AttackResponse rsp = new AttackResponse();
         final AtomicBoolean passTurn = new AtomicBoolean(false);
         final String blankText = "-----";
         final AtomicReference<String> attackTarget = new AtomicReference<>(blankText);
         final AtomicReference<String> attackSource = new AtomicReference<>(blankText);
+        //Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
+
+        //HashMap<String, Button> potentialTargets = new HashMap<>();
+        HashMap<String, Button> sourceBtnCache = new HashMap<>(), targetBtnCache = new HashMap<>();
+        HashMap<String, ArrayList<String>> destTargetSourceMap = new HashMap<>();
+        ArrayList<String> srcCountryNames = new ArrayList<>();
+        ArrayList<String> tgtCountryNames = new ArrayList<>();
+        RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName())).forEach((ct) -> {
+            srcCountryNames.add(ct.getName());
+        });
+        
+        final int unavailbleSrcCountryCount = RiskUtils.getPlayerCountries(map, this.getName()).size() - srcCountryNames.size();
+        /**
+        * Map potential targets to player-owned countries
+        */
+        for (String sourceName : srcCountryNames) {
+            Country source = COUNTRIES_BY_NAME.get(sourceName);
+            for (Country target : source.getNeighbors()) {
+                if (!map.getCountryOwner(target).equals(getName())) {
+                   destTargetSourceMap.putIfAbsent(target.getName(), new ArrayList<String>());
+                   destTargetSourceMap.get(target.getName()).add(sourceName);
+                   Collections.sort(destTargetSourceMap.get(target.getName()));
+                   if(!tgtCountryNames.contains(target.getName())){
+                       tgtCountryNames.add(target.getName());
+                   }
+                }
+            }
+        }
+        Collections.sort(srcCountryNames);
+        Collections.sort(tgtCountryNames);
+        AtomicReference<Button> selectedSourceBtn = new AtomicReference<>(null), selectedTargetBtn = new AtomicReference<>(null);
         do {
             this.keepRunning = false;
-            Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
 
             Platform.runLater(new Runnable() {
                 @Override
@@ -1066,34 +1354,43 @@ public class FXUIPlayer implements Player {
                      * Begin mandatory processing on FX thread. (Required for
                      * Stage objects.)
                      */
-                    ScrollPane spane = new ScrollPane();
+                    ScrollPane superSPane = new ScrollPane();
                     final Stage dialog = new Stage();
-                    final VBox layout = new VBox(10);
+                    final VBox layout = getVBoxFormattedForLayout();
 
-                    Text guideText = new Text();
+                    final Text guideText = new Text();
                     final Text statusText = new Text();
 
                     final VBox sourceCountriesVBox = new VBox(10);
                     final VBox targetCountriesVBox = new VBox(10);
+                    final VBox sourceCTopVBox = new VBox(10);
+                    final VBox targetCTopVBox = new VBox(10);
 
-                    Text diceCountStatus = new Text("Dice Count:\n- - -");
+                    final Text diceCountStatus = new Text("Dice Count:\n- - -");
                     final Button diceCountDec = new Button("Dice--");
-                    repeatFireOnPressAndHover(diceCountDec);
+                    repeatFireOnLongPress(diceCountDec);
                     final Button diceCountInc = new Button("Dice++");
-                    repeatFireOnPressAndHover(diceCountInc);
+                    repeatFireOnLongPress(diceCountInc);
                     final HBox diceDisplay = new HBox(10);
 
-                    ScrollPane spaneLeft = new ScrollPane();
-                    ScrollPane spaneRight = new ScrollPane();
                     final HBox bothCountryGroups = new HBox(10);
 
-                    Button acceptIt = new Button("Accept/OK");
-                    fireButtonAfter3SHover(acceptIt);
-                    Button skipIt = new Button("[skip/pass]");
-                    fireButtonAfter3SHover(skipIt);
+                    final Circle selectionIndicSrc = new Circle(4);
+                    selectionIndicSrc.setFill(Color.DARKRED);
+                    final Circle selectionIndicTgt = new Circle(4);
+                    selectionIndicTgt.setFill(Color.DARKRED);
 
-                    HBox acceptanceBtns = new HBox(10);
-                    Text buttonDivider = new Text("***********");
+                    final Button acceptIt = new Button("Accept/OK");
+                    fireButtonAfter3SHover(acceptIt);
+                    acceptIt.setDisable(true);
+                    final Button skipIt = new Button("[skip/pass]");
+                    fireButtonAfter3SHover(skipIt);
+                    
+                    final Button clearSelection = new Button("Undo/Clear Selection");
+                    fireButtonAfter3SHover(clearSelection);
+
+                    final HBox acceptanceBtns = new HBox(10);
+                    final Text buttonDivider = new Text("***********");
 
                     //now that things have been placed in memory, let's set it all up...
                     dialog.setTitle("Attack? [optional]");
@@ -1101,10 +1398,7 @@ public class FXUIPlayer implements Player {
                         dialog.initOwner(FXUIPlayer.owner);
                     }
 
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
                     putWindowAtLastKnownLocation(dialog);
-                    
 
                     //Generic instructions for attacking (the act of which is always optional, technically)
                     //guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
@@ -1112,15 +1406,28 @@ public class FXUIPlayer implements Player {
                     guideText.setTextAlignment(TextAlignment.CENTER);
 
                     //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
-                    final String baseStatusTextString = "Current selection: Attacking\n%s\nfrom\n%s";
-                    statusText.setText(String.format(baseStatusTextString, "[N/A]", "[N/A]"));
+                    final String baseStatusTextString = "Currently attacking\n%s\nfrom\n%s";
+                    final String baseTgtHeaderString = "attack\n%s";
+                    final String baseSrcHeaderString = "from\n%s";
+                    statusText.setText(String.format(baseStatusTextString, blankText, blankText));
                     statusText.setTextAlignment(TextAlignment.CENTER);
 
                     sourceCountriesVBox.setAlignment(Pos.CENTER);
                     sourceCountriesVBox.setFillWidth(true);
                     targetCountriesVBox.setAlignment(Pos.CENTER);
                     targetCountriesVBox.setFillWidth(true);
-                    sourceCountriesVBox.getChildren().add(new Text("Source:"));
+                    
+                    sourceCTopVBox.setAlignment(Pos.CENTER);
+                    sourceCTopVBox.setFillWidth(true);
+                    targetCTopVBox.setAlignment(Pos.CENTER);
+                    targetCTopVBox.setFillWidth(true);
+                    final Text sourceHeader = new Text(String.format(baseSrcHeaderString, blankText)),
+                            targetHeader = new Text(String.format(baseTgtHeaderString, blankText));
+                    sourceHeader.setTextAlignment(TextAlignment.CENTER);
+                    targetHeader.setTextAlignment(TextAlignment.CENTER);
+                    sourceCTopVBox.getChildren().add(sourceHeader);
+                    targetCTopVBox.getChildren().add(targetHeader);
+                    
 
                     //pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
                     diceCountStatus.setTextAlignment(TextAlignment.CENTER);
@@ -1149,37 +1456,489 @@ public class FXUIPlayer implements Player {
                         }
                     });
 
-                    /* Buttons representing your countries (source countries) from which you can attack, which -- when pressed -- will unveil the destination
-					* countries (targets countries) at which your attack can be focused
-					* */
-                    for (Country source : sources) {
+                    //TODO remove this reference info
+                    //Place containing coordinates, and destination for controls:
+                    //FXUIPlayer.paneToAddControls = paneForControls;
+                    //FXUIPlayer.textNodeMap = controlTextLoc;
+                    //FXUIPlayer.controlsInMainWindow = true;
+                    
+                    /* Buttons representing potential conquests (target countries) & home (attacking) countries.
+                    * Once a potential target's button is pressed, reveals all possible attacking countries.
+                    * Targets always display, so no buffer.
+                    * Source contries vary, so are cached and displayed dynamically. */
+                    for (String targetName : tgtCountryNames) {
+                        Country target = COUNTRIES_BY_NAME.get(targetName);
+                        if (!map.getCountryOwner(target).equals(getName())){
+                            final Button ctTgtBtn = new Button("tgt: " + targetName);
+                            ctTgtBtn.setLayoutX(FXUIPlayer.textNodeMap.get(targetName).getX() + mainWindowPosOffset);
+                            ctTgtBtn.setLayoutY(FXUIPlayer.textNodeMap.get(targetName).getY() + mainWindowPosOffset);
+                            ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
+                                @Override
+                                public void handle(ActionEvent t) {
+                                    if (selectedTargetBtn.get() != null) {
+                                        selectedTargetBtn.get().setGraphic(null);
+                                    }
+                                    acceptIt.setDisable(true);
+                                    selectedTargetBtn.set(ctTgtBtn);
+                                    ctTgtBtn.setGraphic(selectionIndicTgt);
+                                    rsp.setDfdCountry(target);
+                                    attackTarget.set(targetName);
+                                    attackSource.set(blankText);
+                                    targetHeader.setText(String.format(baseTgtHeaderString, targetName));
+                                    sourceHeader.setText(String.format(baseSrcHeaderString, blankText));
+                                    statusText.setText(String.format(baseStatusTextString, attackTarget.get(), attackSource.get()));
+                                    statusText.setFill(Color.BLACK);
+                                    for(Entry<String, Button> sourceToDisable : sourceBtnCache.entrySet()){
+                                        sourceToDisable.getValue().setDisable(true);
+                                    }
+                                    for(Entry<String, Button> othertgt : targetBtnCache.entrySet()){
+                                        if(othertgt.getKey() != targetName){
+                                            othertgt.getValue().setDisable(true);
+                                        }
+                                    }
+                                    for(String sourceName : destTargetSourceMap.get(targetName)/*.stream().sorted().collect(Collectors.toList())*/){
+                                        sourceBtnCache.get(sourceName).setDisable(false);
+                                    }
+                                }
+                            });
+                            //finally add this target button for this singular country
+                            //targetCountriesVBox.getChildren().add(ctTgtBtn);
+                            targetBtnCache.put(targetName, ctTgtBtn);
+                        }
+                    }
+                    for (String sourceName : srcCountryNames) {
+                        Country source = COUNTRIES_BY_NAME.get(sourceName);
+                        final Button ctSrcBtn = new Button("src: " + sourceName);
+                        ctSrcBtn.setLayoutX(FXUIPlayer.textNodeMap.get(sourceName).getX() + mainWindowPosOffset);
+                        ctSrcBtn.setLayoutY(FXUIPlayer.textNodeMap.get(sourceName).getY() + mainWindowPosOffset);
+                        if(map.getCountryArmies(source) < 2){
+                            ctSrcBtn.setDisable(true);
+                        }
+                        else{
+                            ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
+                            @Override
+                            public void handle(ActionEvent t) {
+                                if (selectedSourceBtn.get() != null) {
+                                    selectedSourceBtn.get().setGraphic(null);
+                                }
+                                sourceHeader.setText(String.format(baseSrcHeaderString, sourceName));
+                                acceptIt.setDisable(false);
+                                selectedSourceBtn.set(ctSrcBtn);
+                                ctSrcBtn.setGraphic(selectionIndicSrc);
+                                rsp.setAtkCountry(source);
+                                attackSource.set(sourceName);
+                                maxAtkDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+                                rsp.setNumDice(maxAtkDiceAvailable); //default to the max dice available for an attack
+                                updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
+                                statusText.setText(String.format(baseStatusTextString, attackTarget, attackSource));
+                            }
+                            });
+                            ctSrcBtn.setDisable(true);
+                            sourceBtnCache.put(sourceName, ctSrcBtn);
+                        }
+                    }
+                    FXUIPlayer.paneToAddControls.getChildren().addAll(sourceBtnCache.values());
+                    FXUIPlayer.paneToAddControls.getChildren().addAll(targetBtnCache.values());
+                    
+                    
+                    
+                    //button to attempt to accept final reinforcement allocation
+                    acceptIt.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            if (rsp.getAtkCountry() != null && rsp.getDfdCountry() != null) {
+                                if (!AttackResponse.isValidResponse(rsp, map, getName())) {
+                                    statusText.setText("Not a valid response; try another combo.");
+                                    statusText.setFill(Color.RED);
+                                } else {
+                                    passTurn.set(false);
+                                    exitDecider.setAsNonSystemClose();
+                                    saveLastKnownWindowLocation(dialog);
+                                    dialog.close();
+                                }
+                            } else {
+                                statusText.setText("Not a valid response; \nmake sure you select a target and source!!");
+                                statusText.setFill(Color.RED);
+                            }
+                        }
+                    });
+
+                    //if you want to pass on this action for this turn...
+                    skipIt.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            passTurn.set(true);
+                            exitDecider.setAsNonSystemClose();
+                            saveLastKnownWindowLocation(dialog);
+                            dialog.close();
+                        }
+                    });
+                    
+                    final double baseScaleAmount = 0.7d;
+                    Stream.concat(targetBtnCache.values().stream(), sourceBtnCache.values().stream())
+                        .forEach((btnToEdit) -> {
+                        btnToEdit.setScaleX(baseScaleAmount);
+                        btnToEdit.setScaleY(baseScaleAmount);
+                        btnToEdit.hoverProperty().addListener(new ChangeListener<Boolean>() {
+                            @Override
+                            public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue,
+                                    Boolean newValue) {
+                                final double scaleAmount = newValue.booleanValue() ? 1.0 : baseScaleAmount;
+                                btnToEdit.setScaleX(scaleAmount);
+                                btnToEdit.setScaleY(scaleAmount);
+                                btnToEdit.toFront();
+                                //TODO validate shifting values; the threshold may be too low
+                                //or too high, and/or may cause the boxes to shift too much.
+                                if(newValue && (btnToEdit.getLayoutX() < 100 || btnToEdit.getLayoutX() > FXUIGameMaster.DEFAULT_CONTENT_WIDTH - 170)){
+                                    btnToEdit.setTranslateX(btnToEdit.getLayoutX() < 100 ? 50 : -50);
+                                }
+                                else{
+                                    btnToEdit.setTranslateX(0);
+                                }
+
+                            }
+                        });
+                    });
+                    
+                    clearSelection.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            for(Button singlesrc : sourceBtnCache.values()){
+                                singlesrc.setDisable(true);
+                            }
+                            for(Button singletgt : targetBtnCache.values()){
+                                singletgt.setDisable(false);
+                            }
+                            rsp.setDfdCountry(null);
+                            rsp.setAtkCountry(null);
+                            attackSource.set(blankText);
+                            attackTarget.set(blankText);
+                            if (selectedTargetBtn.get() != null) {
+                                selectedTargetBtn.get().setGraphic(null);
+                            }
+                            if (selectedSourceBtn.get() != null) {
+                                selectedSourceBtn.get().setGraphic(null);
+                            }
+                            statusText.setText(String.format(baseStatusTextString, attackTarget, attackSource));
+                            targetHeader.setText(String.format(baseTgtHeaderString, blankText));
+                            sourceHeader.setText(String.format(baseSrcHeaderString, blankText));
+                        }
+                    });
+
+                    //finish setting up rest of layout...
+                    //includes double ScrollPane -- one for leftmost (source) contents, one for for rightmost (destination) contents
+
+                    bothCountryGroups.getChildren().addAll(targetCTopVBox, sourceCTopVBox);
+                    bothCountryGroups.setAlignment(Pos.CENTER);
+
+                    acceptanceBtns.getChildren().addAll(acceptIt, skipIt);
+                    acceptanceBtns.setAlignment(Pos.CENTER);
+
+                    //add status and buttons to layout
+                    buttonDivider.setTextAlignment(TextAlignment.CENTER);
+                    layout.getChildren().addAll(guideText, /*statusText,*/ clearSelection, /*bothCountryGroups,*/ buttonDivider, diceDisplay, acceptanceBtns);
+                    layout.setAlignment(Pos.CENTER);
+
+                    //formally add linear layout to scene through the use of a scroll pane, and display the dialog
+                    superSPane.setContent(layout);
+                    dialog.setScene(new Scene(superSPane));
+                    FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
+                    FXUIPlayer.crossbar.setCurrentHumanName(getName());
+
+                    registerNodeForBrightnessControl(dialog, superSPane);
+                    registerSceneForEyeStrainControl(dialog, dialog.getScene());
+                    dialog.show();
+
+                    formatSPaneInlayAfterShow(superSPane);
+                }
+            });
+
+            /**
+             * End mandatory FX thread processing. Immediately after this, pause
+             * the non-UI thread (which you should be back on) and wait for the
+             * dialog to close!
+             */
+            waitForDialogToClose(FXUIPlayer.crossbar);
+            checkIfCloseMeansMore(exitDecider, FXUIPlayer.crossbar);
+            //if we have completed all business within the dialog, cleanup and return as required.
+            FXUIPlayer.crossbar.setCurrentPlayerDialog(null);
+            attackSource.set(blankText);
+            attackTarget.set(blankText);
+        } while (this.keepRunning);
+        Platform.runLater(()->{
+            FXUIPlayer.paneToAddControls.getChildren().removeAll(sourceBtnCache.values());
+            FXUIPlayer.paneToAddControls.getChildren().removeAll(targetBtnCache.values());
+        });
+        if (passTurn.get()) {
+            return null;
+        }
+        return rsp;
+    }
+
+    /**
+     * Specify how and where an attack should be mounted. RESPONSE OPTIONAL
+     *
+     * @param map
+     * @param myCards
+     * @param playerCards
+     * @return attack choice
+     */
+    public AttackResponse attack(RiskMap map, Collection<Card> myCards, Map<String, Integer> playerCards) {
+        //if the player asked to end the game, don't even display the dialog
+        if(FXUIPlayer.controlsInMainWindow){
+            return attackFlat(map, myCards, playerCards);
+        }
+        if (crossbar.isHumanEndingGame()) {
+            return null;
+        }
+        //else...make the window and keep displaying until the user has confirmed selection
+        final AttackResponse rsp = new AttackResponse();
+        final AtomicBoolean passTurn = new AtomicBoolean(false);
+        final String blankText = "-----";
+        final AtomicReference<String> attackTarget = new AtomicReference<>(blankText);
+        final AtomicReference<String> attackSource = new AtomicReference<>(blankText);
+        //Collection<Country> sources = RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName()));
+
+        //HashMap<String, Button> potentialTargets = new HashMap<>();
+        HashMap<String, Button> sourceBtnCache = new HashMap<>();
+        HashMap<String, ArrayList<String>> destTargetSourceMap = new HashMap<>();
+        ArrayList<String> srcCountryNames = new ArrayList<>();
+        ArrayList<String> tgtCountryNames = new ArrayList<>();
+        RiskUtils.getPossibleSourceCountries(map, RiskUtils.getPlayerCountries(map, this.getName())).forEach((ct) -> {
+            srcCountryNames.add(ct.getName());
+        });
+        
+        final int unavailbleSrcCountryCount = RiskUtils.getPlayerCountries(map, this.getName()).size() - srcCountryNames.size();
+        /**
+        * Map potential targets to player-owned countries
+        */
+        for (String sourceName : srcCountryNames) {
+            Country source = COUNTRIES_BY_NAME.get(sourceName);
+            for (Country target : source.getNeighbors()) {
+                if (!map.getCountryOwner(target).equals(getName())) {
+                   destTargetSourceMap.putIfAbsent(target.getName(), new ArrayList<String>());
+                   destTargetSourceMap.get(target.getName()).add(sourceName);
+                   Collections.sort(destTargetSourceMap.get(target.getName()));
+                   if(!tgtCountryNames.contains(target.getName())){
+                       tgtCountryNames.add(target.getName());
+                   }
+                }
+            }
+        }
+        Collections.sort(srcCountryNames);
+        Collections.sort(tgtCountryNames);
+        AtomicReference<Button> selectedSourceBtn = new AtomicReference<>(null), selectedTargetBtn = new AtomicReference<>(null);
+        do {
+            this.keepRunning = false;
+
+            Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+
+                    /**
+                     * *********
+                     * Begin mandatory processing on FX thread. (Required for
+                     * Stage objects.)
+                     */
+                    ScrollPane superSPane = new ScrollPane();
+                    final Stage dialog = new Stage();
+                    final VBox layout = getVBoxFormattedForLayout();
+
+                    final Text guideText = new Text();
+                    final Text statusText = new Text();
+
+                    final VBox sourceCountriesVBox = new VBox(10);
+                    final VBox targetCountriesVBox = new VBox(10);
+                    final VBox sourceCTopVBox = new VBox(10);
+                    final VBox targetCTopVBox = new VBox(10);
+
+                    final Text diceCountStatus = new Text("Dice Count:\n- - -");
+                    final Button diceCountDec = new Button("Dice--");
+                    repeatFireOnLongPress(diceCountDec);
+                    final Button diceCountInc = new Button("Dice++");
+                    repeatFireOnLongPress(diceCountInc);
+                    final HBox diceDisplay = new HBox(10);
+
+                    final ScrollPane spaneSrc = new ScrollPane();
+                    final ScrollPane spaneTgt = new ScrollPane();
+                    final HBox bothCountryGroups = new HBox(10);
+
+                    final Circle selectionIndicSrc = new Circle(4);
+                    selectionIndicSrc.setFill(Color.DARKRED);
+                    final Circle selectionIndicTgt = new Circle(4);
+                    selectionIndicTgt.setFill(Color.DARKRED);
+
+                    final Button acceptIt = new Button("Accept/OK");
+                    fireButtonAfter3SHover(acceptIt);
+                    acceptIt.setDisable(true);
+                    final Button skipIt = new Button("[skip/pass]");
+                    fireButtonAfter3SHover(skipIt);
+
+                    final HBox acceptanceBtns = new HBox(10);
+                    final Text buttonDivider = new Text("***********");
+
+                    //now that things have been placed in memory, let's set it all up...
+                    dialog.setTitle("Attack? [optional]");
+                    if (FXUIPlayer.owner != null) {
+                        dialog.initOwner(FXUIPlayer.owner);
+                    }
+
+                    putWindowAtLastKnownLocation(dialog);
+
+                    //Generic instructions for attacking (the act of which is always optional, technically)
+                    //guideText.setText("Select the country from which you want to attack [left],\nthen select the target of your attack [right].\n[attacking is optional; you may pass]");
+                    guideText.setText("Attack? [optional]");
+                    guideText.setTextAlignment(TextAlignment.CENTER);
+
+                    //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
+                    final String baseStatusTextString = "Currently attacking\n%s\nfrom\n%s";
+                    final String baseTgtHeaderString = "attack\n%s";
+                    final String baseSrcHeaderString = "from\n%s";
+                    statusText.setText(String.format(baseStatusTextString, blankText, blankText));
+                    statusText.setTextAlignment(TextAlignment.CENTER);
+
+                    sourceCountriesVBox.setAlignment(Pos.CENTER);
+                    sourceCountriesVBox.setFillWidth(true);
+                    targetCountriesVBox.setAlignment(Pos.CENTER);
+                    targetCountriesVBox.setFillWidth(true);
+                    
+                    sourceCTopVBox.setAlignment(Pos.CENTER);
+                    sourceCTopVBox.setFillWidth(true);
+                    targetCTopVBox.setAlignment(Pos.CENTER);
+                    targetCTopVBox.setFillWidth(true);
+                    final Text sourceHeader = new Text(String.format(baseSrcHeaderString, blankText)),
+                            targetHeader = new Text(String.format(baseTgtHeaderString, blankText));
+                    sourceHeader.setTextAlignment(TextAlignment.CENTER);
+                    targetHeader.setTextAlignment(TextAlignment.CENTER);
+                    sourceCTopVBox.getChildren().add(sourceHeader);
+                    targetCTopVBox.getChildren().add(targetHeader);
+                    
+
+                    //pre-setup for dice selection -- position in the dialog box, and disable buttons (you can't immediately change the dice count)
+                    diceCountStatus.setTextAlignment(TextAlignment.CENTER);
+                    diceCountInc.setDisable(true);
+                    diceCountDec.setDisable(true);
+                    diceDisplay.getChildren().addAll(diceCountDec, diceCountStatus, diceCountInc);
+                    diceDisplay.setAlignment(Pos.CENTER);
+                    //the actions for the increment and decrement buttons, when buttons are available
+                    diceCountInc.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            if (rsp.getNumDice() < maxAtkDiceAvailable) {
+                                rsp.setNumDice(rsp.getNumDice() + 1);
+                                updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
+                            }
+                        }
+                    });
+
+                    diceCountDec.setOnAction(new EventHandler<ActionEvent>() {
+                        @Override
+                        public void handle(ActionEvent t) {
+                            if (rsp.getNumDice() > 1) {
+                                rsp.setNumDice(rsp.getNumDice() - 1);
+                                updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
+                            }
+                        }
+                    });
+
+                    /* Buttons representing potential conquests (target countries) & home (attacking) countries.
+                    * Once a potential target's button is pressed, reveals all possible attacking countries.
+                    * Targets always display, so no buffer.
+                    * Source contries vary, so are cached and displayed dynamically. */
+                    for (String targetName : tgtCountryNames) {
+                        Country target = COUNTRIES_BY_NAME.get(targetName);
+                        if (!map.getCountryOwner(target).equals(getName())){
+                            final Button ctTgtBtn = new Button(targetName);
+                            ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
+                                @Override
+                                public void handle(ActionEvent t) {
+                                    if (selectedTargetBtn.get() != null) {
+                                        selectedTargetBtn.get().setGraphic(null);
+                                    }
+                                    acceptIt.setDisable(true);
+                                    selectedTargetBtn.set(ctTgtBtn);
+                                    ctTgtBtn.setGraphic(selectionIndicTgt);
+                                    rsp.setDfdCountry(target);
+                                    attackTarget.set(targetName);
+                                    attackSource.set(blankText);
+                                    targetHeader.setText(String.format(baseTgtHeaderString, targetName));
+                                    sourceHeader.setText(String.format(baseSrcHeaderString, blankText));
+                                    statusText.setText(String.format(baseStatusTextString, attackTarget.get(), attackSource.get()));
+                                    statusText.setFill(Color.BLACK);
+                                    sourceCountriesVBox.getChildren().clear();
+                                    for(String sourceName : destTargetSourceMap.get(targetName)/*.stream().sorted().collect(Collectors.toList())*/){
+                                        sourceCountriesVBox.getChildren().add(sourceBtnCache.get(sourceName));
+                                    }
+                                }
+                            });
+                            //finally add this target button for this singular country
+                            targetCountriesVBox.getChildren().add(ctTgtBtn);
+                        }
+                    }
+                    for (String sourceName : srcCountryNames) {
+                        Country source = COUNTRIES_BY_NAME.get(sourceName);
+                        final Button ctSrcBtn = new Button(sourceName);
+                        if(map.getCountryArmies(source) < 2){
+                            ctSrcBtn.setDisable(true);
+                        }
+                        else{
+                            ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
+                            @Override
+                            public void handle(ActionEvent t) {
+                                if (selectedSourceBtn.get() != null) {
+                                    selectedSourceBtn.get().setGraphic(null);
+                                }
+                                sourceHeader.setText(String.format(baseSrcHeaderString, sourceName));
+                                acceptIt.setDisable(false);
+                                selectedSourceBtn.set(ctSrcBtn);
+                                ctSrcBtn.setGraphic(selectionIndicSrc);
+                                rsp.setAtkCountry(source);
+                                attackSource.set(sourceName);
+                                maxAtkDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
+                                rsp.setNumDice(maxAtkDiceAvailable); //default to the max dice available for an attack
+                                updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
+                                statusText.setText(String.format(baseStatusTextString, attackTarget, attackSource));
+                            }
+                        });
+                        }
+                        sourceBtnCache.put(sourceName, ctSrcBtn);
+                    }
+                    ///////////////////////////////////
+                    /*
+                    for (String sourceName : countryNames) {
+                        Country source = COUNTRIES_BY_NAME.get(sourceName);
                         final Button ctSrcBtn = new Button(source.getName());
-                        repeatFireOnPressAndHover(ctSrcBtn);
                         ctSrcBtn.setOnAction(new EventHandler<ActionEvent>() {
                             @Override
                             public void handle(ActionEvent t) {
+                                if (selectedSourceBtn.get() != null) {
+                                    selectedSourceBtn.get().setGraphic(null);
+                                }
+                                selectedSourceBtn.set(ctSrcBtn);
+                                ctSrcBtn.setGraphic(selectionIndicSrc);
                                 rsp.setAtkCountry(source);
                                 maxAtkDiceAvailable = map.getCountryArmies(rsp.getAtkCountry()) > RiskConstants.MAX_ATK_DICE ? RiskConstants.MAX_ATK_DICE : map.getCountryArmies(rsp.getAtkCountry()) - 1;
                                 rsp.setNumDice(maxAtkDiceAvailable); //default to the max dice available for an attack
                                 updateDiceDisplay(diceCountStatus, rsp.getNumDice(), maxAtkDiceAvailable, diceCountDec, diceCountInc);
-                                attackSource.set(source.getName());
+                                attackSource.set(sourceName);
                                 attackTarget.set(blankText);
                                 statusText.setText(String.format(baseStatusTextString, attackTarget.get(), attackSource.get()));
-                                //statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
                                 statusText.setFill(Color.BLACK);
                                 targetCountriesVBox.getChildren().clear();
-                                targetCountriesVBox.getChildren().add(new Text("Target:"));
                                 for (Country target : source.getNeighbors()) {
                                     if (!map.getCountryOwner(target).equals(getName())) {
                                         final Button ctTgtBtn = new Button(target.getName());
-                                        repeatFireOnPressAndHover(ctTgtBtn);
                                         ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
                                             @Override
                                             public void handle(ActionEvent t) {
+                                                if (selectedTargetBtn.get() != null) {
+                                                    selectedTargetBtn.get().setGraphic(null);
+                                                }
+                                                selectedTargetBtn.set(ctTgtBtn);
+                                                ctTgtBtn.setGraphic(selectionIndicTgt);
                                                 rsp.setDfdCountry(target);
                                                 attackTarget.set(target.getName());
                                                 statusText.setText(String.format(baseStatusTextString, attackTarget, attackSource));
-                                                //statusText.setText("Current selection: Attacking\n" + attackTarget + "\nfrom\n" + attackSource + ".");
                                             }
                                         });
                                         targetCountriesVBox.getChildren().add(ctTgtBtn);
@@ -1188,8 +1947,12 @@ public class FXUIPlayer implements Player {
                             }
                         });
                         //finally add this source button for this singular country
+                        if(map.getCountryArmies(source) < 2){
+                            ctSrcBtn.setDisable(true);
+                        }
                         sourceCountriesVBox.getChildren().add(ctSrcBtn);
                     }
+                    */
 
                     //button to attempt to accept final reinforcement allocation
                     acceptIt.setOnAction(new EventHandler<ActionEvent>() {
@@ -1225,19 +1988,22 @@ public class FXUIPlayer implements Player {
 
                     //finish setting up rest of layout...
                     //includes double ScrollPane -- one for leftmost (source) contents, one for for rightmost (destination) contents
-                    spaneLeft.setPrefHeight(400);
-                    spaneLeft.setPrefWidth(200);
-                    spaneRight.setPrefHeight(400);
-                    spaneRight.setPrefWidth(200);
-                    spaneLeft.setFitToHeight(true);
-                    spaneLeft.setFitToWidth(true);
-                    spaneRight.setFitToHeight(true);
-                    spaneRight.setFitToWidth(true);
+                    spaneSrc.setPrefHeight(400);
+                    spaneSrc.setPrefWidth(200);
+                    spaneTgt.setPrefHeight(400);
+                    spaneTgt.setPrefWidth(200);
+                    spaneSrc.setFitToHeight(true);
+                    spaneSrc.setFitToWidth(true);
+                    spaneTgt.setFitToHeight(true);
+                    spaneTgt.setFitToWidth(true);
 
-                    spaneLeft.setContent(sourceCountriesVBox);
-                    spaneRight.setContent(targetCountriesVBox);
+                    spaneSrc.setContent(sourceCountriesVBox);
+                    spaneTgt.setContent(targetCountriesVBox);
+                    
+                    sourceCTopVBox.getChildren().add(spaneSrc);
+                    targetCTopVBox.getChildren().add(spaneTgt);
 
-                    bothCountryGroups.getChildren().addAll(spaneLeft, spaneRight);
+                    bothCountryGroups.getChildren().addAll(targetCTopVBox, sourceCTopVBox);
                     bothCountryGroups.setAlignment(Pos.CENTER);
 
                     acceptanceBtns.getChildren().addAll(acceptIt, skipIt);
@@ -1245,18 +2011,22 @@ public class FXUIPlayer implements Player {
 
                     //add status and buttons to layout
                     buttonDivider.setTextAlignment(TextAlignment.CENTER);
-                    layout.getChildren().addAll(guideText, statusText, bothCountryGroups, buttonDivider, diceDisplay, acceptanceBtns);
+                    layout.getChildren().addAll(guideText, /*statusText,*/ bothCountryGroups, buttonDivider, diceDisplay, acceptanceBtns);
                     layout.setAlignment(Pos.CENTER);
 
                     //formally add linear layout to scene through the use of a scroll pane, and display the dialog
-                    spane.setContent(layout);
-                    dialog.setScene(new Scene(spane));
+                    superSPane.setContent(layout);
+                    dialog.setScene(new Scene(superSPane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
 
-                    registerNodeForBrightnessControl(dialog, spane);
+                    registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
+
+                    formatSPaneInlayAfterShow(superSPane);
+                    formatSPaneInlayAfterShow(spaneSrc);
+                    formatSPaneInlayAfterShow(spaneTgt);
                 }
             });
 
@@ -1343,16 +2113,16 @@ public class FXUIPlayer implements Player {
                      * Stage objects.)
                      */
                     final Stage dialog = new Stage();
-                    final VBox layout = new VBox(10);
+                    final VBox layout = getVBoxFormattedForLayout();
 
                     final Text sourceCount = new Text();
                     final Text destCount = new Text();
                     final HBox countryCounts = new HBox(24);
 
                     final Button plusle = new Button("Add/+");
-                    repeatFireOnPressAndHover(plusle);
+                    repeatFireOnLongPress(plusle);
                     final Button minun = new Button("Recall/-");
-                    repeatFireOnPressAndHover(minun);
+                    repeatFireOnLongPress(minun);
                     final HBox allocationButtons = new HBox(4);
 
                     final Button acceptance = new Button("Submit/OK");
@@ -1469,9 +2239,7 @@ public class FXUIPlayer implements Player {
 
                     allocationButtons.setAlignment(Pos.CENTER);
                     allocationButtons.getChildren().addAll(minun, plusle);
-
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
+                    
                     layout.getChildren().setAll(
                             briefInstructions, countryCounts, allocationButtons,
                             acceptanceStatus, acceptance
@@ -1553,7 +2321,7 @@ public class FXUIPlayer implements Player {
                      * Stage objects.)
                      */
 
-                    ScrollPane spane = new ScrollPane();
+                    ScrollPane superSPane = new ScrollPane();
                     final Stage dialog = new Stage();
                     dialog.setTitle("Fortify? [optional]");
                     if (FXUIPlayer.owner != null) {
@@ -1562,10 +2330,8 @@ public class FXUIPlayer implements Player {
 
                     putWindowAtLastKnownLocation(dialog);
 
-                    final VBox layout = new VBox(10);
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
-
+                    final VBox layout = getVBoxFormattedForLayout();
+                    
                     //Set up instructions for fortification & add it to the layout.
                     Text guideText = new Text();
                     guideText.setText("Select the country from which you want to fortify [left],\nthen select the destination for your troops [right].\n[fortification is optional; you can skip this]");
@@ -1589,7 +2355,7 @@ public class FXUIPlayer implements Player {
 
                     for (Country source : sources) {
                         final Button ctSrcBtn = new Button(source.getName());
-                        repeatFireOnPressAndHover(ctSrcBtn);
+                        repeatFireOnLongPress(ctSrcBtn);
                         //disable the buttons if there's no adjacent countries
                         ctSrcBtn.setDisable(true);
                         for (Country dest : destMap.get(source)) {
@@ -1612,7 +2378,7 @@ public class FXUIPlayer implements Player {
                                 for (Country dest : destMap.get(source)) {
                                     if (dest != source) {
                                         final Button ctTgtBtn = new Button(dest.getName());
-                                        repeatFireOnPressAndHover(ctTgtBtn);
+                                        repeatFireOnLongPress(ctTgtBtn);
                                         ctTgtBtn.setOnAction(new EventHandler<ActionEvent>() {
                                             @Override
                                             public void handle(ActionEvent t) {
@@ -1631,27 +2397,30 @@ public class FXUIPlayer implements Player {
                     }
 
                     //Leftmost ScrollPane is for the source countries, rightmost ScrollPane is for the destination/target countries.
-                    ScrollPane spaneLeft = new ScrollPane();
-                    spaneLeft.setPrefHeight(400);
-                    spaneLeft.setPrefWidth(200);
-                    ScrollPane spaneRight = new ScrollPane();
-                    spaneRight.setPrefHeight(400);
-                    spaneRight.setPrefWidth(200);
-                    spaneLeft.setFitToHeight(true);
-                    spaneLeft.setFitToWidth(true);
-                    spaneRight.setFitToHeight(true);
-                    spaneRight.setFitToWidth(true);
+                    ScrollPane spaneSource = new ScrollPane();
+                    spaneSource.setPrefHeight(400);
+                    spaneSource.setPrefWidth(200);
+                    
+                    ScrollPane spaneTarget = new ScrollPane();
+                    spaneTarget.setPrefHeight(400);
+                    spaneTarget.setPrefWidth(200);
+                    
+                    spaneSource.setFitToHeight(true);
+                    spaneSource.setFitToWidth(true);
+                    
+                    spaneTarget.setFitToHeight(true);
+                    spaneTarget.setFitToWidth(true);
 
-                    spaneLeft.setContent(sourceCountriesVBox);
-                    spaneRight.setContent(targetCountriesVBox);
+                    spaneSource.setContent(sourceCountriesVBox);
+                    spaneTarget.setContent(targetCountriesVBox);
 
                     //finally add both lists to the layout.
                     final HBox bothCountryGroups = new HBox(10);
-                    bothCountryGroups.getChildren().addAll(spaneLeft, spaneRight);
+                    bothCountryGroups.getChildren().addAll(spaneSource, spaneTarget);
                     bothCountryGroups.setAlignment(Pos.CENTER);
 
                     final Button plusle = new Button("Troops++");
-                    repeatFireOnPressAndHover(plusle);
+                    repeatFireOnLongPress(plusle);
                     //plusle.setDefaultButton(true);
                     plusle.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
@@ -1666,7 +2435,7 @@ public class FXUIPlayer implements Player {
                     });
 
                     final Button minun = new Button("Troops--");
-                    repeatFireOnPressAndHover(minun);
+                    repeatFireOnLongPress(minun);
                     //minun.setDefaultButton(true);
                     minun.setOnAction(new EventHandler<ActionEvent>() {
                         @Override
@@ -1727,14 +2496,17 @@ public class FXUIPlayer implements Player {
                     layout.setAlignment(Pos.CENTER);
 
                     //formally add linear layout to scene through use of scrollpane, then display the dialog
-                    spane.setContent(layout);
-                    dialog.setScene(new Scene(spane));
+                    superSPane.setContent(layout);
+                    dialog.setScene(new Scene(superSPane));
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
 
-                    registerNodeForBrightnessControl(dialog, spane);
+                    registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
+                    formatSPaneInlayAfterShow(superSPane);
+                    formatSPaneInlayAfterShow(spaneSource);
+                    formatSPaneInlayAfterShow(spaneTarget);
                 }
             });
 
@@ -1790,18 +2562,18 @@ public class FXUIPlayer implements Player {
                      * Begin mandatory processing on FX thread. (Required for
                      * Stage objects.)
                      */
-                    ScrollPane spane = new ScrollPane();
+                    ScrollPane superSPane = new ScrollPane();
                     final Stage dialog = new Stage();
-                    final VBox layout = new VBox(10);
+                    final VBox layout = getVBoxFormattedForLayout();
 
-                    Text guideText = new Text();
+                    final Text guideText = new Text();
                     final Text statusText = new Text();
 
-                    Text diceCountStatus = new Text("Dice Count: " + rsp.getNumDice() + "\n(" + maxDfdDiceAvailable + " allowed)");
+                    final Text diceCountStatus = new Text("Dice Count: " + rsp.getNumDice() + "\n(" + maxDfdDiceAvailable + " allowed)");
                     final Button diceCountDec = new Button("Dice--");
-                    repeatFireOnPressAndHover(diceCountDec);
+                    repeatFireOnLongPress(diceCountDec);
                     final Button diceCountInc = new Button("Dice++");
-                    repeatFireOnPressAndHover(diceCountInc);
+                    repeatFireOnLongPress(diceCountInc);
                     final HBox diceDisplay = new HBox(10);
 
                     Button acceptIt = new Button("Accept/OK");
@@ -1829,8 +2601,6 @@ public class FXUIPlayer implements Player {
                         dialog.initOwner(FXUIPlayer.owner);
                     }
 
-                    layout.setAlignment(Pos.CENTER);
-                    layout.setStyle("-fx-padding: 20;");
                     putWindowAtLastKnownLocation(dialog);
 
                     //Generic instructions for attacking (the act of which is always optional, technically)
@@ -1846,7 +2616,6 @@ public class FXUIPlayer implements Player {
                             + "\nYOU can roll a maximum of " + maxDfdDiceAvailable + ".";
                     guideText.setText(guideTextContents);
                     guideText.setTextAlignment(TextAlignment.CENTER);
-                    
 
                     //status text: the target of the attack (name of country, when set), and the source of the attacks (name of country, when set)
                     statusText.setText("~~~");
@@ -1886,9 +2655,9 @@ public class FXUIPlayer implements Player {
                             dialog.close();
                         }
                     });
-                    
-                    final String helpTooltipContents = 
-                    		"\n\nYou roll dice to defend. Roll at least one die."
+
+                    final String helpTooltipContents
+                            = "\n\nYou roll dice to defend. Roll at least one die."
                             + "\nYou may roll two dice if you own enough countries."
                             + "\nRolling more dice gives you a better chance of having"
                             + "\n a successful defense. However, more dice also"
@@ -1909,14 +2678,16 @@ public class FXUIPlayer implements Player {
                     layout.setAlignment(Pos.CENTER);
 
                     //formally add linear layout to scene through the use of a scroll pane, and display the dialog
-                    spane.setContent(layout);
-                    dialog.setScene(new Scene(spane));
+                    superSPane.setContent(layout);
+                    dialog.setScene(new Scene(superSPane));
                     FXUIPlayer.crossbar.setCurrentPlayerDialog(dialog);
                     FXUIPlayer.crossbar.setCurrentHumanName(getName());
 
-                    registerNodeForBrightnessControl(dialog, spane);
+                    registerNodeForBrightnessControl(dialog, superSPane);
                     registerSceneForEyeStrainControl(dialog, dialog.getScene());
                     dialog.show();
+
+                    formatSPaneInlayAfterShow(superSPane);
                 }
             });
 
@@ -1939,7 +2710,7 @@ public class FXUIPlayer implements Player {
      *
      * @param btn
      */
-    private static void repeatFireOnPressAndHover(Button btn) {
+    private static void repeatFireOnLongPress(Button btn) {
         if (btn == null) {
             return;
         }
@@ -1951,40 +2722,41 @@ public class FXUIPlayer implements Player {
                     Thread ctdRun = new Thread(new Runnable() {
                         @Override
                         public void run() {
-                            final long fireDelta = 950;
+                            final long fireDelta = 350;
                             RiskUtils.sleep(fireDelta);
                             final AtomicInteger fireCountSincePress = new AtomicInteger(0);
                             final short maxFireSlowdownThresh = 5;
-                            btn.pressedProperty().addListener(new ChangeListener<Boolean>(){
+                            btn.pressedProperty().addListener(new ChangeListener<Boolean>() {
                                 @Override
                                 public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
                                     /* reset the fire count when button is physically pressed
                                      * should restore speed.*/
-                                    if(newValue.booleanValue() == true) fireCountSincePress.set(0);
+                                    if (newValue.booleanValue() == true) {
+                                        fireCountSincePress.set(0);
+                                    }
                                 }
                             });
-                            btn.hoverProperty().addListener(new ChangeListener<Boolean>(){
+                            btn.hoverProperty().addListener(new ChangeListener<Boolean>() {
                                 @Override
                                 public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
                                     /* reset the fire count when button is physically pressed
                                      * should restore speed.*/
-                                    if(newValue.booleanValue() == false && !btn.isPressed())
-                                    {
+                                    if (newValue.booleanValue() == false && !btn.isPressed()) {
                                         btn.setOpacity(1);
                                     }
                                 }
                             });
-                            while (btn.isPressed() || btn.isHover()) {
+                            while (btn.isPressed()) {
                                 try {
                                     Platform.runLater(new Runnable() {
                                         @Override
                                         public void run() {
                                             btn.fire();
-                                            btn.setOpacity(0.5d + (double)(fireCountSincePress.get()%2)/2);
+                                            btn.setOpacity(0.5d + (double) (fireCountSincePress.get() % 2) / 2);
                                         }
                                     });
-                                    RiskUtils.sleep(fireDelta + (275*fireCountSincePress.get()));
-                                    if(fireCountSincePress.get() < maxFireSlowdownThresh){
+                                    RiskUtils.sleep(fireDelta + (275 * fireCountSincePress.get()));
+                                    if (fireCountSincePress.get() < maxFireSlowdownThresh) {
                                         fireCountSincePress.incrementAndGet();
                                     }
                                 } catch (Exception e) {
@@ -2223,7 +2995,7 @@ public class FXUIPlayer implements Player {
             });
             ctdRun.setDaemon(true);
             ctdRun.start();
-            
+
             controllerCBox.selectedProperty().addListener(new ChangeListener<Boolean>() {
                 @Override
                 public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
@@ -2276,4 +3048,3 @@ class ExitStateSubHelper {
         return systemExitUsed;
     }
 }
-

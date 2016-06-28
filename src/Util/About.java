@@ -38,6 +38,7 @@ import javafx.stage.Window;
  * Handles the "about" and "more" dialog windows used in 
  * the {@link FXUIGameMaster} class.
  * ...May provide more functionality as time goes on.
+ * 02 May 2016, 21:02
  *
  * @author A.E. Wallace
  * 
@@ -51,25 +52,24 @@ public class About {
     }
 
     /**
-     * 
+     * Show friendly About info.
      * @param owner The Window of the Stage calling this method
      * @param autoExit whether this window should automatically close after
      * a set amount of time (around 5 seconds)
+     * @param flatten whether should display in its own window (false) or return
+     * a VBox for display elsewhere (true)
      */
-    public void showFriendlyInfo(Window owner, boolean autoExit) {
+    public VBox showFriendlyInfo(Window owner, boolean autoExit, Boolean flatten) {
         final Stage dialog = new Stage();
         
         dialog.setTitle("Hi, friend. :D");
-        if(owner != null){
+        if(owner != null && !flatten){
 	        dialog.initOwner(owner);
 			//dialog.initStyle(StageStyle.UTILITY);
 	        //dialog.initModality(Modality.WINDOW_MODAL);
 	        dialog.setX(owner.getX());
 	        dialog.setY(owner.getY() + 100);
         }
-        /*
-        ImageView iconIn = new ImageView(new Image("Icon.jpg", 150, 150, true, true, false));
-        */
 
         final Text info1 = new Text();
         info1.setText(":::\n\nRISK!\n");
@@ -105,23 +105,25 @@ public class About {
             }
         });
 
-        final Button submitButton = new Button("OK");
-        submitButton.setDefaultButton(true);
-        submitButton.setOnAction(new EventHandler<ActionEvent>() {
+        final Button closeButton = new Button("OK");
+        closeButton.setDefaultButton(true);
+        closeButton.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
                 dialog.close();
             }
         });
+        if(flatten){
+        	closeButton.setVisible(false);
+        }
 
         final VBox layout = new VBox(10);
         layout.setAlignment(Pos.CENTER);
         layout.setPadding(new Insets(45, 15, 45, 15));
-        layout.setBackground(new Background(new BackgroundFill(Color.CORNFLOWERBLUE, null, null)));
         layout.getChildren().setAll(
         		/*iconIn,*/
                 info1, hlink, info2,
-                submitButton
+                closeButton
         );
         final AtomicBoolean delayAutoClose = new AtomicBoolean(false);
         layout.setOnMouseEntered(new EventHandler<MouseEvent>(){
@@ -135,27 +137,38 @@ public class About {
         
         ScrollPane internalScrollPane = new ScrollPane(layout);
 
-        dialog.setScene(new Scene(internalScrollPane));
-        dialog.show();
-        About.firstLaunch = false;
-        if (autoExit) {
-            FXUIGameMaster.autoCloseDialogs(dialog, null, delayAutoClose);
+        if(!flatten){
+        	layout.setBackground(new Background(new BackgroundFill(Color.CORNFLOWERBLUE, null, null)));
+	        dialog.setScene(new Scene(internalScrollPane));
+	        dialog.show();
+	        About.firstLaunch = false;
+	        if (autoExit) {
+	            FXUIGameMaster.autoCloseDialogs(dialog, null, delayAutoClose);
+	        }
         }
+        else{
+        	return layout;
+        }
+        return null;
     }
 
     /**
-     * 
+     * Show advanced version information (more than the friendly about screen)
      * @param owner The Window of the Stage calling this method
+     * @param flatten "true" returns a VBox for display elsewhere, "false" puts
+     * content in its own window
      */
-    public void showAdvancedVerInfo(Window owner) {
+    public VBox showAdvancedVerInfo(Window owner, Boolean flatten) {
         final Stage dialog = new Stage();
-
-        dialog.setTitle("more.");
-        dialog.initOwner(owner);
-		//dialog.initStyle(StageStyle.UTILITY);
-        //dialog.initModality(Modality.WINDOW_MODAL);
-        dialog.setX(owner.getX());
-        dialog.setY(owner.getY() + FXUIGameMaster.DEFAULT_DIALOG_OFFSET);
+        
+        if(!flatten){
+	        dialog.setTitle("more.");
+	        dialog.initOwner(owner);
+			//dialog.initStyle(StageStyle.UTILITY);
+	        //dialog.initModality(Modality.WINDOW_MODAL);
+	        dialog.setX(owner.getX());
+	        dialog.setY(owner.getY() + FXUIGameMaster.DEFAULT_DIALOG_OFFSET);
+        }
 
         final Hyperlink hlinkD = new Hyperlink("denney");
         hlinkD.setFont(Font.font("Arial", FontWeight.NORMAL, 16));
@@ -208,28 +221,37 @@ public class About {
         subVersionInfo.setFont(Font.font("Arial", FontWeight.THIN, 11));
         subVersionInfo.setFill(About.globalTextColor);
 
-        final Button submitButton = new Button("OK");
-        submitButton.setDefaultButton(true);
-        submitButton.setOnAction(new EventHandler<ActionEvent>() {
+        final Button closeButton = new Button("OK");
+        closeButton.setDefaultButton(true);
+        closeButton.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
                 dialog.close();
             }
         });
+        if(flatten){
+        	closeButton.setVisible(false);
+        }
         //textField.setMinHeight(TextField.USE_PREF_SIZE);
 
         final VBox layout = new VBox(10);
         layout.setAlignment(Pos.CENTER);
         layout.setPadding(new Insets(30, 10, 30, 10));
-        layout.setBackground(new Background(new BackgroundFill(Color.CORNFLOWERBLUE, null, null)));
         layout.getChildren().setAll(
                 deepVersionInfo,
                 subVersionInfo,
                 hlinkD, bridge2, hlinkW,
-                submitButton
+                closeButton
         );
 
-        dialog.setScene(new Scene(layout));
-        dialog.show();
+        if(!flatten){
+        	layout.setBackground(new Background(new BackgroundFill(Color.CORNFLOWERBLUE, null, null)));
+	        dialog.setScene(new Scene(layout));
+	        dialog.show();
+        }
+        else{
+        	return layout;
+        }
+        return null;
     }
 }

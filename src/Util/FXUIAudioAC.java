@@ -36,6 +36,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
@@ -50,7 +51,7 @@ import javafx.stage.WindowEvent;
  * Class used to play notes as the game progresses.
  */
 public class FXUIAudioAC {
-	public static final String shortVersion = "FXUIAudio AC / 0.2.C.0006\n01 May 2016";
+	public static final String shortVersion = "FXUIAudio AC / 0.2.D.1918\n11 May 2016";
 	protected static String canonicalClassName;
 	public static final String audioFileOrigSrc = "Audio files courtesy of\nUniversity of Iowa\nElectronic Music Studios";
 	protected static final String srcResourceFolderLocation = "src/resources/Audio/";
@@ -73,7 +74,8 @@ public class FXUIAudioAC {
 	protected boolean playAudio = true;
 	protected boolean audioLoadSuccess = true;
 	protected AtomicBoolean blockNextPlay = new AtomicBoolean(false);
-	protected boolean initialized = false;
+	protected Thread indicatorPulseThread = null;
+	protected final Object pulseThreadLock = new Object();
 	/**
 	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
 	 */
@@ -92,7 +94,6 @@ public class FXUIAudioAC {
 		canonicalClassName = this.getClass().getCanonicalName();
 		this.playBootJingle();
 		this.delayedLoadFiles();
-		initialized = true;
 	}
 	
 	
@@ -137,21 +138,34 @@ public class FXUIAudioAC {
 	 */
 	protected void toTheBeat()
 	{
-		Thread pulse = new Thread(null, new Runnable() {
+		if(indicatorPulseThread!=null && indicatorPulseThread.isAlive()){
+			synchronized(pulseThreadLock){
+				pulseThreadLock.notify();
+			}
+			//indicatorPulseThread.notify();
+			return;
+		}
+		indicatorPulseThread = new Thread(null, new Runnable() {
             @Override
             public void run() {
-            	if(hasVisualIndicator == true){
+            	while(hasVisualIndicator == true){
             		toTheBeatHelper();
+            		try {
+            			synchronized(pulseThreadLock){
+            				pulseThreadLock.wait();
+            			}
+					} catch (InterruptedException e) {
+					}
         		}
             }
 	    }, "FXUIA.toTheBeat");
-	    pulse.setDaemon(true);
-	    pulse.start();
+	    indicatorPulseThread.setDaemon(true);
+	    indicatorPulseThread.start();
 	}
 	
 	protected void toTheBeatHelper(){
-		int animTime = 650;
-		int discreteSteps = 20, startingStep = 10, stoppingStep = 0;
+		int animTime = 350;
+		int discreteSteps = 10, startingStep = 5, stoppingStep = 0;
 		long sleepTime = animTime/discreteSteps;
 		final AtomicBoolean returnSoon = new AtomicBoolean(false);
 		final AtomicBoolean nextInnerAnimStepAllowed = new AtomicBoolean(false);
@@ -223,6 +237,7 @@ public class FXUIAudioAC {
 	 * play
 	 */
 	public boolean playNextNote() {
+            boolean success = false;
 	    FXUIGameMaster.diagnosticPrintln("Next Note being played");
 	    try {
 	        if (audioLoadSuccess == false) {
@@ -230,14 +245,12 @@ public class FXUIAudioAC {
 	            return false;
 	        }
 	        if (blockNextPlay.get() || !playAudio) {
-	            FXUIGameMaster.diagnosticPrintln("Next Note: playback blocked[time delay]");
+	            FXUIGameMaster.diagnosticPrintln("Next Note: playback blocked. Time Delay? " + blockNextPlay.get() + ". Audio disabled? " + !playAudio);
 	            return false;
 	        }
-	        if (!initialized) {
-	            FXUIGameMaster.diagnosticPrintln("Next Note: not INITIALIZED!");
-	            return false;
-	        }
-                if (FXUIAudioAC.bootAudio != null) {
+	        blockNextPlay.set(true);
+	        
+	        if (FXUIAudioAC.bootAudio != null) {
 	            FXUIAudioAC.bootAudio.stop();
 	        }
 	        positionInClipList--;
@@ -246,21 +259,18 @@ public class FXUIAudioAC {
 	        }
 	
 	        final int indexToPlay = positionInClipList;
-	        blockNextPlay.set(true);
 	        FXUIGameMaster.diagnosticPrintln(audioFileNames.get(positionInClipList));
 	        playFileAtIndex(indexToPlay);
 	        toTheBeat();
-	        RiskUtils.runLaterWithDelay(FXUIAudioAC.delayBetweenNextPlayMS,
-	                new Runnable() {
-	            @Override
-	            public void run() {
-	               blockNextPlay.set(false);
-	            }
-	        });
+                success = true;
 	    } catch (Exception e) {
-	        return false;
+                FXUIGameMaster.diagnosticPrintln("Audio playback failed. Will try again...");
+	        success = false;
 	    }
-	    return true;
+            RiskUtils.runLaterWithDelay(FXUIAudioAC.delayBetweenNextPlayMS, () -> {
+                blockNextPlay.set(false);
+            });
+	    return success;
 	}
         
 
@@ -270,9 +280,6 @@ public class FXUIAudioAC {
 	 * starting jingle in the future.
 	 */
 	public void playEndJingle() {
-	    if (!initialized) {
-	        return;
-	    }
 	    try {
 	        Thread jingle = new Thread(null, new Runnable() {
 	            @Override
@@ -502,18 +509,25 @@ public class FXUIAudioAC {
 	 * Create a non-JavaFX thread (if necessary) to build & display size options
 	 * for the associated window (Stage) Tries to run the dialog's code on a
 	 * non-JFX thread as much as possible.
+	 * @param owner the owner Window/Stage, used to aid in positioning [when available]
+	 * * @param flatten whether should display in its own window (false) or return
+     * a VBox for display elsewhere (true)
 	 */
-	public int showAudioOptions(Window owner) {
+	public VBox showAudioOptions(Window owner, Boolean flatten) {
 	    //represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
 	    AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
+	    
+	    if(flatten){
+	    	return audioOptionsHelper(dialogIsShowing, owner, flatten);
+	    }
 	
 	    if (Platform.isFxApplicationThread()) { //if this is the FX thread, make it all happen, and use showAndWait
-	        audioOptionsHelper(dialogIsShowing, owner);
+	        audioOptionsHelper(dialogIsShowing, owner, flatten);
 	    } else { //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
 	        Platform.runLater(new Runnable() {
 	            @Override
 	            public void run() {
-	                audioOptionsHelper(dialogIsShowing, owner);
+	                audioOptionsHelper(dialogIsShowing, owner, flatten);
 	            }
 	        });
 	
@@ -521,7 +535,7 @@ public class FXUIAudioAC {
 	            RiskUtils.sleep(100);
 	        } while (dialogIsShowing.get());
 	    }
-	    return 0; // TODO decide on better return type
+	    return null;
 	}
 
 	/**
@@ -532,18 +546,28 @@ public class FXUIAudioAC {
 	 * @param ownder the Window object of the Scene assigned to the main Stage
 	 * (used to assist in window positioning). If null, position will be set to
 	 * a generic location on the screen.
+	 * * @param flatten whether should display in its own window (false) or return
+     * a VBox for display elsewhere (true)
 	 */
-	protected void audioOptionsHelper(AtomicBoolean dialogIsShowing, Window owner) {
+	protected VBox audioOptionsHelper(AtomicBoolean dialogIsShowing, Window owner, Boolean flatten) {
 	    try {
 	        final Stage dialog = new Stage();
+	        if(!flatten){
+	        dialog.initModality(Modality.APPLICATION_MODAL);
 	        dialog.setTitle("Audio Options");
 	        dialog.initOwner(owner);
 	        dialog.setX(owner.getX());
 	        dialog.setY(owner.getY() + 50);
+	        }
 	
 	        final VBox layout = new VBox(10);
 	        layout.setAlignment(Pos.CENTER);
+	        if(!flatten){
 	        layout.setStyle("-fx-background-color: cornflowerblue; -fx-padding: 4");
+	        }
+	        else{
+	        	layout.setStyle("-fx-padding: 4");
+	        }
 	
 	        final Text querySymbol = new Text("db+/db-");
 	        querySymbol.setTextAlignment(TextAlignment.CENTER);
@@ -627,6 +651,9 @@ public class FXUIAudioAC {
 	                dialog.close();
 	            }
 	        });
+	        if(flatten){
+	        	nah.setVisible(false);
+	        }
 	
 	        layout.getChildren().setAll(
 	                querySymbol, queryText, bufferLine,
@@ -634,6 +661,7 @@ public class FXUIAudioAC {
 	                spaceBuffer
 	        );
 	
+	        if(!flatten){
 	        dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {
 	            @Override
 	            public void handle(WindowEvent t) {
@@ -643,9 +671,14 @@ public class FXUIAudioAC {
 	
 	        dialog.setScene(new Scene(layout));
 	        dialog.show();
+	        }
+	        else{
+	        	return layout;
+	        }
 	    } catch (Exception e) {
 	        FXUIGameMaster.diagnosticPrintln("ERROR: audio control display failed:: " + e);
 	    }
+	    return null;
 	}
 
 }

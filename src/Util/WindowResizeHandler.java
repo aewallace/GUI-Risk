@@ -15,7 +15,6 @@ import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.CacheHint;
 import javafx.scene.Group;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -50,7 +49,7 @@ import javafx.stage.WindowEvent;
  * 18 October 2015, 18:45
  */
 public class WindowResizeHandler {
-    public static final String versionInfo = "Window-Resize-Handler\nVersion 0030\nStamp 2016.4.26, 23:00\nStability: Beta";
+    public static final String versionInfo = "Window-Resize-Handler\nVersion 0031\nStamp 2016.5.02, 12:00\nStability: Beta";
 	
     /*Remaining convenient class-level variables.*/
     private static final int TRIG_BY_WIDTH = 4, TRIG_BY_HEIGHT = 8;
@@ -169,7 +168,12 @@ public class WindowResizeHandler {
         for(int screenNo = 0; screensIn != null && screenNo < screensIn.size() && !screenFound;
                 screenNo++)
         {
-            givenBounds = screensIn.get(screenNo).getVisualBounds();
+        	if(!activeStage.isFullScreen()){
+        		givenBounds = screensIn.get(screenNo).getVisualBounds();
+        	}
+        	else{
+        		givenBounds = screensIn.get(screenNo).getBounds();
+        	}
             if(currentCenterX < givenBounds.getMaxX()
                     && currentCenterY < givenBounds.getMaxY()
                     && currentCenterX > givenBounds.getMinX()
@@ -434,13 +438,17 @@ public class WindowResizeHandler {
         }
         FXUIGameMaster.diagnosticPrintln("\n\nDetermining optimal window dimensions."
                 + " (ENTERING FULLSCREEN SCALING MODE)");
-        determineActiveScreenBounds();
+        double[/*width, height*/] screenDims = determineActiveScreenBounds();
         /*
          * We can ask the active stage for its width/height directly this time
          * around; no trying to figure out screens, etc.
          */
-        double maxWindowWidth = activeStage.getWidth();
-        double maxWindowHeight = activeStage.getHeight();
+        double maxWindowWidth = screenDims[0];
+        double maxWindowHeight = screenDims[1];
+        FXUIGameMaster.diagnosticPrintln(
+        		"Main stage [erroneous?]: width::height -> " + maxWindowWidth + " :: " + maxWindowHeight + "\n"
+        		+ "Window bounds we will use: width::height -> " + screenDims[0] + " :: " + screenDims[1]
+        		);
         
         double usableScreenAspectRatio = maxWindowWidth / maxWindowHeight;
         double newContentHeight, newContentWidth, scalePercentageHeight,
@@ -580,21 +588,22 @@ public class WindowResizeHandler {
      * from 0.00 not inclusive to 1.00 inclusive (representing 0% and 100%).
      */
     public void resizeByPercentage(double percentage) {
-        verifyIsFXThread();
-        if (percentage <= 0) {
-            return;
-        }
-        if(!activeStage.isFullScreen())
-        {
-            activeStage.setWidth(percentage * (this.idealContentWidth +
-                    this.windowDecorationWidth));
-            activeStage.setHeight(percentage * (this.idealContentHeight +
-                    this.windowDecorationHeight));
-        }
-        else{
-            activeStage.setWidth(percentage * this.idealContentWidth);
-            activeStage.setHeight(percentage * this.idealContentHeight);
-        }
+        Platform.runLater(()->{
+            if (percentage <= 0) {
+                return;
+            }
+            if(!activeStage.isFullScreen())
+            {
+                activeStage.setWidth(percentage * (this.idealContentWidth +
+                        this.windowDecorationWidth));
+                activeStage.setHeight(percentage * (this.idealContentHeight +
+                        this.windowDecorationHeight));
+            }
+            else{
+                activeStage.setWidth(percentage * this.idealContentWidth);
+                activeStage.setHeight(percentage * this.idealContentHeight);
+            }}
+        );
     }
 
     /**
@@ -642,10 +651,12 @@ public class WindowResizeHandler {
         FXUIGameMaster.diagnosticPrintln("The app was set to fullscreen at the time of this "
                 + "method call: " + activeStage.isFullScreen());
         boolean waitForFullScreenTransition = activeStage.isFullScreen();
+        final double entryWidth = this.activeStage.getWidth(), entryHeight = this.activeStage.getHeight();
 
         //disable any attached slider to prevent accidents/overrides
         if (this.sliderToAdjust != null) {
             this.sliderToAdjust.setDisable(true); }
+        
 
         /*
          * Wait for the user to stop tweaking the window; monitor the dimensions
@@ -677,6 +688,13 @@ public class WindowResizeHandler {
         double scalePercentageWidth = 1.0d;
         double scalePercentageHeight = 1.0d;
         double expectedAspectRatio = 0.0d;
+        
+        if(Math.abs(this.widthHistory - entryWidth) > Math.abs(this.heightHistory - entryHeight)){
+        	triggerType = TRIG_BY_WIDTH;
+        }
+        else{
+        	triggerType = TRIG_BY_HEIGHT;
+        }
 
         //if we modified the height manually, keep that height property and calculate the new width that must be set
         if (triggerType == TRIG_BY_HEIGHT) {
@@ -707,7 +725,8 @@ public class WindowResizeHandler {
         //If we attempted to resize our content to a dimension beyond the screen's bounds, we just snap back to the max dimensions available.
         determineActiveScreenBounds();
         if ((newContentWidth >= activeScreenWidth - this.windowDecorationWidth)||
-            (newContentHeight >= activeScreenHeight - this.windowDecorationHeight))
+            (newContentHeight >= activeScreenHeight - this.windowDecorationHeight) ||
+            stageIsFullscreen)
         {   /*In this case, handle the size calulation being outside acceptable 
             bounds, while the app is in windowed mode (not fullscreen)
             */
@@ -741,52 +760,40 @@ public class WindowResizeHandler {
             final double newHeightCopy = newContentHeight;
             final double attemptedAspectRatio = newContentWidth / newContentHeight;
 
-            /*Perform the actual changes using the JavaFX thread. 
-            At a bare minimum, content scaling is performed.*/
-            Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                    FXUIGameMaster.diagnosticPrintln("Target scene(content) height  ::: target scene(content) width");
-                    FXUIGameMaster.diagnosticPrintln(newHeightCopy + ";;;" + newWidthCopy);
-                    //activeStage.sizeToScene();
-                    FXUIGameMaster.diagnosticPrintln("Attempting to scale.\nCan this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
-                    //activeScene.getRoot().getTransforms().setAll(scale);
-                    conditionallyScale(activeScene, scale);
-                    activeScene.getRoot().setLayoutX(0);
-                    activeScene.getRoot().setLayoutY(0);
-                    stillRunningResize.set(false);
-                    }
-            });
-            do {
-                RiskUtils.sleep(waitTime);
-                FXUIGameMaster.diagnosticPrintln("Waiting for SCALE to finish.");
-            } while (stillRunningResize.get() == true);
-            Platform.runLater(new Runnable() {
-                @Override
-                public void run() {
-                    if (!stageIsFullscreen) {
-                        activeStage.setWidth(newWidthCopy+windowDecorationWidth);
-                        activeStage.setHeight(newHeightCopy+windowDecorationHeight);
-                    }
-                    else{ 
-                        FXUIGameMaster.diagnosticPrintln("You should never make it here, but...");
-                        activeStage.setWidth(newWidthCopy);
-                        activeStage.setHeight(newHeightCopy);
-                    }
-                    if (sliderToAdjust != null) {
-                        sliderToAdjust.setValue(activeScene.getWidth() / idealContentWidth);
-                        sliderToAdjust.getTooltip().setText("Current percentage of max size: " + String.format("%.2f", activeScene.getWidth() / idealContentWidth));
-                    }
-                    FXUIGameMaster.diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double) (activeScene.getWidth() / activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
-                    FXUIGameMaster.diagnosticPrintln("new2!!! ...effective content (Scene) dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: " + activeScene.getHeight());
-                    FXUIGameMaster.diagnosticPrintln("new2!!! ...effective screen (Stage) dimens set to... " + activeStage.getWidth() + "::<W ::: H>:: " + activeStage.getHeight());
-                    stillRunningResize.set(false);
-                }
-            });
-            do {
-                RiskUtils.sleep(waitTime);
-                FXUIGameMaster.diagnosticPrintln("Waiting at EXIT for RESIZE to finish.");
-            } while (stillRunningResize.get() == true);
+            /*Perform some changes using this thread, and remainder on the JavaFX thread. 
+            Note that scaling must always occur, even if resizing does not.*/
+            FXUIGameMaster.diagnosticPrintln("Target scene(content) height  ::: target scene(content) width");
+            FXUIGameMaster.diagnosticPrintln(newHeightCopy + ";;;" + newWidthCopy);
+            //activeStage.sizeToScene();
+            FXUIGameMaster.diagnosticPrintln("Attempting to scale.\nCan this stage be resized? (t if yes, f is no): " + activeStage.isResizable());
+            conditionallyScale(activeScene, scale);
+            activeScene.getRoot().setLayoutX(0);
+            activeScene.getRoot().setLayoutY(0);
+            FXUIGameMaster.diagnosticPrintln("SCALE finished.");
+            
+            if (!stageIsFullscreen) {
+                activeStage.setWidth(newWidthCopy+windowDecorationWidth);
+                activeStage.setHeight(newHeightCopy+windowDecorationHeight);
+            }
+            else{ 
+                FXUIGameMaster.diagnosticPrintln("You should never make it here, but...");
+                activeStage.setWidth(newWidthCopy);
+                activeStage.setHeight(newHeightCopy);
+            }
+            if (sliderToAdjust != null) {
+                sliderToAdjust.setValue(activeScene.getWidth() / idealContentWidth);
+                sliderToAdjust.getTooltip().setText("Current percentage of max size: " + String.format("%.2f", activeScene.getWidth() / idealContentWidth));
+            }
+            FXUIGameMaster.diagnosticPrintln("Let resize finish before resume...");
+            RiskUtils.sleep(waitTime);
+            FXUIGameMaster.diagnosticPrintln("new!!! " + desiredAspectRatio + " ...actually set to... " + (double) (activeScene.getWidth() / activeScene.getHeight()) + "...attempted to set: " + attemptedAspectRatio);
+            FXUIGameMaster.diagnosticPrintln("new2!!! ...effective content (Scene) dimens set to... " + activeScene.getWidth() + "::<W ::: H>:: " + activeScene.getHeight());
+            FXUIGameMaster.diagnosticPrintln("new2!!! ...effective screen (Stage) dimens set to... " + activeStage.getWidth() + "::<W ::: H>:: " + activeStage.getHeight());
+        }
+        
+        //if the app is set up for Scroll n Zoom, readjust scaling
+        if(preferScrollNZoom){
+        	correctScrollNZoomScale(savedZoomeMultiplier);
         }
         //enable the resize listeners
         Platform.runLater(new Runnable() {
@@ -850,10 +857,9 @@ public class WindowResizeHandler {
     	preferScrollNZoom = true;
     	if(registeredScrollPane.getContent() == null){
     		try{
-    	    	Node content = registeredStaticContentPane;
-    	    	this.scrollGroupInterface.getChildren().clear();
+    	    	//this.scrollGroupInterface.getChildren().clear();
     	    	registeredBaseStackPane.getChildren().clear();
-    	    	this.scrollGroupInterface.getChildren().add(content);
+    	    	this.scrollGroupInterface.getChildren().add(registeredStaticContentPane);
     	    	registeredScrollPane.setVisible(true);
     	        registeredScrollPane.setContent(this.scrollGroupInterface);
     	        registeredBaseStackPane.getChildren().add(registeredScrollPane);
@@ -874,6 +880,7 @@ public class WindowResizeHandler {
     	    	this.scrollGroupInterface.getChildren().clear();
     	    	registeredScrollPane.setVisible(false);
     	        registeredBaseStackPane.getChildren().addAll(registeredStaticContentPane);
+                undoScrollNZoomScale();
         	}
         	catch(Exception e){
         		e.printStackTrace();
@@ -887,30 +894,39 @@ public class WindowResizeHandler {
      * Create a non-JavaFX thread (if necessary) to build & display size options
      * for the associated window (Stage) Tries to run the dialog's code on a
      * non-JFX thread as much as possible.
+     * @param owner Stage/Window to be treated as owner of this window
+     * @param flatten "true" if you just want to return a preformatted HBox for
+     * view in the flat Options menu, or "false" if you want a separate window with no
+     * HBox returned.
+     * @return
      */
-    public int showSizeOptions(Window owner) {
+    public VBox showSizeOptions(Window owner, Boolean flatten) {
         //represents the dialog; true: the dialog is visible (& code is waiting), false: window isn't showing.
         AtomicBoolean dialogIsShowing = new AtomicBoolean(true);
 
         if (!this.assumeCallerIsActive) {
-            return -1;
+            return null;
+        }
+        
+        if(flatten){
+        	return sizeOptionsHelper(dialogIsShowing, owner, flatten);
         }
 
         if (Platform.isFxApplicationThread()) { //if this is the FX thread, make it all happen, and use showAndWait
-            sizeOptionsHelper(dialogIsShowing, owner);
+        	sizeOptionsHelper(dialogIsShowing, owner, flatten);
         } else { //if this isn't the FX thread, we can pause logic with a call to RiskUtils.sleep()
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
-                    sizeOptionsHelper(dialogIsShowing, owner);
+                	sizeOptionsHelper(dialogIsShowing, owner, flatten);
                 }
             });
 
             do {
-                RiskUtils.sleep(100);
+                RiskUtils.sleep(500);
             } while (dialogIsShowing.get());
         }
-        return 0; // TODO decide on better return type
+        return null;
     }
 
     /**
@@ -920,22 +936,34 @@ public class WindowResizeHandler {
      * thread (please avoid doing so)
      * @param dialogIsShowing used to control the flow of code; will be set to
      * "false" when dialog is closed.
+     * @param flatten if the method is to return an HBox (true) or just show in 
+     * a separate window (false)
+     * @return "null" if shows in a window, or the HBox with the layout contents
+     * if meant to be displayed in flat dialog.
      */
-    private void sizeOptionsHelper(AtomicBoolean dialogIsShowing, Window owner) {
+    private VBox sizeOptionsHelper(AtomicBoolean dialogIsShowing, Window owner, Boolean flatten) {
         if(owner==null)
         {
             owner = this.activeStage.getScene().getWindow();
         }
         try {
             final Stage dialog = new Stage();
+            //dialog.initModality(Modality.APPLICATION_MODAL);
+            if(!flatten){
             dialog.setTitle("Window Options");
             dialog.initOwner(owner);
             dialog.setX(owner.getX());
             dialog.setY(owner.getY() + 50);
+            }
             
             final VBox layout = new VBox(15);
             layout.setAlignment(Pos.CENTER);
+            if(!flatten){
             layout.setStyle("-fx-background-color: brown; -fx-padding: 5");
+            }
+            else{
+            	layout.setStyle("-fx-padding: 5");
+            }
 
             final Text queryText = new Text("     Alter window settings?     ");
             queryText.setTextAlignment(TextAlignment.CENTER);
@@ -951,26 +979,15 @@ public class WindowResizeHandler {
             spaceBuffer.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
 
             final Button yeah = new Button("OK");
-            final Button nah = new Button("Revert Changes");
 
             yeah.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent t) {
-
                     dialogIsShowing.set(false);
                     dialog.close();
                 }
             });
-
-            nah.setDefaultButton(true);
-            nah.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent t) {
-                    dialogIsShowing.set(false);
-                    dialog.close();
-                }
-            });
-
+            
             Text windowSizeSliderLabel = new Text("Window size [%]");
             windowSizeSliderLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
             windowSizeSliderLabel.setFill(Color.WHITE);
@@ -1001,17 +1018,13 @@ public class WindowResizeHandler {
                 @Override
                 public void handle(ActionEvent t) {
                     if (doFullScreen.isSelected()) {
-                    	detachResizeListeners();
+                    	//detachResizeListeners(); TODO test w/ this disabled under multiscreen + Windows
                         windowSizeSlider.setDisable(true);
                         activeStage.setFullScreen(true);
-                        resize(TRIG_BY_HEIGHT);
-                        //fitToFullScreen();
-                        //attachResizeListeners();
-                    } else if (!doFullScreen.isSelected()) {
+                        //resize(TRIG_BY_HEIGHT);  TODO test w/ this disabled under multiscreen + Windows
+                    } else {
                         activeStage.setFullScreen(false);
                         windowSizeSlider.setDisable(false);
-                    } else {
-                        //do nothing
                     }
                 }
             });
@@ -1040,27 +1053,7 @@ public class WindowResizeHandler {
              * Set up control of yellow eyestrain filter, AutoBrite function,
              * and manual brightness control.
              */
-            /*
-            CheckBox applyFilter = new CheckBox("eyeLief(eyestrain reduction)");
-            applyFilter.setTooltip(new Tooltip("Enable or Disable yellow filter "
-            		+ "for nighttime gameplay, or play in dark environments"
-            		+ " [more effective when game is dimmed, less effective when"
-            		+ " game brightness is maximized]"));
-            applyFilter.setTextFill(Color.ANTIQUEWHITE);
-            applyFilter.setFont(Font.font("Arial", FontWeight.LIGHT, 16));
-            applyFilter.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent t) {
-                    if (applyFilter.isSelected()) {
-                    	FXUIGameMaster.applyGoldenBackgroundHue(false);
-                    } else if (!applyFilter.isSelected()) {
-                        FXUIGameMaster.returnToBlackBackgroundHue();
-                    } else {
-                        //do nothing
-                    }
-                }
-            });
-            applyFilter.setSelected(FXUIGameMaster.goldenHueApplied());*/
+           
             
             ChoiceBox<Object> eyeReliefChoice = new ChoiceBox<Object>();
             eyeReliefChoice.setItems(FXCollections.observableArrayList(
@@ -1112,7 +1105,7 @@ public class WindowResizeHandler {
             ChoiceBox<Object> zoomSettingChoice = new ChoiceBox<Object>();
             zoomSettingChoice.setItems(FXCollections.observableArrayList(
             		"Last setting (" + String.format("%.1f", zoomSettingAtEntry) + "x)",
-                "No zoom (1.0x)", "1.5x", 
+                "No zoom (1.0x)", "1.1x", "1.2x", "1.3x", "1.4x", "1.5x", 
                  "2.0x", "4.0x", "6.0x", "8.0x", "10.0x")
             );
 	        zoomSettingChoice.setTooltip(new Tooltip("Select the zoom level."
@@ -1129,33 +1122,45 @@ public class WindowResizeHandler {
 	                            multiplier = zoomSettingAtEntry;
 	                            break;
 	                        case 1:
-	                            multiplier = 1.0;
+	                            multiplier = 1.0d;
 	                            break;
 	                        case 2:
+	                        	multiplier = 1.1d;
+	                        	break;
+	                        case 3:
+	                        	multiplier = 1.2d;
+	                        	break;
+	                        case 4:
+	                        	multiplier = 1.3d;
+	                        	break;
+	                        case 5:
+	                        	multiplier = 1.4d;
+	                        	break;
+	                        case 6:
 	                            multiplier = 1.5d;
 	                            break;
-	                        case 3:
+	                        case 7:
 	                            multiplier = 2.0d;
 	                            break;
-	                        case 4:
+	                        case 8:
 	                            multiplier = 4.0d;
 	                            break;
-                                case 5:
-                                    multiplier = 6.0d;
-                                    break;
-                                case 6:
-                                    multiplier = 8.0d;
-                                    break;
-                                case 7:
-                                    multiplier = 10.0d;
-                                    break;
+                            case 9:
+                                multiplier = 6.0d;
+                                break;
+                            case 10:
+                                multiplier = 8.0d;
+                                break;
+                            case 11:
+                                multiplier = 10.0d;
+                                break;
 	                        default:
 	                        	multiplier = 1.0d;
 	                        	break;
 	                                
-	                    } 
-	                    registeredStaticContentPane.getTransforms().setAll(new Scale(multiplier, multiplier, 0, 0));
+	                    }
 	                    savedZoomeMultiplier = multiplier;
+	                    correctScrollNZoomScale(savedZoomeMultiplier);
 	                    FXUIGameMaster.diagnosticPrintln(multiplier + "x zoom multiplier selected.");
 	                }
 	            }
@@ -1166,13 +1171,14 @@ public class WindowResizeHandler {
 	        Text zoomSettingLabel = new Text("Content zoom level");
             zoomSettingLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 12));
             zoomSettingLabel.setFill(Color.WHITE);
+            /*
             scrollNZoomOpt.selectedProperty().addListener(new ChangeListener<Boolean>(){
 				@Override
 				public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
 					
 				}
             });
-            
+            */
             scrollNZoomOpt.setOnAction(new EventHandler<ActionEvent>() {
                 @Override
                 public void handle(ActionEvent t) {
@@ -1274,33 +1280,92 @@ public class WindowResizeHandler {
             eyeReliefCategoryLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 14));
             eyeReliefCategoryLabel.setFill(Color.WHITE);
             
-            layout.getChildren().setAll(
+            layout.getChildren().addAll(
                     querySymbol, queryText, bufferLineOne, doFullScreen,
                     bufferLineTwo, windowSizeSliderLabel, windowSizeSlider, scrollNZoomOpt, zoomSettingLabel, zoomSettingChoice,
                     bufferLineThree, brightnessCategoryLabel, autoDim, britenessSliderLabel, britenessSlider,
-                    bufferLineFour, eyeReliefCategoryLabel, eyeReliefChoice,
-                    bufferLineFive, /*nah,*/ yeah, spaceBuffer
+                    bufferLineFour, eyeReliefCategoryLabel, eyeReliefChoice
             );
+            if(!flatten){
+            	layout.getChildren().addAll(bufferLineFive, yeah, spaceBuffer);
+            }
 
             dialog.setOnCloseRequest(new EventHandler<WindowEvent>() {
                 @Override
                 public void handle(WindowEvent t) {
                     dialogIsShowing.set(false);
+                    attachResizeSlider(null);
                 }
             });
+            layout.disabledProperty().addListener(new ChangeListener<Boolean>(){
+				@Override
+				public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+					if(newValue.booleanValue()){
+						attachResizeSlider(null);
+					}
+					else{
+						attachResizeSlider(windowSizeSlider);
+					}
+				}
+            });
+            if(!flatten){
             Pane finalPane = new Pane(layout);
             finalPane.setBackground(new Background(new BackgroundFill(Color.BLACK, null, null)));
             dialog.setScene(new Scene(finalPane));
             dialog.show();
+            }
+            else{
+            	return layout;
+            }
         } catch (Exception e) {
             System.out.println("ERROR: resize dialog display failed:: " + e);
             e.printStackTrace();
         }
-        attachResizeSlider(null);
+        return null;
     }
     
     /**
-     * Upon launch, show & animate a splash screen over the regular screen contents.
+     * Corrects the desired multiplier for the given screen, and applies the corrected
+     * zoom multiplier as a scale to the correct content pane to achieve the zoom effect.
+     * (i.e., corrects the multiplier to account for a given screen resolution, relative to
+     * the default content resolution)
+     * @param multiplier the uncorrected multiplier
+     */
+    private void correctScrollNZoomScale(double multiplier){
+    	FXUIGameMaster.diagnosticPrintln("Adjusting magnification...");
+    	new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+            	double preMultiplier = 1.0d;
+                if(Math.abs(DEFAULT_CONTENT_WIDTH - activeStage.getWidth()) > Math.abs(DEFAULT_CONTENT_HEIGHT - activeStage.getHeight())){
+                	preMultiplier = activeStage.getWidth() / DEFAULT_CONTENT_WIDTH;
+                }
+                else{
+                	preMultiplier = activeStage.getHeight() / DEFAULT_CONTENT_HEIGHT;
+                }
+                preMultiplier = preMultiplier > 1 ? preMultiplier : 1;
+                System.out.println("pane scale transforms: " + registeredStaticContentPane.getTransforms().toString());
+                registeredStaticContentPane.getTransforms().setAll(new Scale(preMultiplier * multiplier, preMultiplier * multiplier, 0, 0));
+            }
+        }, "scrollNZoomScale").start();
+    }
+    
+    private void undoScrollNZoomScale(){
+        FXUIGameMaster.diagnosticPrintln("Disabling magnification...");
+    	new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+                //final double multiplier = 1.0d;
+            	//double preMultiplier = 1.0d;
+                //registeredStaticContentPane.getTransforms().setAll(new Scale(preMultiplier * multiplier, preMultiplier * multiplier, 0, 0));
+                registeredStaticContentPane.getTransforms().removeIf((transform) ->  transform.getClass().isInstance(new Scale()));
+            }
+        }, "undo_scrollNZoomScale").start();
+    }
+    
+    /**
+     * When making adjustments, show a protective screen to indicate that
+     * resizing & scaling operations are occurring.
      */
     private Pane makeAdjustmentScreen(){
     	final Rectangle backgroundRect = new Rectangle(0,0,DEFAULT_CONTENT_WIDTH,DEFAULT_CONTENT_HEIGHT);
