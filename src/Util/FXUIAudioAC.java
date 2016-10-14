@@ -76,12 +76,12 @@ public class FXUIAudioAC {
 	protected AtomicBoolean blockNextPlay = new AtomicBoolean(false);
 	protected Thread indicatorPulseThread = null;
 	protected final Object pulseThreadLock = new Object();
+	protected Node visualIndicator = null;
+	protected boolean hasVisualIndicator = false;
 	/**
 	 * Volume, in percent, to use, where 0 is 0%, and 1.0 is 100%.
 	 */
 	protected double audioVolumePercent = 0.5d;
-	protected Node visualIndicator = null;
-	protected boolean hasVisualIndicator = false;
 	protected AtomicBoolean nextOuterAnimStepAllowed = new AtomicBoolean(true);
 	protected Map<String, AudioClip> mediaPlaybackMap = new HashMap<String, AudioClip>();
 	protected static AudioClip bootAudio = null;
@@ -90,7 +90,7 @@ public class FXUIAudioAC {
 	protected static final long delayBetweenNextPlayMS = 900;
 
 	public FXUIAudioAC() {
-                System.out.println("AudioAC audio manager enabled.");
+        System.out.println("AudioAC audio manager enabled.");
 		canonicalClassName = this.getClass().getCanonicalName();
 		this.playBootJingle();
 		this.delayedLoadFiles();
@@ -142,7 +142,6 @@ public class FXUIAudioAC {
 			synchronized(pulseThreadLock){
 				pulseThreadLock.notify();
 			}
-			//indicatorPulseThread.notify();
 			return;
 		}
 		indicatorPulseThread = new Thread(null, new Runnable() {
@@ -262,7 +261,7 @@ public class FXUIAudioAC {
 	        FXUIGameMaster.diagnosticPrintln(audioFileNames.get(positionInClipList));
 	        playFileAtIndex(indexToPlay);
 	        toTheBeat();
-                success = true;
+            success = true;
 	    } catch (Exception e) {
                 FXUIGameMaster.diagnosticPrintln("Audio playback failed. Will try again...");
 	        success = false;

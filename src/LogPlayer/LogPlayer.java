@@ -42,7 +42,7 @@ import javafx.stage.Window;
 
 public class LogPlayer extends Application {
 
-    public static final String versionInfo = "Log-Player\nVersion 00x10h,\nStamp 2016.4.25, 18:00,\nStability: Beta(02)";
+    public static final String versionInfo = "Log-Player\nVersion 00x11h,\nStamp 2016.10.13, 18:00,\nStability: Beta(02)";
     private static final int DEFAULT_APP_WIDTH = 1600;
     private static final int DEFAULT_APP_HEIGHT = 1062;
     private static final int RAPID_PLAY_TIME_DELTA = 1170;
@@ -1009,7 +1009,8 @@ public class LogPlayer extends Application {
                 }
             }
         } catch (Exception e) {
-            System.out.println("readNextLine::: " + e.getMessage());
+            System.out.println("readNextLine::: ");
+            e.printStackTrace();
             errorDisplay.setText(e.getMessage());
         }
     }
@@ -1081,12 +1082,12 @@ public class LogPlayer extends Application {
     }
 
     private int parseAtkLosses(String lossLine) {
-        String temp = lossLine.split("Attacker lost: ")[1];
+        String temp = lossLine.split("lost: ")[1];
         return Integer.parseInt(temp.substring(0, temp.indexOf(';')));
     }
 
     private int parseDfdLosses(String lossLine) {
-        String temp = lossLine.split("Defender lost: ")[1];
+    	String temp = lossLine.split(";")[1].split("lost: ")[1];
         return Integer.parseInt(temp.substring(0));
     }
 

@@ -1165,12 +1165,16 @@ public class WindowResizeHandler {
 	                }
 	            }
 	        );
-	        zoomSettingChoice.setStyle("-fx-font: "+ (12) +"px \"System\";");
-	        zoomSettingChoice.setDisable(!scrollNZoomOpt.isSelected());
+	        zoomSettingChoice.setStyle("-fx-font: "+ (7*FXUIGameMaster.FONT_MULTIPLIER) +"px \"System\";");
+	        
 	        
 	        Text zoomSettingLabel = new Text("Content zoom level");
             zoomSettingLabel.setFont(Font.font("Verdana", FontWeight.LIGHT, 12));
             zoomSettingLabel.setFill(Color.WHITE);
+            
+            zoomSettingChoice.setDisable(!scrollNZoomOpt.isSelected());
+            zoomSettingChoice.setVisible(scrollNZoomOpt.isSelected());
+            zoomSettingLabel.setVisible(scrollNZoomOpt.isSelected());
             /*
             scrollNZoomOpt.selectedProperty().addListener(new ChangeListener<Boolean>(){
 				@Override
@@ -1190,6 +1194,8 @@ public class WindowResizeHandler {
                     	disableScrollNZoom();
                     }
                     zoomSettingChoice.setDisable(!scrollNZoomOpt.isSelected());
+                    zoomSettingChoice.setVisible(scrollNZoomOpt.isSelected());
+                    zoomSettingLabel.setVisible(scrollNZoomOpt.isSelected());
                     
                 	//specialty to trigger a screen refresh in some situations
                     if(!activeStage.isFullScreen()){
@@ -1281,8 +1287,8 @@ public class WindowResizeHandler {
             eyeReliefCategoryLabel.setFill(Color.WHITE);
             
             layout.getChildren().addAll(
-                    querySymbol, queryText, bufferLineOne, doFullScreen,
-                    bufferLineTwo, windowSizeSliderLabel, windowSizeSlider, scrollNZoomOpt, zoomSettingLabel, zoomSettingChoice,
+                    querySymbol, queryText, bufferLineOne, doFullScreen, windowSizeSliderLabel, windowSizeSlider,
+                    bufferLineTwo, scrollNZoomOpt, zoomSettingLabel, zoomSettingChoice,
                     bufferLineThree, brightnessCategoryLabel, autoDim, britenessSliderLabel, britenessSlider,
                     bufferLineFour, eyeReliefCategoryLabel, eyeReliefChoice
             );
